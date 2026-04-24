@@ -2644,6 +2644,7 @@ describe("writeback confirmation flow", () => {
           affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D5"],
           overwriteRisk: plan.overwriteRisk,
           confirmationLevel: plan.confirmationLevel,
+          undoReady: true,
           summary: "Created analysis report on Sales Report!A1:D5."
         }
       }
@@ -2654,7 +2655,8 @@ describe("writeback confirmation flow", () => {
     expect(traceBus.getRun("run_analysis_report")?.writeback?.result).toMatchObject({
       kind: "analysis_report_update",
       targetSheet: "Sales Report",
-      targetRange: "A1:D5"
+      targetRange: "A1:D5",
+      undoReady: true
     });
   });
 
@@ -4721,6 +4723,7 @@ describe("writeback confirmation flow", () => {
           kind: "range_sort",
           hostPlatform: "google_sheets",
           ...plan,
+          undoReady: true,
           summary: "Sorted Sheet1!A1:F25 by Status asc, Due Date desc."
         }
       }
@@ -4730,7 +4733,8 @@ describe("writeback confirmation flow", () => {
     expect(traceBus.getRun("run_sort_typed")?.writeback?.result).toMatchObject({
       kind: "range_sort",
       targetSheet: "Sheet1",
-      targetRange: "A1:F25"
+      targetRange: "A1:F25",
+      undoReady: true
     });
   });
 
@@ -5590,6 +5594,7 @@ describe("writeback confirmation flow", () => {
           affectedRanges: ["Contacts!A2:F100"],
           overwriteRisk: "high",
           confirmationLevel: "destructive",
+          undoReady: true,
           summary: "Removed duplicate rows from Contacts!A2:F100."
         }
       }
@@ -5603,7 +5608,8 @@ describe("writeback confirmation flow", () => {
         operation: "remove_duplicate_rows",
         targetSheet: "Contacts",
         targetRange: "A2:F100",
-        keyColumns: ["A", "C"]
+        keyColumns: ["A", "C"],
+        undoReady: true
       }
     });
   });
