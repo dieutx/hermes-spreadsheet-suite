@@ -1,9 +1,9 @@
-# ASM-Inspired Backlog
+# Product Backlog
 
 Ngày rà soát: `2026-04-24`
 
 Phạm vi:
-- Backlog này lấy ý tưởng từ các merged PR gần đây của `luongnv89/asm`, nhưng chỉ giữ những gì áp dụng trực tiếp cho `hermes-spreadsheet-suite`.
+- Backlog này tổng hợp các hướng cải thiện có thể áp dụng trực tiếp cho `hermes-spreadsheet-suite`.
 - Backlog này không thay thế [Missing Capabilities Backlog](./missing-capabilities-backlog-2026-04-23.md).
 - Mục tiêu ở đây là tăng `reviewability`, `operability`, `UX ở host`, và `devex`, trong khi vẫn giữ nguyên các invariant hiện tại:
   - Hermes core không vào repo này
@@ -11,15 +11,12 @@ Phạm vi:
   - hosts vẫn là thin client
   - gateway vẫn là validator / approval / control plane
 
-Nguồn ý tưởng chính:
-- `asm` PR `#226`, `#220`, `#232`, `#231`, `#230`, `#218`, `#211`, `#208`, `#203`, `#200`, `#199`, `#196`, `#195`
-
 ## 1. Fixture Eval Runner Và Batch Regression Gate
 
-**idea học từ `asm`**
+**pattern**
 
-- `#196`: batch-evaluate collections với provenance rõ ràng
-- `#218`: eval -> fix -> re-eval loop với target threshold
+- batch-evaluate collections với provenance rõ ràng
+- eval -> fix -> re-eval loop với target threshold
 
 **áp vào repo này như thế nào**
 
@@ -66,9 +63,9 @@ Runner này nên đọc các fixture pack cố định và kiểm tra:
 
 ## 2. Host-State-Isolated Integration Harness
 
-**idea học từ `asm`**
+**pattern**
 
-- `#200`: test phải tách khỏi host state thật
+- test phải tách khỏi host state thật
 
 **áp vào repo này như thế nào**
 
@@ -108,11 +105,11 @@ Cần đưa các integration test quan trọng về trạng thái `deterministic
 
 ## 3. Scannable Run History Và Two-Pane Explorer Cho Host UI
 
-**idea học từ `asm`**
+**pattern**
 
-- `#195`: output lớn phải scannable
-- `#231`: sidebar + detail layout
-- `#232`: virtualize list khi số item lớn
+- output lớn phải scannable
+- sidebar + detail layout
+- virtualize list khi số item lớn
 
 **áp vào repo này như thế nào**
 
@@ -156,10 +153,10 @@ Nên thêm một `run explorer` trong host:
 
 ## 4. Workflow Bundles / Demo Packs Thành First-Class Manifest
 
-**idea học từ `asm`**
+**pattern**
 
-- `#211`: ship predefined bundles
-- `#208`: bundle modify / export
+- ship predefined bundles
+- bundle modify / export
 
 **áp vào repo này như thế nào**
 
@@ -204,10 +201,10 @@ Nhưng hiện chưa có một `manifest` chuẩn cho workflow pack hoặc demo p
 
 ## 5. Generated Capability Registry: Slim Matrix + Detail Artifacts
 
-**idea học từ `asm`**
+**pattern**
 
-- `#220`: split artifact theo use case runtime
-- `#203`: id phải đủ specific để không collapse variants
+- split artifact theo use case runtime
+- id phải đủ specific để không collapse variants
 
 **áp vào repo này như thế nào**
 
@@ -247,9 +244,9 @@ Nên tạo một generated capability registry để:
 
 ## 6. Refactor Host UI Shell Mà Không Đụng Wire Contracts
 
-**idea học từ `asm`**
+**pattern**
 
-- `#230`: rewrite UI layer nhưng giữ nguyên data contract
+- rewrite UI layer nhưng giữ nguyên data contract
 
 **áp vào repo này như thế nào**
 
@@ -289,11 +286,11 @@ Nếu tiếp tục mở rộng trực tiếp trong các file này, chi phí thay
 
 ## Không Nên Copy Nguyên Xi Lúc Này
 
-- Bỏ Bun / gom toolchain về Node-only như `asm #226`
+- Bỏ runtime hoặc toolchain phụ để gom toàn bộ về một stack duy nhất
   - Repo này đã chủ yếu ở Node/TypeScript rồi; đây không phải choke point hiện tại.
-- Website catalog rewrite như `asm #230`
+- Public website catalog rewrite
   - Hermes Spreadsheet Suite hiện chưa có public catalog/product site kiểu đó; giá trị trực tiếp thấp hơn các mục trên.
-- Public catalog filtering/highlighting như `asm #199`
+- Public catalog filtering/highlighting
   - Ý tưởng tốt, nhưng trước mắt nên áp nó vào run explorer nội bộ thay vì dựng website riêng.
 
 ## Khuyến nghị thứ tự tổng
