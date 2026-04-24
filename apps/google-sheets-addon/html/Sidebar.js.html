@@ -1505,19 +1505,26 @@
       cells: snapshot.beforeCells
     });
     assertLocalExecutionSnapshotStoreWritable(workbookSessionKey, snapshot, "undo");
-    const result = await callGatewayJson("/api/execution/undo", {
+    const requestId = createRequestId();
+    const request = {
+      executionId,
+      requestId,
+      workbookSessionKey
+    };
+    await callGatewayJson("/api/execution/undo/prepare", {
       method: "post",
       headers: { "content-type": "application/json" },
-      body: {
-        executionId,
-        requestId: createRequestId(),
-        workbookSessionKey
-      }
+      body: request
     });
     await callServer("applyExecutionCellSnapshot", {
       targetSheet: snapshot.targetSheet,
       targetRange: snapshot.targetRange,
       cells: snapshot.beforeCells
+    });
+    const result = await callGatewayJson("/api/execution/undo", {
+      method: "post",
+      headers: { "content-type": "application/json" },
+      body: request
     });
     if (result && result.executionId) {
       linkLocalExecutionSnapshot(workbookSessionKey, result.executionId, executionId);
@@ -1538,19 +1545,26 @@
       cells: snapshot.afterCells
     });
     assertLocalExecutionSnapshotStoreWritable(workbookSessionKey, snapshot, "redo");
-    const result = await callGatewayJson("/api/execution/redo", {
+    const requestId = createRequestId();
+    const request = {
+      executionId,
+      requestId,
+      workbookSessionKey
+    };
+    await callGatewayJson("/api/execution/redo/prepare", {
       method: "post",
       headers: { "content-type": "application/json" },
-      body: {
-        executionId,
-        requestId: createRequestId(),
-        workbookSessionKey
-      }
+      body: request
     });
     await callServer("applyExecutionCellSnapshot", {
       targetSheet: snapshot.targetSheet,
       targetRange: snapshot.targetRange,
       cells: snapshot.afterCells
+    });
+    const result = await callGatewayJson("/api/execution/redo", {
+      method: "post",
+      headers: { "content-type": "application/json" },
+      body: request
     });
     if (result && result.executionId) {
       linkLocalExecutionSnapshot(workbookSessionKey, result.executionId, executionId);

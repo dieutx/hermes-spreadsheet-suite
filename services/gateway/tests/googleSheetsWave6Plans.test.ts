@@ -892,6 +892,21 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
           };
         }
 
+        if (url.endsWith("/api/execution/undo/prepare")) {
+          expect(JSON.parse(String(init?.body))).toMatchObject({
+            executionId: "exec_001",
+            workbookSessionKey
+          });
+          return {
+            kind: "composite_update",
+            operation: "composite_update",
+            hostPlatform: "google_sheets",
+            executionId: "exec_undo_preview_001",
+            stepResults: [],
+            summary: "Prepared Sheet8!A1 undo."
+          };
+        }
+
         if (url.endsWith("/api/execution/undo")) {
           expect(JSON.parse(String(init?.body))).toMatchObject({
             executionId: "exec_001",
@@ -915,11 +930,12 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     hooks.elements.prompt.value = "undo";
     await hooks.sendPrompt();
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0][0]).toBe(
       "http://127.0.0.1:8787/api/execution/history?workbookSessionKey=google_sheets%3A%3Asheet-123&limit=20"
     );
-    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
     expect(hooks.elements.messages.innerHTML).toContain("Undid Sheet8!A1.");
   });
 
@@ -1993,12 +2009,34 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
           };
         }
 
+        if (url.endsWith("/api/execution/undo/prepare")) {
+          return {
+            kind: "composite_update",
+            operation: "composite_update",
+            hostPlatform: "google_sheets",
+            executionId: "exec_undo_preview_001",
+            stepResults: [],
+            summary: init?.body || ""
+          };
+        }
+
         if (url.endsWith("/api/execution/undo")) {
           return {
             kind: "composite_update",
             operation: "composite_update",
             hostPlatform: "google_sheets",
             executionId: "exec_undo_001",
+            stepResults: [],
+            summary: init?.body || ""
+          };
+        }
+
+        if (url.endsWith("/api/execution/redo/prepare")) {
+          return {
+            kind: "composite_update",
+            operation: "composite_update",
+            hostPlatform: "google_sheets",
+            executionId: "exec_redo_preview_001",
             stepResults: [],
             summary: init?.body || ""
           };
@@ -2065,7 +2103,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     await sidebar.undoExecution("exec_001");
     await sidebar.redoExecution("exec_undo_001");
 
-    expect(sidebar.fetch).toHaveBeenCalledTimes(4);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(6);
     expect(sidebar.fetch.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/dry-run");
     expect(JSON.parse(String(sidebar.fetch.mock.calls[0][1]?.body))).toMatchObject({
       workbookSessionKey: "google_sheets::sheet-123"
@@ -2073,12 +2111,26 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(sidebar.fetch.mock.calls[1][0]).toBe(
       "http://127.0.0.1:8787/api/execution/history?workbookSessionKey=google_sheets%3A%3Asheet-123&limit=5"
     );
-    expect(sidebar.fetch.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(sidebar.fetch.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
     expect(JSON.parse(String(sidebar.fetch.mock.calls[2][1]?.body))).toMatchObject({
       executionId: "exec_001",
       workbookSessionKey: "google_sheets::sheet-123"
     });
-    expect(sidebar.fetch.mock.calls[3][0]).toBe("http://127.0.0.1:8787/api/execution/redo");
+    expect(sidebar.fetch.mock.calls[3][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(JSON.parse(String(sidebar.fetch.mock.calls[3][1]?.body))).toMatchObject({
+      executionId: "exec_001",
+      workbookSessionKey: "google_sheets::sheet-123"
+    });
+    expect(sidebar.fetch.mock.calls[4][0]).toBe("http://127.0.0.1:8787/api/execution/redo/prepare");
+    expect(JSON.parse(String(sidebar.fetch.mock.calls[4][1]?.body))).toMatchObject({
+      executionId: "exec_undo_001",
+      workbookSessionKey: "google_sheets::sheet-123"
+    });
+    expect(sidebar.fetch.mock.calls[5][0]).toBe("http://127.0.0.1:8787/api/execution/redo");
+    expect(JSON.parse(String(sidebar.fetch.mock.calls[5][1]?.body))).toMatchObject({
+      executionId: "exec_undo_001",
+      workbookSessionKey: "google_sheets::sheet-123"
+    });
     expect(sidebar.callServer).toHaveBeenCalledWith("applyExecutionCellSnapshot", expect.objectContaining({
       targetSheet: "Sales",
       targetRange: "A1"
@@ -2129,6 +2181,86 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       "The saved undo snapshot no longer matches the current range shape."
     );
     expect(sidebar.fetch).not.toHaveBeenCalled();
+  });
+
+  it("prepares undo and redo but does not commit the gateway when local snapshot apply fails", async () => {
+    function loadFailingApplySidebar() {
+      const sidebar = loadSidebarContext();
+      sidebar.__sidebarTestHooks.state.runtimeConfig = {
+        gatewayBaseUrl: "http://127.0.0.1:8787",
+        clientVersion: "google-sheets-addon-dev",
+        reviewerSafeMode: false,
+        forceExtractionMode: null
+      };
+      const backingStore = new Map<string, string>();
+      backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+        version: 1,
+        order: ["exec_001", "exec_undo_001"],
+        executions: {
+          exec_001: {
+            baseExecutionId: "exec_001"
+          },
+          exec_undo_001: {
+            baseExecutionId: "exec_001"
+          }
+        },
+        bases: {
+          exec_001: {
+            baseExecutionId: "exec_001",
+            targetSheet: "Sales",
+            targetRange: "A1",
+            beforeCells: [[{ kind: "value", value: { type: "string", value: "before" } }]],
+            afterCells: [[{ kind: "value", value: { type: "string", value: "after" } }]]
+          }
+        }
+      }));
+      sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) ?? null);
+      sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+        backingStore.set(key, value);
+      });
+      sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+        if (functionName === "getWorkbookSessionKey") {
+          return "google_sheets::sheet-123";
+        }
+
+        if (functionName === "validateExecutionCellSnapshot") {
+          return payload;
+        }
+
+        if (functionName === "applyExecutionCellSnapshot") {
+          throw new Error("Apps Script flush failed.");
+        }
+
+        throw new Error(`Unexpected server call: ${functionName}`);
+      });
+      sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+        ok: true,
+        async json() {
+          return {
+            kind: "composite_update",
+            operation: "composite_update",
+            hostPlatform: "google_sheets",
+            executionId: String(url).includes("/redo/") ? "exec_redo_preview_001" : "exec_undo_preview_001",
+            stepResults: [],
+            summary: init?.body || ""
+          };
+        }
+      }));
+
+      return sidebar;
+    }
+
+    const undo = loadFailingApplySidebar();
+    await expect(undo.undoExecution("exec_001")).rejects.toThrow("Apps Script flush failed.");
+    expect(undo.fetch).toHaveBeenCalledTimes(1);
+    expect(undo.fetch.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(undo.fetch.mock.calls.some(([url]) => String(url).endsWith("/api/execution/undo"))).toBe(false);
+
+    const redo = loadFailingApplySidebar();
+    await expect(redo.redoExecution("exec_undo_001")).rejects.toThrow("Apps Script flush failed.");
+    expect(redo.fetch).toHaveBeenCalledTimes(1);
+    expect(redo.fetch.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/redo/prepare");
+    expect(redo.fetch.mock.calls.some(([url]) => String(url).endsWith("/api/execution/redo"))).toBe(false);
   });
 
   it("fails undo and redo before calling the gateway when the local snapshot store cannot persist redo lineage", async () => {

@@ -158,7 +158,77 @@ export class ExecutionLedger {
     return this.dryRuns.get(this.getDryRunKey(workbookSessionKey, planDigest));
   }
 
+  prepareUndoExecution(request: UndoRequest): CompositeUpdateData {
+    const record = this.getUndoRecord(request);
+    return this.buildUndoResult(request, record.entry);
+  }
+
   undoExecution(request: UndoRequest): CompositeUpdateData {
+    const record = this.getUndoRecord(request);
+    const result = this.buildUndoResult(request, record.entry);
+
+    this.upsertHistoryEntry({
+      workbookSessionKey: record.workbookSessionKey,
+      ...record.entry,
+      undoEligible: false,
+      redoEligible: false
+    });
+
+    this.upsertHistoryEntry({
+      workbookSessionKey: record.workbookSessionKey,
+      executionId: result.executionId,
+      requestId: request.requestId,
+      runId: this.buildControlRunId("undo", request.requestId),
+      planType: "undo_request",
+      planDigest: this.buildControlPlanDigest("undo", record.entry.planDigest),
+      status: "undone",
+      timestamp: this.isoTimestamp(),
+      reversible: true,
+      undoEligible: false,
+      redoEligible: true,
+      summary: result.summary,
+      linkedExecutionId: record.entry.executionId
+    });
+
+    return result;
+  }
+
+  prepareRedoExecution(request: RedoRequest): CompositeUpdateData {
+    const record = this.getRedoRecord(request);
+    return this.buildRedoResult(request, record.entry);
+  }
+
+  redoExecution(request: RedoRequest): CompositeUpdateData {
+    const record = this.getRedoRecord(request);
+    const result = this.buildRedoResult(request, record.entry);
+
+    this.upsertHistoryEntry({
+      workbookSessionKey: record.workbookSessionKey,
+      ...record.entry,
+      undoEligible: false,
+      redoEligible: false
+    });
+
+    this.upsertHistoryEntry({
+      workbookSessionKey: record.workbookSessionKey,
+      executionId: result.executionId,
+      requestId: request.requestId,
+      runId: this.buildControlRunId("redo", request.requestId),
+      planType: "redo_request",
+      planDigest: this.buildControlPlanDigest("redo", record.entry.planDigest),
+      status: "redone",
+      timestamp: this.isoTimestamp(),
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: result.summary,
+      linkedExecutionId: record.entry.executionId
+    });
+
+    return result;
+  }
+
+  private getUndoRecord(request: UndoRequest): HistoryRecord {
     const record = this.historyByExecutionId.get(
       this.getExecutionKey(request.workbookSessionKey, request.executionId)
     );
@@ -170,48 +240,10 @@ export class ExecutionLedger {
       throw new StaleExecutionError("Undo target is missing, stale, or not reversible.");
     }
 
-    const timestamp = this.isoTimestamp();
-    const summary = `Undid execution ${record.entry.executionId}.`;
-    const executionId = this.buildControlExecutionId("undo", request.requestId, record.entry.executionId);
-
-    this.upsertHistoryEntry({
-      workbookSessionKey: record.workbookSessionKey,
-      ...record.entry,
-      undoEligible: false,
-      redoEligible: false
-    });
-
-    this.upsertHistoryEntry({
-      workbookSessionKey: record.workbookSessionKey,
-      executionId,
-      requestId: request.requestId,
-      runId: this.buildControlRunId("undo", request.requestId),
-      planType: "undo_request",
-      planDigest: this.buildControlPlanDigest("undo", record.entry.planDigest),
-      status: "undone",
-      timestamp,
-      reversible: true,
-      undoEligible: false,
-      redoEligible: true,
-      summary,
-      linkedExecutionId: record.entry.executionId
-    });
-
-    return {
-      operation: "composite_update",
-      executionId,
-      stepResults: [
-        {
-          stepId: `undo_${record.entry.executionId}`.slice(0, 128),
-          status: "completed",
-          summary
-        }
-      ],
-      summary
-    };
+    return record;
   }
 
-  redoExecution(request: RedoRequest): CompositeUpdateData {
+  private getRedoRecord(request: RedoRequest): HistoryRecord {
     const record = this.historyByExecutionId.get(
       this.getExecutionKey(request.workbookSessionKey, request.executionId)
     );
@@ -224,39 +256,37 @@ export class ExecutionLedger {
       throw new StaleExecutionError("Redo target is missing, stale, or not reversible.");
     }
 
-    const timestamp = this.isoTimestamp();
-    const summary = `Redid execution ${record.entry.executionId}.`;
-    const executionId = this.buildControlExecutionId("redo", request.requestId, record.entry.executionId);
+    return record;
+  }
 
-    this.upsertHistoryEntry({
-      workbookSessionKey: record.workbookSessionKey,
-      ...record.entry,
-      undoEligible: false,
-      redoEligible: false
-    });
-
-    this.upsertHistoryEntry({
-      workbookSessionKey: record.workbookSessionKey,
-      executionId,
-      requestId: request.requestId,
-      runId: this.buildControlRunId("redo", request.requestId),
-      planType: "redo_request",
-      planDigest: this.buildControlPlanDigest("redo", record.entry.planDigest),
-      status: "redone",
-      timestamp,
-      reversible: true,
-      undoEligible: true,
-      redoEligible: false,
-      summary,
-      linkedExecutionId: record.entry.executionId
-    });
+  private buildUndoResult(request: UndoRequest, entry: PlanHistoryEntry): CompositeUpdateData {
+    const summary = `Undid execution ${entry.executionId}.`;
+    const executionId = this.buildControlExecutionId("undo", request.requestId, entry.executionId);
 
     return {
       operation: "composite_update",
       executionId,
       stepResults: [
         {
-          stepId: `redo_${record.entry.executionId}`.slice(0, 128),
+          stepId: `undo_${entry.executionId}`.slice(0, 128),
+          status: "completed",
+          summary
+        }
+      ],
+      summary
+    };
+  }
+
+  private buildRedoResult(request: RedoRequest, entry: PlanHistoryEntry): CompositeUpdateData {
+    const summary = `Redid execution ${entry.executionId}.`;
+    const executionId = this.buildControlExecutionId("redo", request.requestId, entry.executionId);
+
+    return {
+      operation: "composite_update",
+      executionId,
+      stepResults: [
+        {
+          stepId: `redo_${entry.executionId}`.slice(0, 128),
           status: "completed",
           summary
         }

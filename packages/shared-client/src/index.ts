@@ -215,9 +215,29 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       );
     },
 
+    async prepareUndoExecution(input) {
+      return parseJson(
+        await fetch(`${normalizedBaseUrl}/api/execution/undo/prepare`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input)
+        })
+      );
+    },
+
     async redoExecution(input) {
       return parseJson(
         await fetch(`${normalizedBaseUrl}/api/execution/redo`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input)
+        })
+      );
+    },
+
+    async prepareRedoExecution(input) {
+      return parseJson(
+        await fetch(`${normalizedBaseUrl}/api/execution/redo/prepare`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(input)

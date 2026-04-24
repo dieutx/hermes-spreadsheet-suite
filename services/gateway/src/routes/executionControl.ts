@@ -212,10 +212,30 @@ export function createExecutionControlRouter(input: {
     }
   });
 
+  router.post("/undo/prepare", (req, res) => {
+    try {
+      const parsed = UndoRequestSchema.parse(req.body);
+      res.json(input.executionLedger.prepareUndoExecution(parsed));
+    } catch (error) {
+      const formatted = formatExecutionControlError(error);
+      res.status(formatted.status).json(formatted.body);
+    }
+  });
+
   router.post("/redo", (req, res) => {
     try {
       const parsed = RedoRequestSchema.parse(req.body);
       res.json(input.executionLedger.redoExecution(parsed));
+    } catch (error) {
+      const formatted = formatExecutionControlError(error);
+      res.status(formatted.status).json(formatted.body);
+    }
+  });
+
+  router.post("/redo/prepare", (req, res) => {
+    try {
+      const parsed = RedoRequestSchema.parse(req.body);
+      res.json(input.executionLedger.prepareRedoExecution(parsed));
     } catch (error) {
       const formatted = formatExecutionControlError(error);
       res.status(formatted.status).json(formatted.body);

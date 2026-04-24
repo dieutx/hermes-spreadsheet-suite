@@ -908,7 +908,9 @@ describe("shared client render helpers", () => {
 
     expect(typeof client.dryRunPlan).toBe("function");
     expect(typeof client.listPlanHistory).toBe("function");
+    expect(typeof client.prepareUndoExecution).toBe("function");
     expect(typeof client.undoExecution).toBe("function");
+    expect(typeof client.prepareRedoExecution).toBe("function");
     expect(typeof client.redoExecution).toBe("function");
   });
 
