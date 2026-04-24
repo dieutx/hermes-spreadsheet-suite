@@ -177,6 +177,7 @@ npm run dev:table-skill
 - reviewer checklist: [docs/reviewer-checklist.md](docs/reviewer-checklist.md)
 - release/deploy notes: [RELEASE.md](RELEASE.md)
 - capability backlog: [docs/missing-capabilities-backlog-2026-04-23.md](docs/missing-capabilities-backlog-2026-04-23.md)
+- ASM-inspired backlog: [docs/asm-inspired-backlog-2026-04-24.md](docs/asm-inspired-backlog-2026-04-24.md)
 
 ## Contribution Standard
 
