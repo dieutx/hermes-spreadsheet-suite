@@ -5785,10 +5785,12 @@ async function applyCompositePlan({ plan, requestId, runId, approvalToken, execu
         runId,
         approvalToken
       });
+      const gatewayResult = stripLocalExecutionSnapshot(result);
       stepResults.push({
         stepId: step.stepId,
         status: "completed",
-        summary: getCompositeStepWritebackStatusLine(step.plan, result)
+        summary: getCompositeStepWritebackStatusLine(step.plan, result),
+        result: gatewayResult
       });
       completedSteps.add(step.stepId);
     } catch (error) {

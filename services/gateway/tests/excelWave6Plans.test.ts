@@ -2482,6 +2482,89 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     });
   });
 
+  it("returns child writeback proof for completed Excel composite steps", async () => {
+    const targetRange = {
+      rowCount: 1,
+      columnCount: 2,
+      values: [["", ""]],
+      formulas: [["", ""]],
+      load: vi.fn(),
+      getCell: vi.fn()
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        steps: [
+          {
+            stepId: "step_write",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              targetSheet: "Sales",
+              targetRange: "A1:B1",
+              operation: "replace_range",
+              values: [["Region", "Revenue"]],
+              explanation: "Write headers.",
+              confidence: 0.9,
+              requiresConfirmation: true,
+              overwriteRisk: "low",
+              shape: {
+                rows: 1,
+                columns: 2
+              }
+            }
+          }
+        ],
+        explanation: "Write headers.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:B1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: false,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      },
+      requestId: "req_composite_success_excel_001",
+      runId: "run_composite_success_excel_001",
+      approvalToken: "token",
+      executionId: "exec_composite_success_excel_001"
+    })).resolves.toMatchObject({
+      kind: "composite_update",
+      operation: "composite_update",
+      executionId: "exec_composite_success_excel_001",
+      stepResults: [
+        {
+          stepId: "step_write",
+          status: "completed",
+          summary: "Wrote values to Sales!A1:B1.",
+          result: {
+            kind: "range_write",
+            hostPlatform: "excel_windows",
+            targetSheet: "Sales",
+            targetRange: "A1:B1",
+            operation: "replace_range",
+            values: [["Region", "Revenue"]],
+            writtenRows: 1,
+            writtenColumns: 2
+          }
+        }
+      ]
+    });
+    expect(targetRange.values).toEqual([["Region", "Revenue"]]);
+  });
+
   it("fails closed when a composite step appears before an unsatisfied dependency in Excel execution order", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {}),
