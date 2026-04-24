@@ -961,6 +961,37 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
 
     expect(hooks.elements.messages.innerHTML).toContain("Write-back failed.");
   });
+
+  it("keeps the Google Sheets sidebar pinned to the latest message after deferred layout growth", () => {
+    vi.useFakeTimers();
+    const sidebar = loadSidebarContext();
+    const hooks = (sidebar as any).__sidebarTestHooks;
+    const scrollIntoView = vi.fn();
+    const messagesElement = hooks.elements.messages as {
+      scrollTop: number;
+      scrollHeight: number;
+      lastElementChild?: { scrollIntoView?: ReturnType<typeof vi.fn> };
+    };
+
+    hooks.state.messages = [
+      { role: "user", content: "Summarize this sheet." },
+      { role: "assistant", content: "Thinking..." }
+    ];
+    messagesElement.scrollTop = 0;
+    messagesElement.scrollHeight = 120;
+    messagesElement.lastElementChild = { scrollIntoView };
+
+    hooks.renderMessages();
+
+    expect(messagesElement.scrollTop).toBe(120);
+
+    messagesElement.scrollHeight = 420;
+    vi.advanceTimersByTime(280);
+
+    expect(messagesElement.scrollTop).toBe(420);
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
   it("loads runtime config before sending a prompt when initialize has not finished yet", async () => {
     const sidebar = loadSidebarContext();
     const hooks = (sidebar as any).__sidebarTestHooks;

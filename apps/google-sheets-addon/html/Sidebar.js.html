@@ -18,6 +18,7 @@
   const MAX_STORED_MESSAGES = 100;
   const MAX_MESSAGE_TRACE_EVENTS = 200;
   const REQUEST_TRUNCATION_SUFFIX = "...";
+  const MESSAGE_SCROLL_FOLLOWUP_DELAYS_MS = [40, 120, 280];
   const ENABLE_LIVE_TRACE_POLLING = false;
   const MESSAGE_POLL_INTERVAL_MS = 900;
   const MESSAGE_POLL_MAX_INTERVAL_MS = 5000;
@@ -4000,6 +4001,60 @@
     return "";
   }
 
+  function clearMessageScrollFollowUps() {
+    if (typeof window.clearTimeout === "function") {
+      (state.messageScrollTimeoutIds || []).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+    }
+    if (typeof window.cancelAnimationFrame === "function") {
+      (state.messageScrollFrameIds || []).forEach((frameId) => {
+        window.cancelAnimationFrame(frameId);
+      });
+    }
+    state.messageScrollTimeoutIds = [];
+    state.messageScrollFrameIds = [];
+  }
+
+  function scrollMessagesToBottom() {
+    if (!elements.messages) {
+      return;
+    }
+
+    elements.messages.scrollTop = elements.messages.scrollHeight;
+    if (elements.messages.lastElementChild &&
+      typeof elements.messages.lastElementChild.scrollIntoView === "function") {
+      elements.messages.lastElementChild.scrollIntoView({ block: "end" });
+    }
+  }
+
+  function scheduleMessagesScrollToBottom() {
+    clearMessageScrollFollowUps();
+    scrollMessagesToBottom();
+
+    if (typeof window.requestAnimationFrame === "function") {
+      const firstFrameId = window.requestAnimationFrame(() => {
+        scrollMessagesToBottom();
+        if (typeof window.requestAnimationFrame === "function") {
+          const secondFrameId = window.requestAnimationFrame(() => {
+            scrollMessagesToBottom();
+          });
+          state.messageScrollFrameIds.push(secondFrameId);
+        }
+      });
+      state.messageScrollFrameIds.push(firstFrameId);
+    }
+
+    if (typeof window.setTimeout === "function") {
+      MESSAGE_SCROLL_FOLLOWUP_DELAYS_MS.forEach((delay) => {
+        const timeoutId = window.setTimeout(() => {
+          scrollMessagesToBottom();
+        }, delay);
+        state.messageScrollTimeoutIds.push(timeoutId);
+      });
+    }
+  }
+
   function renderMessages() {
     elements.messages.innerHTML = state.messages.map((message) => {
       const response = message.response;
@@ -4047,7 +4102,7 @@
       });
     });
 
-    elements.messages.scrollTop = elements.messages.scrollHeight;
+    scheduleMessagesScrollToBottom();
   }
 
   async function uploadPendingAttachments() {
