@@ -5,7 +5,7 @@ import { createExecutionControlRouter } from "../src/routes/executionControl.ts"
 import { ExecutionLedger } from "../src/lib/executionLedger.ts";
 
 function invokeExecutionRoute(input: {
-  path: "/dry-run" | "/history" | "/undo" | "/redo";
+  path: "/dry-run" | "/history" | "/undo" | "/undo/prepare" | "/redo" | "/redo/prepare";
   method: "get" | "post";
   body?: Record<string, unknown>;
   query?: Record<string, unknown>;
@@ -80,7 +80,7 @@ function buildDryRunBody(overrides?: Partial<Record<string, unknown>>) {
 }
 
 function invokeExecutionRouteWithLedger(input: {
-  path: "/dry-run" | "/history" | "/undo" | "/redo";
+  path: "/dry-run" | "/history" | "/undo" | "/undo/prepare" | "/redo" | "/redo/prepare";
   method: "get" | "post";
   ledger: ExecutionLedger;
   body?: Record<string, unknown>;
@@ -590,6 +590,82 @@ describe("execution control routes", () => {
     expect(redo.body).toMatchObject({
       operation: "composite_update",
       summary: `Redid execution ${undoExecutionId}.`
+    });
+  });
+
+  it("prepares undo and redo control results without mutating history", () => {
+    const ledger = new ExecutionLedger();
+    ledger.recordCompleted({
+      executionId: "exec_001",
+      workbookSessionKey: "excel_windows::workbook-123",
+      requestId: "req_001",
+      runId: "run_001",
+      planType: "sheet_update",
+      planDigest: "digest_001",
+      status: "completed",
+      timestamp: "2026-04-20T13:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "Updated Sales!A1:B2."
+    });
+
+    const preparedUndo = invokeExecutionRouteWithLedger({
+      path: "/undo/prepare",
+      method: "post",
+      ledger,
+      body: {
+        requestId: "req_undo_001",
+        workbookSessionKey: "excel_windows::workbook-123",
+        executionId: "exec_001"
+      }
+    });
+
+    expect(preparedUndo.status).toBe(200);
+    expect(preparedUndo.body).toMatchObject({
+      operation: "composite_update",
+      summary: "Undid execution exec_001."
+    });
+    expect(ledger.listHistory("excel_windows::workbook-123").entries).toHaveLength(1);
+    expect(ledger.listHistory("excel_windows::workbook-123").entries[0]).toMatchObject({
+      executionId: "exec_001",
+      undoEligible: true,
+      redoEligible: false
+    });
+
+    const undo = invokeExecutionRouteWithLedger({
+      path: "/undo",
+      method: "post",
+      ledger,
+      body: {
+        requestId: "req_undo_001",
+        workbookSessionKey: "excel_windows::workbook-123",
+        executionId: "exec_001"
+      }
+    });
+    const undoExecutionId = (undo.body as any).executionId;
+
+    const preparedRedo = invokeExecutionRouteWithLedger({
+      path: "/redo/prepare",
+      method: "post",
+      ledger,
+      body: {
+        requestId: "req_redo_001",
+        workbookSessionKey: "excel_windows::workbook-123",
+        executionId: undoExecutionId
+      }
+    });
+
+    expect(preparedRedo.status).toBe(200);
+    expect(preparedRedo.body).toMatchObject({
+      operation: "composite_update",
+      summary: `Redid execution ${undoExecutionId}.`
+    });
+    const history = ledger.listHistory("excel_windows::workbook-123").entries;
+    expect(history).toHaveLength(2);
+    expect(history.find((entry) => entry.executionId === undoExecutionId)).toMatchObject({
+      redoEligible: true,
+      status: "undone"
     });
   });
 });

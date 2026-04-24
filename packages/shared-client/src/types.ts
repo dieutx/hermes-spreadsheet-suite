@@ -305,7 +305,9 @@ export type GatewayClient = {
     cursor?: string;
     limit?: number;
   }): Promise<PlanHistoryPage>;
+  prepareUndoExecution(input: UndoRequest): Promise<CompositeUpdateData>;
   undoExecution(input: UndoRequest): Promise<CompositeUpdateData>;
+  prepareRedoExecution(input: RedoRequest): Promise<CompositeUpdateData>;
   redoExecution(input: RedoRequest): Promise<CompositeUpdateData>;
   approveWrite(input: WritebackApprovalRequest): Promise<WritebackApprovalResponse>;
   completeWrite(input: WritebackCompletionRequest): Promise<WritebackCompletionResponse>;

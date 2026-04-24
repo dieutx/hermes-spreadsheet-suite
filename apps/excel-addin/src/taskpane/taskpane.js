@@ -4255,8 +4255,24 @@ const gateway = {
     }));
   },
 
+  async prepareUndoExecution(input) {
+    return parseJson(await fetch(`${gatewayBaseUrl}/api/execution/undo/prepare`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input)
+    }));
+  },
+
   async redoExecution(input) {
     return parseJson(await fetch(`${gatewayBaseUrl}/api/execution/redo`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input)
+    }));
+  },
+
+  async prepareRedoExecution(input) {
+    return parseJson(await fetch(`${gatewayBaseUrl}/api/execution/redo/prepare`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)
@@ -4288,12 +4304,15 @@ async function undoExecution(executionId) {
 
   await validateLocalExecutionSnapshotForMode(snapshot, "undo");
   assertLocalExecutionSnapshotStoreWritable(workbookSessionKey, snapshot, "undo");
-  const result = await gateway.undoExecution({
+  const requestId = createRequestId();
+  const request = {
     executionId,
-    requestId: createRequestId(),
+    requestId,
     workbookSessionKey
-  });
+  };
+  await gateway.prepareUndoExecution(request);
   await restoreLocalExecutionSnapshotForMode(snapshot, "undo");
+  const result = await gateway.undoExecution(request);
   if (result?.executionId) {
     linkLocalExecutionSnapshot(workbookSessionKey, result.executionId, executionId);
   }
@@ -4309,12 +4328,15 @@ async function redoExecution(executionId) {
 
   await validateLocalExecutionSnapshotForMode(snapshot, "redo");
   assertLocalExecutionSnapshotStoreWritable(workbookSessionKey, snapshot, "redo");
-  const result = await gateway.redoExecution({
+  const requestId = createRequestId();
+  const request = {
     executionId,
-    requestId: createRequestId(),
+    requestId,
     workbookSessionKey
-  });
+  };
+  await gateway.prepareRedoExecution(request);
   await restoreLocalExecutionSnapshotForMode(snapshot, "redo");
+  const result = await gateway.redoExecution(request);
   if (result?.executionId) {
     linkLocalExecutionSnapshot(workbookSessionKey, result.executionId, executionId);
   }

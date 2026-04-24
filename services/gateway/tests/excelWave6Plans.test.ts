@@ -483,6 +483,17 @@ describe("Excel wave 6 composite plans and execution controls", () => {
           };
         }
 
+        if (url.endsWith("/api/execution/undo/prepare")) {
+          return {
+            kind: "composite_update",
+            operation: "composite_update",
+            hostPlatform: "excel_windows",
+            executionId: "exec_undo_preview_001",
+            stepResults: [],
+            summary: init?.body || ""
+          };
+        }
+
         if (url.endsWith("/api/execution/undo")) {
           return {
             kind: "composite_update",
@@ -542,12 +553,17 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     document.getElementById("prompt").value = "undo";
     await taskpane.sendPrompt();
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0][0]).toBe(
       `http://127.0.0.1:8787/api/execution/history?workbookSessionKey=${encodeURIComponent(workbookSessionKey)}&limit=20`
     );
-    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
+      executionId: "exec_001",
+      workbookSessionKey
+    });
+    expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({
       executionId: "exec_001",
       workbookSessionKey
     });
@@ -1866,6 +1882,17 @@ describe("Excel wave 6 composite plans and execution controls", () => {
           };
         }
 
+        if (url.endsWith("/api/execution/redo/prepare")) {
+          return {
+            kind: "composite_update",
+            operation: "composite_update",
+            hostPlatform: "excel_windows",
+            executionId: "exec_redo_preview_001",
+            stepResults: [],
+            summary: init?.body || ""
+          };
+        }
+
         if (url.endsWith("/api/execution/redo")) {
           return {
             kind: "composite_update",
@@ -1968,7 +1995,7 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     await taskpane.undoExecution("exec_001");
     await taskpane.redoExecution("exec_undo_001");
 
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
     expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/dry-run");
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
       workbookSessionKey
@@ -1976,13 +2003,23 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(fetchMock.mock.calls[1][0]).toBe(
       `http://127.0.0.1:8787/api/execution/history?workbookSessionKey=${encodeURIComponent(workbookSessionKey)}&limit=5`
     );
-    expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
     expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({
       executionId: "exec_001",
       workbookSessionKey
     });
-    expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:8787/api/execution/redo");
+    expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
     expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toMatchObject({
+      executionId: "exec_001",
+      workbookSessionKey
+    });
+    expect(fetchMock.mock.calls[4][0]).toBe("http://127.0.0.1:8787/api/execution/redo/prepare");
+    expect(JSON.parse(String(fetchMock.mock.calls[4][1]?.body))).toMatchObject({
+      executionId: "exec_undo_001",
+      workbookSessionKey
+    });
+    expect(fetchMock.mock.calls[5][0]).toBe("http://127.0.0.1:8787/api/execution/redo");
+    expect(JSON.parse(String(fetchMock.mock.calls[5][1]?.body))).toMatchObject({
       executionId: "exec_undo_001",
       workbookSessionKey
     });
@@ -2061,6 +2098,103 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       "The saved undo snapshot no longer matches the current range shape."
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("prepares undo and redo but does not commit the gateway when local snapshot apply fails", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_001", "exec_undo_001"],
+      executions: {
+        exec_001: {
+          baseExecutionId: "exec_001"
+        },
+        exec_undo_001: {
+          baseExecutionId: "exec_001"
+        }
+      },
+      bases: {
+        exec_001: {
+          baseExecutionId: "exec_001",
+          targetSheet: "Sales",
+          targetRange: "A1",
+          beforeCells: [[{ kind: "value", value: { type: "string", value: "before" } }]],
+          afterCells: [[{ kind: "value", value: { type: "string", value: "after" } }]]
+        }
+      }
+    });
+
+    async function loadFailingRestoreTaskpane() {
+      let syncCalls = 0;
+      const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+        ok: true,
+        async json() {
+          return {
+            kind: "composite_update",
+            operation: "composite_update",
+            hostPlatform: "excel_windows",
+            executionId: String(url).includes("/redo/") ? "exec_redo_preview_001" : "exec_undo_preview_001",
+            stepResults: [],
+            summary: init?.body || ""
+          };
+        }
+      }));
+      const targetRange = {
+        rowCount: 1,
+        columnCount: 1,
+        load() {},
+        getCell() {
+          return {
+            set formulas(_value: unknown) {},
+            set values(_value: unknown) {}
+          };
+        }
+      };
+      const taskpane = await loadTaskpaneModule(
+        {
+          sync: vi.fn(async () => {
+            syncCalls += 1;
+            if (syncCalls === 3) {
+              throw new Error("Office final sync failed.");
+            }
+          }),
+          workbook: {
+            worksheets: {
+              getItem() {
+                return {
+                  getRange() {
+                    return targetRange;
+                  }
+                };
+              }
+            }
+          }
+        },
+        {
+          fetchImpl: fetchMock,
+          documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+          localStorageSeed: {
+            [snapshotStoreKey]: localSnapshotStore
+          }
+        }
+      );
+
+      return { taskpane, fetchMock };
+    }
+
+    const undo = await loadFailingRestoreTaskpane();
+    await expect(undo.taskpane.undoExecution("exec_001")).rejects.toThrow("Office final sync failed.");
+    expect(undo.fetchMock).toHaveBeenCalledTimes(1);
+    expect(undo.fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(undo.fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/execution/undo"))).toBe(false);
+
+    const redo = await loadFailingRestoreTaskpane();
+    await expect(redo.taskpane.redoExecution("exec_undo_001")).rejects.toThrow("Office final sync failed.");
+    expect(redo.fetchMock).toHaveBeenCalledTimes(1);
+    expect(redo.fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/redo/prepare");
+    expect(redo.fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/execution/redo"))).toBe(false);
   });
 
   it("fails undo and redo before calling the gateway when the local snapshot store cannot persist redo lineage", async () => {
