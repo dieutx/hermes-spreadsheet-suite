@@ -2489,6 +2489,8 @@ describe("Hermes spreadsheet contracts", () => {
         targetSheet: "Archive",
         targetRange: "A1:B9",
         transferOperation: "copy",
+        pasteMode: "values",
+        transpose: false,
         summary: "Copy the selected rows into the archive sheet."
       }
     });

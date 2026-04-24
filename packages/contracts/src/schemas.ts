@@ -2327,6 +2327,8 @@ export const RangeTransferUpdateDataSchema = strictObject({
   targetSheet: z.string().min(1).max(128),
   targetRange: z.string().min(1).max(128),
   transferOperation: z.enum(["copy", "move", "append"]),
+  pasteMode: TransferPasteModeSchema,
+  transpose: z.boolean(),
   summary: z.string().min(1).max(500)
 });
 

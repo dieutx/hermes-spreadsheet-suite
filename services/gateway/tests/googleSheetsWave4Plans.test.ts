@@ -445,6 +445,8 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       targetSheet: "Archive",
       targetRange: "D5:E6",
       transferOperation: "copy",
+      pasteMode: "values",
+      transpose: false,
       summary: "Copied RawData!A2:B3 to Archive!D5:E6."
     });
 
@@ -616,6 +618,8 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       targetSheet: "Archive",
       targetRange: "D5:E6",
       transferOperation: "copy",
+      pasteMode: "values",
+      transpose: false,
       summary: "Copied RawData!A2:B3 to Archive!D5:E6."
     });
     expect(targetRange.setValues).toHaveBeenCalledWith([
@@ -721,6 +725,8 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       targetSheet: "Archive",
       targetRange: "D7:E8",
       transferOperation: "append",
+      pasteMode: "values",
+      transpose: false,
       summary: "Appended RawData!A2:B3 into Archive!D7:E8."
     });
     expect(appendWriteRange.setValues).toHaveBeenCalledWith([
@@ -823,6 +829,8 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       targetSheet: "Report",
       targetRange: "F2:H3",
       transferOperation: "copy",
+      pasteMode: "formulas",
+      transpose: false,
       summary: "Copied RawData!A2:C3 to Report!F2:H3."
     });
     expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
@@ -914,6 +922,8 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       targetSheet: "Report",
       targetRange: "F2:G3",
       transferOperation: "move",
+      pasteMode: "formats",
+      transpose: false,
       summary: "Moved RawData!A2:B3 to Report!F2:G3."
     });
     expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
@@ -1023,6 +1033,8 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       targetSheet: "Archive",
       targetRange: "D7:E8",
       transferOperation: "append",
+      pasteMode: "formats",
+      transpose: false,
       summary: "Appended RawData!A2:B3 into Archive!D7:E8."
     });
     expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);

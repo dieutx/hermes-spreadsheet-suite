@@ -393,6 +393,8 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       targetSheet: "Archive",
       targetRange: "D5:E6",
       transferOperation: "copy",
+      pasteMode: "values",
+      transpose: false,
       summary: "Copied RawData!A2:B3 to Archive!D5:E6."
     });
 
@@ -536,7 +538,9 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       sourceRange: "A2:B3",
       targetSheet: "Archive",
       targetRange: "D5:E6",
-      transferOperation: "move"
+      transferOperation: "move",
+      pasteMode: "values",
+      transpose: false
     });
 
     expect(operationLog).toEqual(["target.values", "source.clear"]);
@@ -655,7 +659,9 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       sourceRange: "A2:C3",
       targetSheet: "Report",
       targetRange: "F2:H3",
-      transferOperation: "copy"
+      transferOperation: "copy",
+      pasteMode: "formulas",
+      transpose: false
     });
 
     expect(targetRange.copyFrom).toHaveBeenCalledTimes(1);
@@ -762,6 +768,8 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       targetSheet: "Report",
       targetRange: "D5:E6",
       transferOperation: "append",
+      pasteMode: "values",
+      transpose: false,
       summary: "Appended RawData!A2:B3 into Report!D5:E6."
     });
 
@@ -867,6 +875,8 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       targetSheet: "Report",
       targetRange: "D5:E6",
       transferOperation: "append",
+      pasteMode: "formats",
+      transpose: false,
       summary: "Appended RawData!A2:B3 into Report!D5:E6."
     });
 
@@ -970,6 +980,8 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       targetSheet: "Report",
       targetRange: "F2:G3",
       transferOperation: "copy",
+      pasteMode: "values",
+      transpose: false,
       summary: "Copied RawData!A2:B3 to Report!F2:G3."
     });
 

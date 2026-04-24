@@ -6410,6 +6410,8 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             targetSheet: plan.targetSheet,
             targetRange: actualTargetRange,
             transferOperation: plan.operation,
+            pasteMode: plan.pasteMode,
+            transpose: plan.transpose,
             summary: getRangeTransferStatusSummary({
               ...plan,
               targetRange: actualTargetRange
@@ -6459,6 +6461,8 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             targetSheet: plan.targetSheet,
             targetRange: actualTargetRange,
             transferOperation: plan.operation,
+            pasteMode: plan.pasteMode,
+            transpose: plan.transpose,
             summary: getRangeTransferStatusSummary({
               ...plan,
               targetRange: actualTargetRange
@@ -6486,6 +6490,8 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           targetSheet: plan.targetSheet,
           targetRange: actualTargetRange,
           transferOperation: plan.operation,
+          pasteMode: plan.pasteMode,
+          transpose: plan.transpose,
           summary: getRangeTransferStatusSummary({
             ...plan,
             targetRange: actualTargetRange
@@ -6519,6 +6525,8 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         targetSheet: plan.targetSheet,
         targetRange: actualTargetRange,
         transferOperation: plan.operation,
+        pasteMode: plan.pasteMode,
+        transpose: plan.transpose,
         summary: getRangeTransferStatusSummary({
           ...plan,
           targetRange: actualTargetRange

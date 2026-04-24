@@ -906,7 +906,9 @@ function assertRangeTransferCompletionMatchesApprovedPlan(
     result.sourceSheet !== plan.sourceSheet ||
     result.sourceRange !== plan.sourceRange ||
     result.targetSheet !== plan.targetSheet ||
-    result.transferOperation !== plan.operation
+    result.transferOperation !== plan.operation ||
+    result.pasteMode !== plan.pasteMode ||
+    result.transpose !== plan.transpose
   ) {
     throw new Error("Writeback result does not match the approved plan details.");
   }

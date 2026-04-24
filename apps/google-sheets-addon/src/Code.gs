@@ -3501,6 +3501,8 @@ function buildRangeTransferResult_(plan, actualTargetRange) {
     targetSheet: plan.targetSheet,
     targetRange: actualTargetRange,
     transferOperation: plan.operation,
+    pasteMode: plan.pasteMode,
+    transpose: Boolean(plan.transpose),
     summary: getRangeTransferStatusSummary_({
       sourceSheet: plan.sourceSheet,
       sourceRange: plan.sourceRange,

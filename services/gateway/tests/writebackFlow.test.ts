@@ -5103,6 +5103,8 @@ describe("writeback confirmation flow", () => {
           targetSheet: "Report",
           targetRange: "B5:D13",
           transferOperation: "copy",
+          pasteMode: "values",
+          transpose: false,
           summary: "Copied RawData!A2:C10 to Report!B5:D13."
         }
       }
@@ -5116,7 +5118,9 @@ describe("writeback confirmation flow", () => {
       sourceRange: "A2:C10",
       targetSheet: "Report",
       targetRange: "B5:D13",
-      transferOperation: "copy"
+      transferOperation: "copy",
+      pasteMode: "values",
+      transpose: false
     });
   });
 
@@ -5175,6 +5179,8 @@ describe("writeback confirmation flow", () => {
           targetSheet: "Report",
           targetRange: "F2:G3",
           transferOperation: "copy",
+          pasteMode: "values",
+          transpose: false,
           summary: "Copied RawData!A2:B3 to Report!F2:G3."
         }
       }
@@ -5239,6 +5245,8 @@ describe("writeback confirmation flow", () => {
           targetSheet: "Report",
           targetRange: "F5:G6",
           transferOperation: "append",
+          pasteMode: "values",
+          transpose: false,
           summary: "Appended RawData!A2:B3 into Report!F5:G6."
         }
       }
@@ -5279,7 +5287,47 @@ describe("writeback confirmation flow", () => {
         targetSheet: "Archive",
         targetRange: "A1:C9",
         transferOperation: "move",
+        pasteMode: "values",
+        transpose: false,
         summary: "Wrong transfer completion."
+      }
+    });
+  });
+
+  it("rejects range transfer completions that report different paste semantics", () => {
+    expectRouteCompletionDetailMismatch({
+      traceBus: new TraceBus(),
+      runId: "run_range_transfer_wrong_paste_semantics",
+      requestId: "req_range_transfer_wrong_paste_semantics",
+      type: "range_transfer_plan",
+      traceEvent: "range_transfer_plan_ready",
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:C10",
+        targetSheet: "Report",
+        targetRange: "B5:D13",
+        operation: "copy",
+        pasteMode: "values",
+        transpose: false,
+        explanation: "Copy the cleaned rows into the report sheet.",
+        confidence: 0.96,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:C10", "Report!B5:D13"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      },
+      result: {
+        kind: "range_transfer_update",
+        operation: "range_transfer_update",
+        hostPlatform: "excel_windows",
+        sourceSheet: "RawData",
+        sourceRange: "A2:C10",
+        targetSheet: "Report",
+        targetRange: "B5:D13",
+        transferOperation: "copy",
+        pasteMode: "formulas",
+        transpose: true,
+        summary: "Copied RawData!A2:C10 to Report!B5:D13 with different paste semantics."
       }
     });
   });
