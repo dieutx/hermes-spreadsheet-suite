@@ -99,6 +99,7 @@ function stripCompletionEnvelopeInput(value: unknown): unknown {
     hostPlatform: _hostPlatform,
     summary: _summary,
     operation: _operation,
+    undoReady: _undoReady,
     ...rest
   } = value as Record<string, unknown>;
   return rest;
@@ -113,6 +114,7 @@ function stripCompletionEnvelopeKeepingOperationInput(value: unknown): unknown {
     kind: _kind,
     hostPlatform: _hostPlatform,
     summary: _summary,
+    undoReady: _undoReady,
     ...rest
   } = value as Record<string, unknown>;
   return rest;
@@ -1059,13 +1061,15 @@ function stripCompletionEnvelope<
     hostPlatform: z.infer<typeof HostPlatformSchema>;
     summary: string;
     operation?: string;
+    undoReady?: boolean;
   }
->(result: T): Omit<T, "kind" | "hostPlatform" | "summary" | "operation"> {
+>(result: T): Omit<T, "kind" | "hostPlatform" | "summary" | "operation" | "undoReady"> {
   const {
     kind: _kind,
     hostPlatform: _hostPlatform,
     summary: _summary,
     operation: _operation,
+    undoReady: _undoReady,
     ...rest
   } = result;
   return rest;
@@ -1076,12 +1080,14 @@ function stripCompletionEnvelopeKeepingOperation<
     kind: string;
     hostPlatform: z.infer<typeof HostPlatformSchema>;
     summary: string;
+    undoReady?: boolean;
   }
->(result: T): Omit<T, "kind" | "hostPlatform" | "summary"> {
+>(result: T): Omit<T, "kind" | "hostPlatform" | "summary" | "undoReady"> {
   const {
     kind: _kind,
     hostPlatform: _hostPlatform,
     summary: _summary,
+    undoReady: _undoReady,
     ...rest
   } = result;
   return rest;
