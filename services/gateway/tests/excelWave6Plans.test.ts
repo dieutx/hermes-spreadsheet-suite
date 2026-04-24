@@ -950,6 +950,36 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     vi.useRealTimers();
   });
 
+  it("keeps following the bottom when Excel layout settles after the earlier follow-up window", async () => {
+    vi.useFakeTimers();
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    });
+    const messagesElement = document.getElementById("messages") as {
+      scrollTop: number;
+      scrollHeight: number;
+      clientHeight: number;
+      lastElementChild?: { scrollIntoView?: ReturnType<typeof vi.fn> };
+    };
+    const scrollIntoView = vi.fn();
+
+    messagesElement.scrollTop = 120;
+    messagesElement.scrollHeight = 480;
+    messagesElement.clientHeight = 320;
+    messagesElement.lastElementChild = { scrollIntoView };
+
+    taskpane.scheduleMessagesAutoScroll(true);
+    expect(messagesElement.scrollTop).toBe(480);
+
+    vi.advanceTimersByTime(500);
+    messagesElement.scrollHeight = 1040;
+    vi.advanceTimersByTime(200);
+
+    expect(messagesElement.scrollTop).toBe(1040);
+    expect(scrollIntoView).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it("does not yank the viewport back down after the user scrolls away", async () => {
     vi.useFakeTimers();
     const taskpane = await loadTaskpaneModule({

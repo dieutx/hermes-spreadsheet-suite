@@ -114,7 +114,7 @@ const sessionId = safeStorageGetItem(window.localStorage, "hermesSessionId") ||
   `sess_${generateClientUuid()}`;
 safeStorageSetItem(window.localStorage, "hermesSessionId", sessionId);
 const MESSAGE_SCROLL_BOTTOM_THRESHOLD_PX = 40;
-const MESSAGE_SCROLL_FOLLOWUP_DELAYS_MS = [0, 32, 120, 320];
+const MESSAGE_SCROLL_FOLLOWUP_DELAYS_MS = [0, 32, 120, 320, 640];
 const MESSAGE_POLL_INTERVAL_MS = 900;
 const MESSAGE_POLL_MAX_INTERVAL_MS = 5000;
 const AUTO_OPEN_SETTING = "Hermes.EnableAutoOpen";
@@ -135,6 +135,7 @@ const state = {
   messages: [],
   pendingAttachments: [],
   messageScrollPinned: true,
+  messageScrollTimeoutIds: [],
   messageScrollListenersBound: false,
   messageLayoutObserver: null,
   messageMutationObserver: null
@@ -5136,7 +5137,18 @@ function disconnectMessageAutoScrollObservers() {
   state.messageMutationObserver = null;
 }
 
+function clearMessageScrollFollowUps() {
+  if (typeof globalThis.clearTimeout === "function") {
+    (state.messageScrollTimeoutIds || []).forEach((timeoutId) => {
+      globalThis.clearTimeout(timeoutId);
+    });
+  }
+  state.messageScrollTimeoutIds = [];
+}
+
 function scheduleMessagesAutoScroll(force = false) {
+  clearMessageScrollFollowUps();
+
   if (force) {
     state.messageScrollPinned = true;
   }
@@ -5149,11 +5161,12 @@ function scheduleMessagesAutoScroll(force = false) {
 
   if (typeof globalThis.setTimeout === "function") {
     for (const delay of MESSAGE_SCROLL_FOLLOWUP_DELAYS_MS) {
-      globalThis.setTimeout(() => {
+      const timeoutId = globalThis.setTimeout(() => {
         if (force || state.messageScrollPinned) {
           scrollMessagesToBottom();
         }
       }, delay);
+      state.messageScrollTimeoutIds.push(timeoutId);
     }
   }
 }
