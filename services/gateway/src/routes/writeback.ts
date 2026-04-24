@@ -1195,7 +1195,17 @@ function getStoredPlan(run: ReturnType<TraceBus["getRun"]>): ApprovalPlan | unde
 }
 
 function requiresDestructiveConfirmation(plan: ApprovalPlan): boolean {
-  return "confirmationLevel" in plan && plan.confirmationLevel === "destructive";
+  if ("confirmationLevel" in plan && plan.confirmationLevel === "destructive") {
+    return true;
+  }
+
+  if ("steps" in plan) {
+    return plan.steps.some((step) =>
+      requiresDestructiveConfirmation(step.plan as ApprovalPlan)
+    );
+  }
+
+  return false;
 }
 
 function getPlanTypeFromResponse(response: HermesResponse | undefined): string {

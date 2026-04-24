@@ -4447,6 +4447,54 @@ describe("writeback confirmation flow", () => {
     })).toThrow("Destructive confirmation required.");
   });
 
+  it("rejects composite approval when a child step is destructive without a second confirmation payload", () => {
+    const traceBus = new TraceBus();
+    const plan = {
+      steps: [
+        {
+          stepId: "delete_rows",
+          dependsOn: [],
+          continueOnError: false,
+          plan: {
+            targetSheet: "Sheet1",
+            operation: "delete_rows",
+            startIndex: 7,
+            count: 2,
+            explanation: "Delete two empty rows.",
+            confidence: 0.91,
+            requiresConfirmation: true,
+            confirmationLevel: "destructive"
+          }
+        }
+      ],
+      explanation: "Delete stale rows from Sheet1.",
+      confidence: 0.91,
+      requiresConfirmation: true as const,
+      affectedRanges: ["Sheet1!A8:Z9"],
+      overwriteRisk: "high" as const,
+      confirmationLevel: "standard" as const,
+      reversible: false,
+      dryRunRecommended: true,
+      dryRunRequired: false
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_composite_delete_rows",
+      requestId: "req_composite_delete_rows",
+      type: "composite_plan",
+      traceEvent: "composite_plan_ready",
+      plan
+    });
+
+    expect(() => approveWriteback({
+      requestId: "req_composite_delete_rows",
+      runId: "run_composite_delete_rows",
+      plan: plan as any,
+      traceBus,
+      config: testConfig
+    })).toThrow("Destructive confirmation required.");
+  });
+
   it("approves destructive row deletion with second confirmation and persists the confirmation flag", () => {
     const traceBus = new TraceBus();
     const plan = {
