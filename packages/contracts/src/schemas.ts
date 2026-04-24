@@ -2028,7 +2028,8 @@ export const CompositePlanDataSchema = strictObject({
 const compositeStepResultSchema = strictObject({
   stepId: z.string().min(1).max(128),
   status: z.enum(["completed", "failed", "skipped"]),
-  summary: z.string().min(1).max(12000)
+  summary: z.string().min(1).max(12000),
+  result: z.unknown().optional()
 });
 
 export const CompositeUpdateDataSchema = strictObject({

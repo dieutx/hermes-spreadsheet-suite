@@ -5,7 +5,6 @@ import {
   AnalysisReportPlanDataSchema,
   ChartPlanDataSchema,
   CompositePlanDataSchema,
-  CompositeUpdateDataSchema,
   ConditionalFormatManagementModeSchema,
   DataCleanupPlanDataSchema,
   DataValidationPlanDataSchema,
@@ -436,10 +435,47 @@ const ChartWritebackResultSchema = z.intersection(
   z.preprocess(stripCompletionEnvelopeInput, ChartPlanDataSchema)
 );
 
-const CompositeWritebackResultSchema = CompositeUpdateDataSchema.extend({
+const AtomicWritebackResultSchema = z.union([
+  RangeWritebackResultSchema,
+  RangeFormatWritebackResultSchema,
+  WorkbookStructureWritebackResultSchema,
+  SheetStructureWritebackResultSchema,
+  RangeSortWritebackResultSchema,
+  RangeFilterWritebackResultSchema,
+  DataValidationWritebackResultSchema,
+  ConditionalFormatWritebackResultSchema,
+  NamedRangeWritebackResultSchema,
+  RangeTransferWritebackResultSchema,
+  DataCleanupWritebackResultSchema,
+  AnalysisReportWritebackResultSchema,
+  ExternalDataWritebackResultSchema,
+  PivotTableWritebackResultSchema,
+  ChartWritebackResultSchema
+]);
+
+const CompositeStepWritebackResultSchema = z.object({
+  stepId: z.string().min(1).max(128),
+  status: z.enum(["completed", "failed", "skipped"]),
+  summary: CompletionSummarySchema,
+  result: AtomicWritebackResultSchema.optional()
+}).strict().superRefine((data, ctx) => {
+  if (data.status === "completed" && !data.result) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Completed composite steps require a child writeback result.",
+      path: ["result"]
+    });
+  }
+});
+
+const CompositeWritebackResultSchema = z.object({
+  operation: z.literal("composite_update"),
+  executionId: z.string().min(1).max(128),
+  stepResults: z.array(CompositeStepWritebackResultSchema).min(1),
+  summary: CompletionSummarySchema,
   kind: z.literal("composite_update"),
   hostPlatform: HostPlatformSchema
-});
+}).strict();
 
 const CompletionRequestSchema = z.object({
   requestId: z.string().min(1),
@@ -447,24 +483,7 @@ const CompletionRequestSchema = z.object({
   workbookSessionKey: z.string().min(1).max(256).optional(),
   approvalToken: z.string().min(1),
   planDigest: z.string().min(1),
-  result: z.union([
-    RangeWritebackResultSchema,
-    RangeFormatWritebackResultSchema,
-    WorkbookStructureWritebackResultSchema,
-    SheetStructureWritebackResultSchema,
-    RangeSortWritebackResultSchema,
-    RangeFilterWritebackResultSchema,
-    DataValidationWritebackResultSchema,
-    ConditionalFormatWritebackResultSchema,
-    NamedRangeWritebackResultSchema,
-    RangeTransferWritebackResultSchema,
-    DataCleanupWritebackResultSchema,
-    AnalysisReportWritebackResultSchema,
-    ExternalDataWritebackResultSchema,
-    PivotTableWritebackResultSchema,
-    ChartWritebackResultSchema,
-    CompositeWritebackResultSchema
-  ])
+  result: z.union([AtomicWritebackResultSchema, CompositeWritebackResultSchema])
 });
 
 type ApprovalPlan = z.infer<typeof ApprovalRequestSchema>["plan"];
@@ -921,6 +940,29 @@ function assertRangeTransferCompletionMatchesApprovedPlan(
   }
 }
 
+function getCompositeStepResponseType(plan: unknown): HermesResponse["type"] | undefined {
+  const candidates: Array<[HermesResponse["type"], z.ZodTypeAny]> = [
+    ["sheet_update", SheetUpdateDataSchema],
+    ["sheet_import_plan", SheetImportPlanDataSchema],
+    ["external_data_plan", ExternalDataPlanDataSchema],
+    ["workbook_structure_update", WorkbookStructureUpdateDataSchema],
+    ["range_format_update", RangeFormatUpdateDataSchema],
+    ["conditional_format_plan", ConditionalFormatPlanDataSchema],
+    ["sheet_structure_update", SheetStructureUpdateDataSchema],
+    ["range_sort_plan", RangeSortPlanDataSchema],
+    ["range_filter_plan", RangeFilterPlanDataSchema],
+    ["data_validation_plan", DataValidationPlanDataSchema],
+    ["named_range_update", NamedRangeUpdateDataSchema],
+    ["range_transfer_plan", RangeTransferPlanDataSchema],
+    ["data_cleanup_plan", DataCleanupPlanDataSchema],
+    ["analysis_report_plan", AnalysisReportPlanDataSchema],
+    ["pivot_table_plan", PivotTablePlanDataSchema],
+    ["chart_plan", ChartPlanDataSchema]
+  ];
+
+  return candidates.find(([, schema]) => schema.safeParse(plan).success)?.[0];
+}
+
 function assertCompositeCompletionMatchesApprovedPlan(
   plan: CompositePlanData,
   result: CompositeCompletionResult
@@ -980,6 +1022,22 @@ function assertCompositeCompletionMatchesApprovedPlan(
 
     switch (stepResult.status) {
       case "completed":
+        if (!stepResult.result) {
+          throw new Error("Writeback result does not match the approved plan details.");
+        }
+        {
+          const stepResponseType = getCompositeStepResponseType(expectedStep.plan);
+          if (!stepResponseType) {
+            throw new Error("Writeback result does not match the approved plan details.");
+          }
+          assertCompletionMatchesApprovedPlan(
+            {
+              type: stepResponseType,
+              data: expectedStep.plan
+            } as HermesResponse,
+            stepResult.result
+          );
+        }
         completedSteps.add(stepResult.stepId);
         break;
       case "failed":
