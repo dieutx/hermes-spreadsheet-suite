@@ -7,6 +7,7 @@ import {
   createWritebackRouter
 } from "../src/routes/writeback.ts";
 import { createApprovalToken, digestCanonicalPlan, digestPlan } from "../src/lib/approval.ts";
+import { normalizeCompositePlanForDigest } from "../src/lib/planNormalization.ts";
 
 const testConfig = {
   port: 8787,
@@ -256,6 +257,80 @@ describe("writeback confirmation flow", () => {
       "STALE_PREVIEW",
       "That workflow preview is stale and must be regenerated before approval."
     );
+  });
+
+  it("accepts composite approval after a fresh dry-run even when the original plan claims reversible execution", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      steps: [
+        {
+          stepId: "setup",
+          dependsOn: [],
+          continueOnError: false,
+          plan: {
+            operation: "create_sheet",
+            sheetName: "Report",
+            position: "end" as const,
+            explanation: "Create a report sheet.",
+            confidence: 0.9,
+            requiresConfirmation: true
+          }
+        }
+      ],
+      explanation: "Create the report sheet.",
+      confidence: 0.9,
+      requiresConfirmation: true as const,
+      affectedRanges: ["Report!A1"],
+      overwriteRisk: "none" as const,
+      confirmationLevel: "standard" as const,
+      reversible: true,
+      dryRunRecommended: true,
+      dryRunRequired: true
+    };
+
+    executionLedger.storeDryRun({
+      planDigest: digestCanonicalPlan(normalizeCompositePlanForDigest(plan)),
+      workbookSessionKey: "excel_windows::workbook-123",
+      simulated: true,
+      steps: [
+        {
+          stepId: "setup",
+          status: "simulated",
+          summary: "Would create Report."
+        }
+      ],
+      predictedAffectedRanges: ["Report!A1"],
+      predictedSummaries: ["Would create the report sheet."],
+      overwriteRisk: "none",
+      reversible: false,
+      expiresAt: "2099-01-01T00:00:00.000Z"
+    });
+
+    setRunResponse(traceBus, {
+      runId: "run_composite_approve_002",
+      requestId: "req_composite_approve_002",
+      type: "composite_plan",
+      traceEvent: "composite_plan_ready",
+      plan
+    });
+
+    const response = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_composite_approve_002",
+        runId: "run_composite_approve_002",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      planDigest: digestCanonicalPlan(normalizeCompositePlanForDigest(plan))
+    });
   });
 
   it("records composite completion with step-level status history", () => {

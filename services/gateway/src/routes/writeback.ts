@@ -47,6 +47,7 @@ import {
   ExecutionLedger,
   FreshDryRunRequiredError
 } from "../lib/executionLedger.js";
+import { normalizeCompositePlanForDigest } from "../lib/planNormalization.js";
 
 const APPROVAL_TOKEN_MAX_AGE_MS = 15 * 60 * 1000;
 
@@ -735,6 +736,10 @@ function normalizeMaterializedAnalysisReportPlan(
 }
 
 function normalizeApprovalPlan(plan: ApprovalPlan): ApprovalPlan {
+  if ("steps" in plan) {
+    return normalizeCompositePlanForDigest(plan);
+  }
+
   if ("outputMode" in plan && plan.outputMode === "materialize_report") {
     return normalizeMaterializedAnalysisReportPlan(plan);
   }

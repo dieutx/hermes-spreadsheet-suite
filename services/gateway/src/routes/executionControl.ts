@@ -12,6 +12,7 @@ import {
   UnsupportedExecutionControlError,
   type ExecutionLedger
 } from "../lib/executionLedger.js";
+import { normalizeCompositePlanForDigest } from "../lib/planNormalization.js";
 
 const DryRunRequestSchema = z.object({
   requestId: z.string().min(1).max(128),
@@ -77,15 +78,6 @@ function summarizeCompositeDryRunStep(step: z.infer<typeof CompositePlanDataSche
   }
 
   return `Would execute ${step.stepId}.`;
-}
-
-function normalizeCompositePlanReversibility(
-  plan: z.infer<typeof CompositePlanDataSchema>
-): z.infer<typeof CompositePlanDataSchema> {
-  return {
-    ...plan,
-    reversible: false
-  };
 }
 
 function toPredictedSummaries(
@@ -157,7 +149,7 @@ export function createExecutionControlRouter(input: {
   router.post("/dry-run", (req, res) => {
     try {
       const parsed = DryRunRequestSchema.parse(req.body);
-      const normalizedPlan = normalizeCompositePlanReversibility(parsed.plan);
+      const normalizedPlan = normalizeCompositePlanForDigest(parsed.plan);
       const planDigest = digestCanonicalPlan(normalizedPlan);
       const workbookSessionKey = parsed.workbookSessionKey ?? `run::${parsed.runId}`;
       const result = {

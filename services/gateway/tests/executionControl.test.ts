@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { digestCanonicalPlan } from "../src/lib/approval.ts";
+import { normalizeCompositePlanForDigest } from "../src/lib/planNormalization.ts";
 import { createExecutionControlRouter } from "../src/routes/executionControl.ts";
 import { ExecutionLedger } from "../src/lib/executionLedger.ts";
 
@@ -412,6 +413,49 @@ describe("execution control routes", () => {
         ],
         dryRunRecommended: true
       })
+    });
+  });
+
+  it("normalizes composite dry-run digests when the incoming plan still claims reversible execution", () => {
+    const inputPlan = {
+      dryRunRequired: true,
+      reversible: true,
+      confirmationLevel: "standard" as const,
+      overwriteRisk: "none" as const,
+      affectedRanges: ["Report!A1"],
+      requiresConfirmation: true,
+      confidence: 0.9,
+      explanation: "Create a report artifact shell.",
+      steps: [
+        {
+          plan: {
+            position: "end" as const,
+            sheetName: "Report",
+            confidence: 0.9,
+            explanation: "Create a report sheet.",
+            requiresConfirmation: true,
+            operation: "create_sheet" as const
+          },
+          continueOnError: false,
+          dependsOn: [],
+          stepId: "step_1"
+        }
+      ],
+      dryRunRecommended: true
+    };
+
+    const dryRun = invokeExecutionRoute({
+      path: "/dry-run",
+      method: "post",
+      body: buildDryRunBody({
+        plan: inputPlan
+      })
+    });
+
+    expect(dryRun.status).toBe(200);
+    expect(dryRun.body).toMatchObject({
+      reversible: false,
+      planDigest: digestCanonicalPlan(normalizeCompositePlanForDigest(inputPlan))
     });
   });
 
