@@ -1335,6 +1335,8 @@ export function getResponseBodyText(response: HermesResponse): string {
           return `Prepared a workbook update to hide sheet ${response.data.sheetName}.`;
         case "unhide_sheet":
           return `Prepared a workbook update to unhide sheet ${response.data.sheetName}.`;
+        default:
+          return "Prepared a workbook structure update.";
       }
     case "sheet_structure_update":
       return `Prepared a sheet structure update for ${response.data.targetSheet}.`;
@@ -1379,6 +1381,8 @@ export function getResponseBodyText(response: HermesResponse): string {
     case "document_summary":
       return response.data.summary;
   }
+
+  return "Hermes response received.";
 }
 
 export function getResponseConfidence(response: HermesResponse): number | undefined {

@@ -272,7 +272,12 @@ function augmentToolScaffoldingCompositePlan(
   }
 
   const createSheetStep = plan.steps[createSheetStepIndex];
-  const helperSheet = createSheetStep.plan.sheetName;
+  const createSheetPlan = createSheetStep?.plan;
+  if (!isCreateSheetPlan(createSheetPlan)) {
+    return plan;
+  }
+
+  const helperSheet = createSheetPlan.sheetName;
   if (compositeHasVisibleHelperScaffold(plan, helperSheet)) {
     return plan;
   }

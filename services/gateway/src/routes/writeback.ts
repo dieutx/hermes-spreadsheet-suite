@@ -469,6 +469,10 @@ const CompletionRequestSchema = z.object({
 
 type ApprovalPlan = z.infer<typeof ApprovalRequestSchema>["plan"];
 type CompletionResult = z.infer<typeof CompletionRequestSchema>["result"];
+type WorkbookStructureCompletionResult = z.infer<typeof WorkbookStructureWritebackResultSchema>;
+type SheetStructureCompletionResult = z.infer<typeof SheetStructureWritebackResultSchema>;
+type RangeTransferCompletionResult = z.infer<typeof RangeTransferWritebackResultSchema>;
+type CompositeCompletionResult = z.infer<typeof CompositeWritebackResultSchema>;
 type MaterializedAnalysisReportPlan = Extract<AnalysisReportPlanData, { outputMode: "materialize_report" }>;
 type ResolvedMaterializedAnalysisReportPlan =
   MaterializedAnalysisReportPlan & { targetSheet: string; targetRange: string };
@@ -839,7 +843,7 @@ function matchesExpectedAppendTargetRange(
 
 function assertSheetStructureCompletionMatchesApprovedPlan(
   plan: SheetStructureUpdateData,
-  result: z.infer<typeof SheetStructureWritebackResultSchema>
+  result: SheetStructureCompletionResult
 ): void {
   if (
     result.kind !== "sheet_structure_update" ||
@@ -893,7 +897,7 @@ function assertSheetStructureCompletionMatchesApprovedPlan(
 
 function assertRangeTransferCompletionMatchesApprovedPlan(
   plan: RangeTransferPlanData,
-  result: z.infer<typeof RangeTransferWritebackResultSchema>
+  result: RangeTransferCompletionResult
 ): void {
   if (
     result.kind !== "range_transfer_update" ||
@@ -919,7 +923,7 @@ function assertRangeTransferCompletionMatchesApprovedPlan(
 
 function assertCompositeCompletionMatchesApprovedPlan(
   plan: CompositePlanData,
-  result: z.infer<typeof CompositeWritebackResultSchema>
+  result: CompositeCompletionResult
 ): void {
   if (result.kind !== "composite_update") {
     throw new Error("Writeback result does not match the approved plan details.");
@@ -1297,6 +1301,42 @@ function assertCurrentWritebackApproval(
   }
 }
 
+function throwWritebackPlanDetailsMismatch(): never {
+  throw new Error("Writeback result does not match the approved plan details.");
+}
+
+function assertWorkbookStructureCompletionResult(
+  result: CompletionResult
+): asserts result is WorkbookStructureCompletionResult {
+  if (result.kind !== "workbook_structure_update") {
+    throwWritebackPlanDetailsMismatch();
+  }
+}
+
+function assertSheetStructureCompletionResult(
+  result: CompletionResult
+): asserts result is SheetStructureCompletionResult {
+  if (result.kind !== "sheet_structure_update") {
+    throwWritebackPlanDetailsMismatch();
+  }
+}
+
+function assertRangeTransferCompletionResult(
+  result: CompletionResult
+): asserts result is RangeTransferCompletionResult {
+  if (result.kind !== "range_transfer_update") {
+    throwWritebackPlanDetailsMismatch();
+  }
+}
+
+function assertCompositeCompletionResult(
+  result: CompletionResult
+): asserts result is CompositeCompletionResult {
+  if (result.kind !== "composite_update") {
+    throwWritebackPlanDetailsMismatch();
+  }
+}
+
 function assertCompletionMatchesApprovedPlan(
   response: HermesResponse | undefined,
   result: CompletionResult
@@ -1343,14 +1383,15 @@ function assertCompletionMatchesApprovedPlan(
       );
       return;
     case "workbook_structure_update":
-      if (
-        result.kind !== "workbook_structure_update" ||
-        result.operation !== response.data.operation
-      ) {
-        throw new Error("Writeback result does not match the approved plan details.");
+      assertWorkbookStructureCompletionResult(result);
+      if (result.operation !== response.data.operation) {
+        throwWritebackPlanDetailsMismatch();
       }
       switch (response.data.operation) {
         case "create_sheet":
+          if (result.operation !== "create_sheet") {
+            throwWritebackPlanDetailsMismatch();
+          }
           if (
             result.sheetName !== response.data.sheetName ||
             result.positionResolved !== resolveWorkbookStructurePosition(
@@ -1358,25 +1399,31 @@ function assertCompletionMatchesApprovedPlan(
               result.sheetCount
             )
           ) {
-            throw new Error("Writeback result does not match the approved plan details.");
+            throwWritebackPlanDetailsMismatch();
           }
           return;
         case "delete_sheet":
         case "hide_sheet":
         case "unhide_sheet":
           if (result.sheetName !== response.data.sheetName) {
-            throw new Error("Writeback result does not match the approved plan details.");
+            throwWritebackPlanDetailsMismatch();
           }
           return;
         case "rename_sheet":
+          if (result.operation !== "rename_sheet") {
+            throwWritebackPlanDetailsMismatch();
+          }
           if (
             result.sheetName !== response.data.sheetName ||
             result.newSheetName !== response.data.newSheetName
           ) {
-            throw new Error("Writeback result does not match the approved plan details.");
+            throwWritebackPlanDetailsMismatch();
           }
           return;
         case "duplicate_sheet":
+          if (result.operation !== "duplicate_sheet") {
+            throwWritebackPlanDetailsMismatch();
+          }
           if (
             result.sheetName !== response.data.sheetName ||
             result.positionResolved !== resolveWorkbookStructurePosition(
@@ -1384,19 +1431,22 @@ function assertCompletionMatchesApprovedPlan(
               result.sheetCount
             )
           ) {
-            throw new Error("Writeback result does not match the approved plan details.");
+            throwWritebackPlanDetailsMismatch();
           }
           if (
             typeof response.data.newSheetName === "string" &&
             result.newSheetName !== response.data.newSheetName
           ) {
-            throw new Error("Writeback result does not match the approved plan details.");
+            throwWritebackPlanDetailsMismatch();
           }
           if (typeof result.newSheetName !== "string" || result.newSheetName.trim().length === 0) {
-            throw new Error("Writeback result does not match the approved plan details.");
+            throwWritebackPlanDetailsMismatch();
           }
           return;
         case "move_sheet":
+          if (result.operation !== "move_sheet") {
+            throwWritebackPlanDetailsMismatch();
+          }
           if (
             result.sheetName !== response.data.sheetName ||
             result.positionResolved !== resolveWorkbookStructurePosition(
@@ -1404,13 +1454,14 @@ function assertCompletionMatchesApprovedPlan(
               result.sheetCount
             )
           ) {
-            throw new Error("Writeback result does not match the approved plan details.");
+            throwWritebackPlanDetailsMismatch();
           }
           return;
         default:
           return;
       }
     case "sheet_structure_update":
+      assertSheetStructureCompletionResult(result);
       assertSheetStructureCompletionMatchesApprovedPlan(response.data, result);
       return;
     case "range_sort_plan":
@@ -1459,6 +1510,7 @@ function assertCompletionMatchesApprovedPlan(
       );
       return;
     case "range_transfer_plan":
+      assertRangeTransferCompletionResult(result);
       assertRangeTransferCompletionMatchesApprovedPlan(response.data, result);
       return;
     case "data_cleanup_plan":
@@ -1504,6 +1556,7 @@ function assertCompletionMatchesApprovedPlan(
       );
       return;
     case "composite_plan":
+      assertCompositeCompletionResult(result);
       assertCompositeCompletionMatchesApprovedPlan(response.data, result);
       return;
     default:

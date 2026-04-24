@@ -1,13 +1,15 @@
 import type {
-  AnalysisReportUpdateData,
+  AnalysisReportPlanData,
   ChartUpdateData,
   CompositeUpdateData,
-  DataCleanupUpdateData,
-  ConditionalFormatUpdateData,
+  DataCleanupPlanData,
+  ConditionalFormatPlanData,
+  ExternalDataPlanData,
   HermesResponse,
   HermesTraceEvent,
   NamedRangeUpdateData,
   PivotTableUpdateData,
+  RangeFormatUpdateData,
   RangeTransferUpdateData,
   SheetImportPlanData,
   SheetStructureUpdateData,
@@ -38,6 +40,16 @@ export type WritebackResult =
       operation: SheetStructureUpdateData["operation"];
       summary: string;
     }
+  | (RangeFormatUpdateData & {
+      kind: "range_format_update";
+      hostPlatform: "google_sheets" | "excel_windows" | "excel_macos";
+      summary: string;
+    })
+  | (ExternalDataPlanData & {
+      kind: "external_data_update";
+      hostPlatform: "google_sheets" | "excel_windows" | "excel_macos";
+      summary: string;
+    })
   | {
       kind: "range_sort";
       hostPlatform: "google_sheets" | "excel_windows" | "excel_macos";
@@ -59,15 +71,11 @@ export type WritebackResult =
       targetRange: string;
       summary: string;
     }
-  | {
+  | (ConditionalFormatPlanData & {
       kind: "conditional_format_update";
       hostPlatform: "google_sheets" | "excel_windows" | "excel_macos";
-      operation: "conditional_format_update";
-      targetSheet: string;
-      targetRange: string;
-      managementMode: ConditionalFormatUpdateData["managementMode"];
       summary: string;
-    }
+    })
   | (NamedRangeUpdateData & {
       kind: "named_range_update";
       hostPlatform: "google_sheets" | "excel_windows" | "excel_macos";
@@ -84,23 +92,18 @@ export type WritebackResult =
       transferOperation: RangeTransferUpdateData["transferOperation"];
       summary: string;
     }
-  | {
+  | (DataCleanupPlanData & {
       kind: "data_cleanup_update";
       hostPlatform: "google_sheets" | "excel_windows" | "excel_macos";
-      operation: "data_cleanup_update";
-      targetSheet: DataCleanupUpdateData["targetSheet"];
-      targetRange: DataCleanupUpdateData["targetRange"];
-      cleanupOperation: DataCleanupUpdateData["cleanupOperation"];
       summary: string;
-    }
-  | {
+      undoReady?: boolean;
+    })
+  | (Extract<AnalysisReportPlanData, { outputMode: "materialize_report" }> & {
       kind: "analysis_report_update";
       hostPlatform: "google_sheets" | "excel_windows" | "excel_macos";
-      operation: AnalysisReportUpdateData["operation"];
-      targetSheet: AnalysisReportUpdateData["targetSheet"];
-      targetRange: AnalysisReportUpdateData["targetRange"];
       summary: string;
-    }
+      undoReady?: boolean;
+    })
   | {
       kind: "pivot_table_update";
       hostPlatform: "google_sheets" | "excel_windows" | "excel_macos";

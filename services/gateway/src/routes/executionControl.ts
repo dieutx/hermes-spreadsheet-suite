@@ -156,17 +156,25 @@ export function createExecutionControlRouter(input: {
         planDigest,
         workbookSessionKey,
         simulated: true,
-        steps: normalizedPlan.steps.map((step) => ({
-          stepId: step.stepId,
-          status: "simulated" as const,
-          summary: summarizeCompositeDryRunStep(step),
-          predictedAffectedRanges: "affectedRanges" in step.plan ? step.plan.affectedRanges : undefined,
-          predictedSummaries: "explanation" in step.plan && typeof step.plan.explanation === "string"
-            ? toPredictedSummaries(step.plan.explanation)
-            : undefined
-        })),
+        steps: normalizedPlan.steps.map((step) => {
+          const predictedAffectedRanges = "affectedRanges" in step.plan
+            ? step.plan.affectedRanges
+            : undefined;
+          const predictedSummaries =
+            "explanation" in step.plan && typeof step.plan.explanation === "string"
+              ? toPredictedSummaries(step.plan.explanation)
+              : undefined;
+
+          return {
+            stepId: step.stepId,
+            status: "simulated" as const,
+            summary: summarizeCompositeDryRunStep(step),
+            ...(predictedAffectedRanges ? { predictedAffectedRanges } : {}),
+            ...(predictedSummaries ? { predictedSummaries } : {})
+          };
+        }),
         predictedAffectedRanges: normalizedPlan.affectedRanges,
-        predictedSummaries: toPredictedSummaries(normalizedPlan.explanation),
+        predictedSummaries: toPredictedSummaries(normalizedPlan.explanation) ?? [],
         overwriteRisk: normalizedPlan.overwriteRisk,
         reversible: normalizedPlan.reversible,
         expiresAt: input.executionLedger.isoTimestamp(5 * 60 * 1000)

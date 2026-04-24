@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { NextFunction, Request, Response } from "express";
 import multer from "multer";
 import { MvpImageMimeTypes } from "@hermes/contracts";
 import type { GatewayConfig } from "../lib/config.js";
@@ -173,7 +174,12 @@ export function createUploadRouter(input: {
       workbookId
     });
 
-    const previewUrl = `${input.config.gatewayPublicBaseUrl}/api/uploads/${attachment.id}/content?uploadToken=${encodeURIComponent(attachment.uploadToken)}`;
+    const uploadToken = attachment.uploadToken;
+    if (!uploadToken) {
+      throw new Error("Upload token missing for saved attachment.");
+    }
+
+    const previewUrl = `${input.config.gatewayPublicBaseUrl}/api/uploads/${attachment.id}/content?uploadToken=${encodeURIComponent(uploadToken)}`;
     attachment.previewUrl = previewUrl;
     res.status(201).json({
       attachment
@@ -202,7 +208,7 @@ export function createUploadRouter(input: {
     res.send(attachment.buffer);
   });
 
-  router.use((error: unknown, _req, res, next) => {
+  router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {
       next(error);
       return;
