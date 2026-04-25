@@ -6718,7 +6718,7 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
     }
 
     if (Array.isArray(plan.headers)) {
-      if (rangeHasExistingContent(target.values)) {
+      if (rangeHasExistingContent(target.values) || hasAnyRealFormula(target.formulas)) {
         throw new Error("Target range already contains content. Clear it before confirming the import plan.");
       }
 

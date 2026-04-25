@@ -5282,7 +5282,7 @@ function applyWritePlan(input) {
   }
 
   if (Array.isArray(plan.headers)) {
-    if (rangeHasExistingContent_(target.getDisplayValues())) {
+    if (rangeHasExistingContent_(target.getDisplayValues()) || hasAnyRealFormula_(target.getFormulas())) {
       throw new Error('Target range already contains content. Clear it before confirming the import plan.');
     }
 

@@ -357,6 +357,60 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     });
   });
 
+  it("rejects Excel import writes when the destination contains a blank-rendering formula", async () => {
+    const targetRange = createRangeStub({
+      address: "Imported!A1:B2",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["", ""],
+        ["", ""]
+      ],
+      formulas: [
+        ['=IF(TRUE,"","")', ""],
+        ["", ""]
+      ]
+    });
+    const worksheets = {
+      getItem: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Imported");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("A1:B2");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Imported",
+        targetRange: "A1:B2",
+        shape: { rows: 2, columns: 2 },
+        headers: ["Name", "Amount"],
+        values: [["Ada", 42]],
+        explanation: "Import a table into the destination.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Imported!A1:B2"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      },
+      requestId: "req_import_formula_guard_excel_001",
+      runId: "run_import_formula_guard_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Target range already contains content.");
+    expect(targetRange.values).toEqual([
+      ["", ""],
+      ["", ""]
+    ]);
+  });
+
   it("replaces a transfer plan message with the completed transfer summary", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})
