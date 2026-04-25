@@ -117,6 +117,14 @@ function createConditionalFormatBuilder() {
       this._format.italic = value;
       return this;
     },
+    setUnderline(value: boolean) {
+      this._format.underline = value;
+      return this;
+    },
+    setStrikethrough(value: boolean) {
+      this._format.strikethrough = value;
+      return this;
+    },
     setGradientMinpoint(color: string) {
       this._gradient.min = { type: "min", color };
       return this;
@@ -337,7 +345,10 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         style: {
           backgroundColor: "#ffcccc",
           textColor: "#990000",
-          bold: true
+          bold: true,
+          italic: false,
+          underline: true,
+          strikethrough: true
         },
         explanation: "Highlight overdue rows.",
         confidence: 0.94,
@@ -531,7 +542,10 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         style: {
           backgroundColor: "#ffcccc",
           textColor: "#990000",
-          bold: true
+          bold: true,
+          italic: false,
+          underline: true,
+          strikethrough: true
         },
         explanation: "Highlight overdue rows.",
         confidence: 0.94,
@@ -566,7 +580,10 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
       format: {
         backgroundColor: "#ffcccc",
         textColor: "#990000",
-        bold: true
+        bold: true,
+        italic: false,
+        underline: true,
+        strikethrough: true
       }
     });
     expect(updatedRules[1].getRanges()).toEqual([targetRange]);
@@ -946,7 +963,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         text: "overdue",
         style: {
           backgroundColor: "#ffcccc",
-          underline: true
+          numberFormat: "0.00"
         },
         explanation: "Use an unsupported style field.",
         confidence: 0.5,
@@ -960,7 +977,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
     });
 
     expect(unsupportedHtml).toContain(
-      "This Google Sheets flow can't set these conditional-format style fields: underline."
+      "This Google Sheets flow can't set these conditional-format style fields: numberFormat."
     );
     expect(unsupportedHtml).not.toContain("Confirm Conditional Formatting");
 
@@ -986,7 +1003,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         text: "overdue",
         style: {
           backgroundColor: "#ffcccc",
-          underline: true
+          numberFormat: "0.00"
         },
         explanation: "Use an unsupported style field.",
         confidence: 0.5,
@@ -995,7 +1012,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         replacesExistingRules: false
       }
     })).toThrow(
-      "Google Sheets host does not support exact conditional-format style mapping for fields: underline."
+      "Google Sheets host does not support exact conditional-format style mapping for fields: numberFormat."
     );
 
     expect(sheet.setConditionalFormatRules).not.toHaveBeenCalled();

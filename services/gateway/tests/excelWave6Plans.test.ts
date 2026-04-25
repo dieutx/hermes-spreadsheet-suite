@@ -1380,7 +1380,7 @@ describe("Excel wave 6 composite plans and execution controls", () => {
         ruleType: "text_contains",
         text: "overdue",
         style: {
-          underline: true
+          numberFormat: "0.00"
         },
         explanation: "Highlight overdue rows.",
         confidence: 0.5,
