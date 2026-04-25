@@ -4740,6 +4740,10 @@ function applyWritePlan(input) {
           throw new Error('Target sheet not found: ' + plan.targetSheet);
         }
 
+        if (findNamedRange_(spreadsheet, plan.name)) {
+          throw new Error('Named range already exists: ' + plan.name);
+        }
+
         if (typeof spreadsheet.setNamedRange !== 'function') {
           throw new Error('Google Sheets host does not support creating named ranges.');
         }

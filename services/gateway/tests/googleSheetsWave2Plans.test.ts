@@ -785,6 +785,43 @@ describe("Google Sheets wave 2 plans", () => {
     expect(removeNamedRange).toHaveBeenCalledWith("SalesData");
   });
 
+  it("fails closed when creating a Google Sheets named range that already exists", () => {
+    const existingNamedRange = {
+      getName: vi.fn(() => "SalesData")
+    };
+    const setNamedRange = vi.fn();
+    const sheet = {
+      getRange: vi.fn()
+    };
+    const spreadsheet = {
+      getSheetByName(sheetName: string) {
+        expect(sheetName).toBe("Sheet1");
+        return sheet;
+      },
+      getNamedRanges() {
+        return [existingNamedRange];
+      },
+      setNamedRange
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    expect(() => applyWritePlan({
+      plan: {
+        operation: "create",
+        scope: "workbook",
+        name: "SalesData",
+        targetSheet: "Sheet1",
+        targetRange: "B2:D20",
+        explanation: "Create a workbook name.",
+        confidence: 0.93,
+        requiresConfirmation: true
+      }
+    })).toThrow("Named range already exists: SalesData");
+
+    expect(setNamedRange).not.toHaveBeenCalled();
+    expect(sheet.getRange).not.toHaveBeenCalled();
+  });
+
   it("fails closed for unsupported Google Sheets named range scope", () => {
     const spreadsheet = {
       getSheetByName: vi.fn()
