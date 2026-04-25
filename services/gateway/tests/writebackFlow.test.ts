@@ -196,6 +196,29 @@ function buildNamedRangeUpdateResult(
   };
 }
 
+function buildWorkbookCreateSheetResult(
+  plan: Record<string, any>,
+  overrides: Record<string, unknown> = {}
+) {
+  const sheetCount = typeof overrides.sheetCount === "number" ? overrides.sheetCount : 1;
+  const positionResolved = typeof overrides.positionResolved === "number"
+    ? overrides.positionResolved
+    : plan.position === "start"
+      ? 0
+      : Math.max(0, sheetCount - 1);
+
+  return {
+    kind: "workbook_structure_update",
+    hostPlatform: "excel_windows",
+    operation: "create_sheet",
+    sheetName: plan.sheetName,
+    positionResolved,
+    sheetCount,
+    summary: `Created ${plan.sheetName}.`,
+    ...overrides
+  };
+}
+
 describe("writeback confirmation flow", () => {
   it("rejects composite approval when a required dry-run is missing or stale", () => {
     const traceBus = new TraceBus();
@@ -454,12 +477,25 @@ describe("writeback confirmation flow", () => {
             {
               stepId: "sort",
               status: "completed",
-              summary: "Sorted Sales!A1:F50."
+              summary: "Sorted Sales!A1:F50.",
+              result: {
+                kind: "range_sort",
+                hostPlatform: "excel_windows",
+                ...plan.steps[0].plan,
+                summary: "Sorted Sales!A1:F50."
+              }
             },
             {
               stepId: "report",
               status: "completed",
-              summary: "Created Sales Report!A1:D5."
+              summary: "Created Sales Report!A1:D5.",
+              result: {
+                kind: "analysis_report_update",
+                hostPlatform: "excel_windows",
+                ...plan.steps[1].plan,
+                targetRange: "A1:D5",
+                summary: "Created Sales Report!A1:D5."
+              }
             }
           ],
           summary: "Completed the composite workflow."
@@ -490,6 +526,126 @@ describe("writeback confirmation flow", () => {
         }
       ]
     });
+  });
+
+  it("requires completed composite steps to prove the child writeback result", () => {
+    const traceBus = new TraceBus();
+    const plan = {
+      steps: [
+        {
+          stepId: "write",
+          dependsOn: [],
+          continueOnError: false,
+          plan: {
+            targetSheet: "Sales",
+            targetRange: "A1:B1",
+            operation: "replace_range",
+            values: [["Region", "Revenue"]],
+            explanation: "Write report headers.",
+            confidence: 0.92,
+            requiresConfirmation: true,
+            overwriteRisk: "low" as const,
+            shape: {
+              rows: 1,
+              columns: 2
+            }
+          }
+        }
+      ],
+      explanation: "Write a header row.",
+      confidence: 0.92,
+      requiresConfirmation: true as const,
+      affectedRanges: ["Sales!A1:B1"],
+      overwriteRisk: "low" as const,
+      confirmationLevel: "standard" as const,
+      reversible: false,
+      dryRunRecommended: true,
+      dryRunRequired: false
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_composite_child_proof",
+      requestId: "req_composite_child_proof",
+      type: "composite_plan",
+      traceEvent: "composite_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      path: "/approve",
+      body: {
+        requestId: "req_composite_child_proof",
+        runId: "run_composite_child_proof",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+    expect(approval.status).toBe(200);
+
+    const missingChildProof = invokeWritebackRoute({
+      traceBus,
+      path: "/complete",
+      body: {
+        requestId: "req_composite_child_proof",
+        runId: "run_composite_child_proof",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "composite_update",
+          operation: "composite_update",
+          hostPlatform: "excel_windows",
+          executionId: (approval.body as any).executionId,
+          stepResults: [
+            {
+              stepId: "write",
+              status: "completed",
+              summary: "Wrote Sales!A1:B1."
+            }
+          ],
+          summary: "Completed the composite workflow."
+        }
+      }
+    });
+
+    expectRouteError(missingChildProof, 400, "INVALID_REQUEST");
+
+    const mismatchedChildProof = invokeWritebackRoute({
+      traceBus,
+      path: "/complete",
+      body: {
+        requestId: "req_composite_child_proof",
+        runId: "run_composite_child_proof",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "composite_update",
+          operation: "composite_update",
+          hostPlatform: "excel_windows",
+          executionId: (approval.body as any).executionId,
+          stepResults: [
+            {
+              stepId: "write",
+              status: "completed",
+              summary: "Wrote Sales!C1:D1.",
+              result: buildRangeWriteResult(plan.steps[0].plan, {
+                targetRange: "C1:D1"
+              })
+            }
+          ],
+          summary: "Completed the composite workflow."
+        }
+      }
+    });
+
+    expectRouteError(
+      mismatchedChildProof,
+      409,
+      "STALE_APPROVAL",
+      "The approved update no longer matches the current Hermes plan."
+    );
   });
 
   it("does not treat chat-only analysis reports as writeback eligible", () => {
@@ -1736,12 +1892,14 @@ describe("writeback confirmation flow", () => {
             {
               stepId: "first",
               status: "completed",
-              summary: "Created Stage 1."
+              summary: "Created Stage 1.",
+              result: buildWorkbookCreateSheetResult(plan.steps[0].plan)
             },
             {
               stepId: "first",
               status: "completed",
-              summary: "Created Stage 1 again."
+              summary: "Created Stage 1 again.",
+              result: buildWorkbookCreateSheetResult(plan.steps[0].plan)
             }
           ],
           summary: "Incorrectly reported composite completion."
@@ -1860,7 +2018,10 @@ describe("writeback confirmation flow", () => {
             {
               stepId: "second",
               status: "completed",
-              summary: "Stage 2 incorrectly claimed success."
+              summary: "Stage 2 incorrectly claimed success.",
+              result: buildWorkbookCreateSheetResult(plan.steps[1].plan, {
+                sheetCount: 2
+              })
             }
           ],
           summary: "Incorrectly reported composite completion."
@@ -2106,12 +2267,16 @@ describe("writeback confirmation flow", () => {
             {
               stepId: "first",
               status: "completed",
-              summary: "Created Stage 1."
+              summary: "Created Stage 1.",
+              result: buildWorkbookCreateSheetResult(plan.steps[0].plan)
             },
             {
               stepId: "second",
               status: "completed",
-              summary: "Created Stage 2."
+              summary: "Created Stage 2.",
+              result: buildWorkbookCreateSheetResult(plan.steps[1].plan, {
+                sheetCount: 2
+              })
             }
           ],
           summary: "Workflow finished successfully."

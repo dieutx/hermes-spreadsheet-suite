@@ -2686,12 +2686,37 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
         {
           stepId: "step_pivot",
           status: "completed",
-          summary: "Created pivot table on Sales Pivot!A1."
+          summary: "Created pivot table on Sales Pivot!A1.",
+          result: {
+            kind: "pivot_table_update",
+            operation: "pivot_table_update",
+            hostPlatform: "google_sheets",
+            sourceSheet: "Sales",
+            sourceRange: "A1:F50",
+            targetSheet: "Sales Pivot",
+            targetRange: "A1",
+            rowGroups: ["Region"],
+            valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+            summary: "Created pivot table on Sales Pivot!A1."
+          }
         },
         {
           stepId: "step_chart",
           status: "completed",
-          summary: "Created line chart on Sales Chart!A1."
+          summary: "Created line chart on Sales Chart!A1.",
+          result: {
+            kind: "chart_update",
+            operation: "chart_update",
+            hostPlatform: "google_sheets",
+            sourceSheet: "Sales Pivot",
+            sourceRange: "A1:B2",
+            targetSheet: "Sales Chart",
+            targetRange: "A1",
+            chartType: "line",
+            categoryField: "Region",
+            series: [{ field: "Revenue", label: "Revenue" }],
+            summary: "Created line chart on Sales Chart!A1."
+          }
         }
       ]
     });
