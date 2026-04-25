@@ -3957,6 +3957,8 @@ function getStructuredPreview(response) {
         position: "position" in response.data ? response.data.position : undefined,
         newSheetName: "newSheetName" in response.data ? response.data.newSheetName : undefined,
         explanation: response.data.explanation,
+        confidence: response.data.confidence,
+        requiresConfirmation: response.data.requiresConfirmation,
         overwriteRisk: response.data.overwriteRisk
       };
     case "sheet_structure_update":
@@ -3971,6 +3973,10 @@ function getStructuredPreview(response) {
         frozenColumns: response.data.frozenColumns,
         color: response.data.color,
         explanation: response.data.explanation,
+        confidence: response.data.confidence,
+        requiresConfirmation: response.data.requiresConfirmation,
+        affectedRanges: response.data.affectedRanges,
+        overwriteRisk: response.data.overwriteRisk,
         confirmationLevel: response.data.confirmationLevel,
         summary: getSheetStructureStatusSummary(response.data)
       };
@@ -3982,6 +3988,9 @@ function getStructuredPreview(response) {
         hasHeader: response.data.hasHeader,
         keys: response.data.keys,
         explanation: response.data.explanation,
+        confidence: response.data.confidence,
+        requiresConfirmation: response.data.requiresConfirmation,
+        affectedRanges: response.data.affectedRanges,
         summary: getRangeSortStatusSummary(response.data)
       };
     case "range_filter_plan":
@@ -3994,6 +4003,9 @@ function getStructuredPreview(response) {
         combiner: response.data.combiner,
         clearExistingFilters: response.data.clearExistingFilters,
         explanation: response.data.explanation,
+        confidence: response.data.confidence,
+        requiresConfirmation: response.data.requiresConfirmation,
+        affectedRanges: response.data.affectedRanges,
         summary: getRangeFilterStatusSummary(response.data)
       };
     case "range_format_update":
@@ -4003,6 +4015,8 @@ function getStructuredPreview(response) {
         targetRange: response.data.targetRange,
         format: response.data.format,
         explanation: response.data.explanation,
+        confidence: response.data.confidence,
+        requiresConfirmation: response.data.requiresConfirmation,
         overwriteRisk: response.data.overwriteRisk
       };
     case "conditional_format_plan":
@@ -4019,6 +4033,7 @@ function getStructuredPreview(response) {
         formula: response.data.formula,
         rank: response.data.rank,
         direction: response.data.direction,
+        points: response.data.points,
         style: response.data.style,
         explanation: response.data.explanation,
         confidence: response.data.confidence,
@@ -4036,6 +4051,7 @@ function getStructuredPreview(response) {
         comparator: response.data.comparator,
         value: response.data.value,
         value2: response.data.value2,
+        showDropdown: response.data.showDropdown,
         formula: response.data.formula,
         checkedValue: response.data.checkedValue,
         uncheckedValue: response.data.uncheckedValue,
@@ -4049,6 +4065,7 @@ function getStructuredPreview(response) {
         explanation: response.data.explanation,
         confidence: response.data.confidence,
         requiresConfirmation: response.data.requiresConfirmation,
+        affectedRanges: response.data.affectedRanges,
         summary: getDataValidationStatusSummary(response.data)
       };
     case "named_range_update":
@@ -4064,6 +4081,8 @@ function getStructuredPreview(response) {
         explanation: response.data.explanation,
         confidence: response.data.confidence,
         requiresConfirmation: response.data.requiresConfirmation,
+        affectedRanges: response.data.affectedRanges,
+        overwriteRisk: response.data.overwriteRisk,
         summary: getNamedRangeStatusSummary(response.data)
       };
     case "range_transfer_plan":
@@ -4225,6 +4244,9 @@ function getStructuredPreview(response) {
         targetRange: response.data.targetRange,
         shape: response.data.shape,
         operation: response.data.operation,
+        explanation: response.data.explanation,
+        confidence: response.data.confidence,
+        requiresConfirmation: response.data.requiresConfirmation,
         overwriteRisk: response.data.overwriteRisk,
         matrixKind: matrices.length > 1 ? "mixed_update" : (matrices[0] || "values"),
         headers: [],
@@ -4234,10 +4256,14 @@ function getStructuredPreview(response) {
     case "sheet_import_plan":
       return {
         kind: "sheet_import_plan",
+        sourceAttachmentId: response.data.sourceAttachmentId,
         targetSheet: response.data.targetSheet,
         targetRange: response.data.targetRange,
         shape: response.data.shape,
         extractionMode: response.data.extractionMode,
+        confidence: response.data.confidence,
+        warnings: response.data.warnings,
+        requiresConfirmation: response.data.requiresConfirmation,
         headers: response.data.headers,
         rows: response.data.values
       };
@@ -4708,6 +4734,26 @@ function formatValidationSource(preview) {
   return "";
 }
 
+function formatValidationParameters(preview) {
+  const parts = [];
+
+  if (preview.showDropdown === true) {
+    parts.push("dropdown shown");
+  } else if (preview.showDropdown === false) {
+    parts.push("dropdown hidden");
+  }
+
+  if (preview.value !== undefined) {
+    parts.push(`value ${String(preview.value)}`);
+  }
+
+  if (preview.value2 !== undefined) {
+    parts.push(`value2 ${String(preview.value2)}`);
+  }
+
+  return parts.join(" • ");
+}
+
 function formatCheckboxValues(preview) {
   if (preview.ruleType !== "checkbox") {
     return "";
@@ -4887,6 +4933,7 @@ function renderStructuredPreview(response, message) {
 
   if (preview.kind === "data_validation_plan") {
     const validationSource = formatValidationSource(preview);
+    const validationParameters = formatValidationParameters(preview);
     const checkboxValues = formatCheckboxValues(preview);
     const supportError = getExcelPlanSupportError(preview);
     return `
@@ -4901,9 +4948,13 @@ function renderStructuredPreview(response, message) {
         </div>
         <div>${escapeHtml(preview.explanation)}</div>
         ${preview.formula ? `<div class="preview-meta">${escapeHtml(preview.formula)}</div>` : ""}
+        ${validationParameters ? `<div class="preview-meta">${escapeHtml(validationParameters)}</div>` : ""}
         ${checkboxValues ? `<div class="preview-meta">${escapeHtml(checkboxValues)}</div>` : ""}
         ${preview.helpText ? `<div class="preview-meta">${escapeHtml(preview.helpText)}</div>` : ""}
         ${validationSource ? `<div class="preview-meta">${escapeHtml(validationSource)}</div>` : ""}
+        ${Array.isArray(preview.affectedRanges) && preview.affectedRanges.length > 0
+          ? `<div class="preview-meta">${escapeHtml(preview.affectedRanges.join(", "))}</div>`
+          : ""}
         <div class="preview-meta">${escapeHtml(preview.summary)}</div>
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
