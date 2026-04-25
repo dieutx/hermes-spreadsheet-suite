@@ -411,6 +411,57 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     });
   });
 
+  it("rejects Google Sheets import writes when the destination contains a blank-rendering formula", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1:B2",
+      row: 1,
+      column: 1,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["", ""],
+        ["", ""]
+      ],
+      formulas: [
+        ['=IF(TRUE,"","")', ""],
+        ["", ""]
+      ]
+    });
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Imported");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("A1:B2");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    expect(() => applyWritePlan({
+      plan: {
+        targetSheet: "Imported",
+        targetRange: "A1:B2",
+        shape: { rows: 2, columns: 2 },
+        headers: ["Name", "Amount"],
+        values: [["Ada", 42]],
+        explanation: "Import a table into the destination.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Imported!A1:B2"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      },
+      requestId: "req_import_formula_guard_google_001",
+      runId: "run_import_formula_guard_google_001",
+      approvalToken: "token"
+    })).toThrow("Target range already contains content.");
+    expect(targetRange.setValues).not.toHaveBeenCalled();
+    expect(flush).not.toHaveBeenCalled();
+  });
+
   it("replaces a transfer plan message with the completed transfer summary", () => {
     const sidebar = loadSidebarContext();
     const message = {
