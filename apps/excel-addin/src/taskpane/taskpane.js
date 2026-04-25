@@ -2715,6 +2715,27 @@ function applyExcelCheckboxValidation(target, plan) {
   };
 }
 
+async function assertExcelNamedRangeCreateDoesNotCollide(context, collection, name) {
+  if (!collection || typeof collection.getItemOrNullObject !== "function") {
+    return;
+  }
+
+  const existingNamedRange = collection.getItemOrNullObject(name);
+  if (!existingNamedRange) {
+    return;
+  }
+
+  if (typeof existingNamedRange.load === "function") {
+    existingNamedRange.load("name");
+  }
+
+  await context.sync();
+
+  if (existingNamedRange.isNullObject !== true) {
+    throw new Error(`Named range already exists: ${name}`);
+  }
+}
+
 function applyExcelNamedRangeUpdate(workbook, worksheet, plan, targetRange) {
   const collection = plan.scope === "sheet"
     ? worksheet.names
@@ -6482,6 +6503,12 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const worksheet = namedRangeWorksheetName
         ? worksheets.getItem(namedRangeWorksheetName)
         : undefined;
+      const namedRangeCollection = plan.scope === "sheet"
+        ? worksheet?.names
+        : context.workbook.names;
+      if (plan.operation === "create") {
+        await assertExcelNamedRangeCreateDoesNotCollide(context, namedRangeCollection, plan.name);
+      }
       const target = plan.targetRange && worksheet ? worksheet.getRange(plan.targetRange) : undefined;
       applyExcelNamedRangeUpdate(
         context.workbook,

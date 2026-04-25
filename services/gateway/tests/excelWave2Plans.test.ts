@@ -739,6 +739,54 @@ describe("Excel wave 2 plan helpers", () => {
     expect(workbookNamedRange.delete).toHaveBeenCalled();
   });
 
+  it("fails closed when creating an Excel named range that already exists", async () => {
+    const existingNamedRange = {
+      isNullObject: false,
+      load: vi.fn()
+    };
+    const workbookNames = {
+      getItemOrNullObject: vi.fn(() => existingNamedRange),
+      add: vi.fn()
+    };
+    const worksheet = {
+      getRange: vi.fn(),
+      names: {
+        add: vi.fn()
+      }
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        },
+        names: workbookNames
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        operation: "create",
+        scope: "workbook",
+        name: "SalesData",
+        targetSheet: "Sheet1",
+        targetRange: "B2:D20",
+        explanation: "Create a workbook-scoped name.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      },
+      requestId: "req_named_range_create_duplicate_001",
+      runId: "run_named_range_create_duplicate_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Named range already exists: SalesData");
+
+    expect(workbookNames.getItemOrNullObject).toHaveBeenCalledWith("SalesData");
+    expect(existingNamedRange.load).toHaveBeenCalledWith("name");
+    expect(worksheet.getRange).not.toHaveBeenCalled();
+    expect(workbookNames.add).not.toHaveBeenCalled();
+  });
+
   it("uses sheetName to resolve sheet-scoped named range renames when targetSheet is absent", async () => {
     const sheetNamedRange = {
       reference: "Sheet Scope!A1:A2",
