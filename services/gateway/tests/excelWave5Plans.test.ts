@@ -662,6 +662,140 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
 
   });
 
+  it("applies bounded numeric pivot filters in Excel", async () => {
+    const sourceRange = createRangeStub({
+      address: "Sales!A1:F50",
+      rowCount: 50,
+      columnCount: 6,
+      values: [
+        ["Region", "Rep", "Quarter", "Revenue", "Deals", "Discount"],
+        ...Array.from({ length: 49 }, () => ["West", "Avery", "Q1", 100, 12, 0.2])
+      ]
+    });
+    const anchorRange = createRangeStub({
+      address: "Sales Pivot!A1",
+      rowCount: 1,
+      columnCount: 1,
+      values: [[""]],
+      formulas: [[""]]
+    });
+    const pivotFieldMap = Object.fromEntries(
+      ["Region", "Revenue", "Deals", "Discount"].map((name) => [
+        name,
+        {
+          name,
+          applyFilter: vi.fn()
+        }
+      ])
+    );
+    const hierarchyMap = Object.fromEntries(
+      ["Region", "Revenue", "Deals", "Discount"].map((name) => [
+        name,
+        {
+          name,
+          fields: {
+            getItem: vi.fn(() => pivotFieldMap[name])
+          }
+        }
+      ])
+    );
+    const pivotTable = {
+      hierarchies: {
+        getItem: vi.fn((name: string) => hierarchyMap[name])
+      },
+      rowHierarchies: {
+        add: vi.fn()
+      },
+      columnHierarchies: {
+        add: vi.fn()
+      },
+      filterHierarchies: {
+        add: vi.fn()
+      },
+      dataHierarchies: {
+        add: vi.fn((hierarchy: { name: string }) => ({ name: hierarchy.name, summarizeBy: undefined }))
+      }
+    };
+    const sourceWorksheet = {
+      getRange: vi.fn(() => sourceRange)
+    };
+    const targetWorksheet = {
+      getRange: vi.fn(() => anchorRange),
+      pivotTables: {
+        add: vi.fn(() => pivotTable)
+      }
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn((sheetName: string) => {
+            if (sheetName === "Sales") {
+              return sourceWorksheet;
+            }
+            if (sheetName === "Sales Pivot") {
+              return targetWorksheet;
+            }
+            throw new Error(`Unexpected sheet lookup: ${sheetName}`);
+          })
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        targetSheet: "Sales Pivot",
+        targetRange: "A1",
+        rowGroups: ["Region"],
+        columnGroups: [],
+        valueAggregations: [
+          { field: "Revenue", aggregation: "sum" }
+        ],
+        filters: [
+          { field: "Deals", operator: "between", value: 5, value2: "20" },
+          { field: "Discount", operator: "not_between", value: "0.1", value2: 0.3 }
+        ],
+        explanation: "Build a pivot table with bounded filters.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      },
+      requestId: "req_pivot_between_apply_excel_001",
+      runId: "run_pivot_between_apply_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "pivot_table_update",
+      operation: "pivot_table_update",
+      filters: [
+        { field: "Deals", operator: "between", value: 5, value2: "20" },
+        { field: "Discount", operator: "not_between", value: "0.1", value2: 0.3 }
+      ],
+      summary: "Created pivot table on Sales Pivot!A1."
+    });
+
+    expect(pivotTable.filterHierarchies.add).toHaveBeenNthCalledWith(1, hierarchyMap.Deals);
+    expect(pivotTable.filterHierarchies.add).toHaveBeenNthCalledWith(2, hierarchyMap.Discount);
+    expect(pivotFieldMap.Deals.applyFilter).toHaveBeenCalledWith({
+      labelFilter: {
+        condition: "Between",
+        lowerBound: "5",
+        upperBound: "20"
+      }
+    });
+    expect(pivotFieldMap.Discount.applyFilter).toHaveBeenCalledWith({
+      labelFilter: {
+        condition: "Between",
+        lowerBound: "0.1",
+        upperBound: "0.3",
+        exclusive: true
+      }
+    });
+  });
+
   it("applies an exact-safe chart plan through Excel Office.js", async () => {
     const sourceRange = createRangeStub({
       address: "Sales!A1:C20",

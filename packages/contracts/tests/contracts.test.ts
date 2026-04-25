@@ -1311,6 +1311,54 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.valueAggregations).toHaveLength(2);
   });
 
+  it("accepts bounded numeric pivot filters and requires both bounds", () => {
+    const parsed = PivotTablePlanDataSchema.parse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      filters: [
+        { field: "Deals", operator: "between", value: 5, value2: 20 },
+        { field: "Discount", operator: "not_between", value: 0.1, value2: 0.3 }
+      ],
+      explanation: "Build a sales pivot with bounded numeric filters.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+    const missingUpperBound = PivotTablePlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      filters: [
+        { field: "Deals", operator: "between", value: 5 }
+      ],
+      explanation: "Build a sales pivot with an incomplete bounded filter.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.filters).toEqual([
+      { field: "Deals", operator: "between", value: 5, value2: 20 },
+      { field: "Discount", operator: "not_between", value: 0.1, value2: 0.3 }
+    ]);
+    expect(missingUpperBound.success).toBe(false);
+  });
+
   it("accepts a chart plan with explicit category and series mapping", () => {
     const parsed = ChartPlanDataSchema.parse({
       sourceSheet: "Sales",

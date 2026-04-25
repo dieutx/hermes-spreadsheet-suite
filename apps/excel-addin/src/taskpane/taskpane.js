@@ -1011,6 +1011,9 @@ function mapPivotLabelFilterConditionToExcel(operator) {
       return Excel?.LabelFilterCondition?.lessThan || Excel?.LabelFilterCondition?.LessThan || "LessThan";
     case "less_than_or_equal_to":
       return Excel?.LabelFilterCondition?.lessThanOrEqualTo || Excel?.LabelFilterCondition?.LessThanOrEqualTo || "LessThanOrEqualTo";
+    case "between":
+    case "not_between":
+      return Excel?.LabelFilterCondition?.between || Excel?.LabelFilterCondition?.Between || "Between";
     default:
       throw new Error(`Unsupported pivot filter operator: ${operator}`);
   }
@@ -1051,9 +1054,15 @@ function getExcelPivotStructureSupportError(plan) {
       "greater_than",
       "greater_than_or_equal_to",
       "less_than",
-      "less_than_or_equal_to"
+      "less_than_or_equal_to",
+      "between",
+      "not_between"
     ].includes(filter.operator)) {
       return "This Excel runtime can't apply that pivot filter.";
+    }
+
+    if ((filter.operator === "between" || filter.operator === "not_between") && filter.value2 === undefined) {
+      return "This Excel runtime requires two bounds for between pivot filters.";
     }
   }
 
@@ -3308,6 +3317,16 @@ function buildExcelPivotLabelFilter(filter) {
     condition: mapPivotLabelFilterConditionToExcel(filter.operator)
   };
   const value = filter?.value == null ? "" : String(filter.value);
+  const value2 = filter?.value2 == null ? "" : String(filter.value2);
+
+  if (filter.operator === "between" || filter.operator === "not_between") {
+    labelFilter.lowerBound = value;
+    labelFilter.upperBound = value2;
+    if (filter.operator === "not_between") {
+      labelFilter.exclusive = true;
+    }
+    return labelFilter;
+  }
 
   if (filter.operator === "not_equal_to") {
     labelFilter.comparator = value;

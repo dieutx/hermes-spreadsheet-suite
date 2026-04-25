@@ -1085,10 +1085,31 @@ const PivotFilterSchema = strictObject({
     "greater_than",
     "greater_than_or_equal_to",
     "less_than",
-    "less_than_or_equal_to"
+    "less_than_or_equal_to",
+    "between",
+    "not_between"
   ]),
   value: CellValueSchema.optional(),
   value2: CellValueSchema.optional()
+}).superRefine((data, ctx) => {
+  const requiresSecondValue = data.operator === "between" || data.operator === "not_between";
+  const hasSecondValue = data.value2 !== undefined;
+
+  if (requiresSecondValue && !hasSecondValue) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${data.operator} requires value2.`,
+      path: ["value2"]
+    });
+  }
+
+  if (!requiresSecondValue && hasSecondValue) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${data.operator} must not include value2.`,
+      path: ["value2"]
+    });
+  }
 });
 
 export const PivotTablePlanDataSchema = strictObject({

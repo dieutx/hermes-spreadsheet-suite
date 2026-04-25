@@ -224,6 +224,7 @@ For type="pivot_table_plan":
 - data.affectedRanges is required
 - data.overwriteRisk is required
 - data.confirmationLevel is required
+- pivot filters may use equal_to, not_equal_to, greater_than, greater_than_or_equal_to, less_than, less_than_or_equal_to, between, or not_between; between and not_between require value2
 - if the requested pivot table cannot be represented exactly on the current host, return type="error" with data.code="UNSUPPORTED_OPERATION"
 - unsupported pivot or chart mappings must fail closed
 

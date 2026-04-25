@@ -30,11 +30,15 @@ function loadCodeModule(options: {
       },
       flush,
       newFilterCriteria() {
-        let matchedValue: string | number | null = null;
+        let matchedValue: unknown = null;
         let matchedType: string | null = null;
         const bindBuilderMethod = (type: string) => vi.fn(function() {
           matchedType = type;
-          matchedValue = arguments[0] == null ? null : arguments[0];
+          matchedValue = arguments.length > 1
+            ? Array.from(arguments)
+            : arguments[0] == null
+              ? null
+              : arguments[0];
           return this;
         });
         return {
@@ -46,6 +50,8 @@ function loadCodeModule(options: {
           whenNumberGreaterThanOrEqualTo: bindBuilderMethod("number_greater_than_or_equal_to"),
           whenNumberLessThan: bindBuilderMethod("number_less_than"),
           whenNumberLessThanOrEqualTo: bindBuilderMethod("number_less_than_or_equal_to"),
+          whenNumberBetween: bindBuilderMethod("number_between"),
+          whenNumberNotBetween: bindBuilderMethod("number_not_between"),
           build: vi.fn(function() {
             return { type: matchedType, value: matchedValue };
           })
@@ -1109,6 +1115,86 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
       summary: "Created pivot table on Sales Pivot!A1."
     });
     expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies bounded numeric pivot filters through Code.gs", () => {
+    const anchorRange = createRangeStub({
+      a1Notation: "A1",
+      row: 1,
+      column: 1,
+      numRows: 1,
+      numColumns: 1,
+      values: [[""]]
+    });
+    const sourceRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6,
+      displayValues: [
+        ["Region", "Rep", "Quarter", "Revenue", "Deals", "Discount"]
+      ]
+    });
+    const pivotTable = {
+      addRowGroup: vi.fn(),
+      addColumnGroup: vi.fn(),
+      addPivotValue: vi.fn(),
+      addFilter: vi.fn()
+    };
+    anchorRange.createPivotTable = vi.fn(() => pivotTable);
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "Sales") {
+          return { getRange: vi.fn(() => sourceRange) };
+        }
+        if (sheetName === "Sales Pivot") {
+          return { getRange: vi.fn(() => anchorRange) };
+        }
+        return null;
+      })
+    };
+
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+    const result = applyWritePlan({
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        targetSheet: "Sales Pivot",
+        targetRange: "A1",
+        rowGroups: ["Region"],
+        columnGroups: [],
+        valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+        filters: [
+          { field: "Deals", operator: "between", value: 5, value2: "20" },
+          { field: "Discount", operator: "not_between", value: "0.1", value2: 0.3 }
+        ],
+        explanation: "Build a pivot table with bounded filters.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(pivotTable.addFilter).toHaveBeenNthCalledWith(1, 5, {
+      type: "number_between",
+      value: [5, 20]
+    });
+    expect(pivotTable.addFilter).toHaveBeenNthCalledWith(2, 6, {
+      type: "number_not_between",
+      value: [0.1, 0.3]
+    });
+    expect(result).toMatchObject({
+      kind: "pivot_table_update",
+      operation: "pivot_table_update",
+      filters: [
+        { field: "Deals", operator: "between", value: 5, value2: "20" },
+        { field: "Discount", operator: "not_between", value: "0.1", value2: 0.3 }
+      ],
+      summary: "Created pivot table on Sales Pivot!A1."
+    });
   });
 
   it("uses Wave 5 update summaries for sidebar status and response text", () => {
