@@ -1324,6 +1324,8 @@ describe("Hermes spreadsheet contracts", () => {
         { field: "Margin", label: "Margin" }
       ],
       title: "Revenue vs Margin",
+      horizontalAxisTitle: "Month",
+      verticalAxisTitle: "USD",
       legendPosition: "bottom",
       explanation: "Chart monthly revenue and margin.",
       confidence: 0.93,
@@ -1334,6 +1336,8 @@ describe("Hermes spreadsheet contracts", () => {
     });
 
     expect(parsed.chartType).toBe("line");
+    expect(parsed.horizontalAxisTitle).toBe("Month");
+    expect(parsed.verticalAxisTitle).toBe("USD");
   });
 
   it("accepts a chart_update response envelope", () => {

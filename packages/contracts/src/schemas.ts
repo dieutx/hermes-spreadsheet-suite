@@ -1136,6 +1136,8 @@ export const ChartPlanDataSchema = strictObject({
     })
   ).min(1).max(10),
   title: z.string().min(1).max(256).optional(),
+  horizontalAxisTitle: z.string().trim().min(1).max(128).optional(),
+  verticalAxisTitle: z.string().trim().min(1).max(128).optional(),
   legendPosition: z.enum(["top", "bottom", "left", "right", "hidden"]).optional(),
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),

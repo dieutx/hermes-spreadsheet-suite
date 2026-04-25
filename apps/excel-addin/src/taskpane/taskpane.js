@@ -1413,11 +1413,25 @@ function validateExcelChartSeriesLabels(plan) {
   }
 }
 
+function hasExcelChartAxisTitles(plan) {
+  return Boolean(
+    (typeof plan?.horizontalAxisTitle === "string" && plan.horizontalAxisTitle.trim().length > 0) ||
+    (typeof plan?.verticalAxisTitle === "string" && plan.verticalAxisTitle.trim().length > 0)
+  );
+}
+
+function assertExcelChartAxisTitleSupport(plan) {
+  if (hasExcelChartAxisTitles(plan) && plan?.chartType === "pie") {
+    throw new Error("Excel host does not support exact-safe chart axis titles for pie charts.");
+  }
+}
+
 function assertExcelChartPlanSupport(plan) {
   getExcelChartTypeConfig(plan?.chartType);
   getExcelChartLegendConfig(plan?.legendPosition);
   const fieldSequence = getExcelChartFieldSequence(plan);
   validateExcelChartSeriesLabels(plan);
+  assertExcelChartAxisTitleSupport(plan);
 
   if (plan?.chartType === "pie" && fieldSequence.length !== 2) {
     throw new Error("Excel host only supports a single series when creating pie charts.");
@@ -1448,6 +1462,10 @@ function getExcelChartSupportError(preview) {
 
     if (/single series when creating pie charts/i.test(message)) {
       return "This Excel runtime only supports a single series when creating pie charts.";
+    }
+
+    if (/axis titles for pie charts/i.test(message)) {
+      return "This Excel runtime can only add axis titles to charts with horizontal and vertical axes.";
     }
 
     if (/chart type/i.test(message)) {
@@ -3867,6 +3885,57 @@ function applyExcelChartLegend(chart, legendPosition) {
   }
 }
 
+function getExcelChartAxisForHorizontalTitle(chart, chartType) {
+  if (chartType === "bar" || chartType === "stacked_bar") {
+    return chart?.axes?.valueAxis;
+  }
+
+  return chart?.axes?.categoryAxis;
+}
+
+function getExcelChartAxisForVerticalTitle(chart, chartType) {
+  if (chartType === "bar" || chartType === "stacked_bar") {
+    return chart?.axes?.categoryAxis;
+  }
+
+  return chart?.axes?.valueAxis;
+}
+
+function applyExcelChartAxisTitle(axis, title) {
+  const trimmedTitle = typeof title === "string" ? title.trim() : "";
+  if (!trimmedTitle) {
+    return;
+  }
+
+  if (!axis?.title || typeof axis.title !== "object" || !("text" in axis.title)) {
+    throw new Error("Excel host does not support exact-safe chart axis titles.");
+  }
+
+  if ("visible" in axis.title) {
+    axis.title.visible = true;
+  }
+  axis.title.text = trimmedTitle;
+}
+
+function applyExcelChartAxisTitles(chart, plan) {
+  if (!hasExcelChartAxisTitles(plan)) {
+    return;
+  }
+
+  if (!chart?.axes || typeof chart.axes !== "object") {
+    throw new Error("Excel host does not support exact-safe chart axis titles.");
+  }
+
+  applyExcelChartAxisTitle(
+    getExcelChartAxisForHorizontalTitle(chart, plan.chartType),
+    typeof plan.horizontalAxisTitle === "string" ? plan.horizontalAxisTitle : ""
+  );
+  applyExcelChartAxisTitle(
+    getExcelChartAxisForVerticalTitle(chart, plan.chartType),
+    typeof plan.verticalAxisTitle === "string" ? plan.verticalAxisTitle : ""
+  );
+}
+
 async function applyExcelChartPlan(context, worksheets, plan, platform) {
   assertExcelChartPlanSupport(plan);
 
@@ -3900,6 +3969,7 @@ async function applyExcelChartPlan(context, worksheets, plan, platform) {
   chart.setPosition(targetRange);
   applyExcelChartTitle(chart, plan.title);
   applyExcelChartLegend(chart, plan.legendPosition);
+  applyExcelChartAxisTitles(chart, plan);
   await context.sync();
 
   return {
@@ -3922,6 +3992,8 @@ async function applyExcelChartPlan(context, worksheets, plan, platform) {
         })
       : [],
     title: plan.title,
+    horizontalAxisTitle: plan.horizontalAxisTitle,
+    verticalAxisTitle: plan.verticalAxisTitle,
     legendPosition: plan.legendPosition,
     explanation: plan.explanation,
     confidence: plan.confidence,
@@ -4181,6 +4253,8 @@ function getStructuredPreview(response) {
         categoryField: response.data.categoryField,
         series: response.data.series,
         title: response.data.title,
+        horizontalAxisTitle: response.data.horizontalAxisTitle,
+        verticalAxisTitle: response.data.verticalAxisTitle,
         legendPosition: response.data.legendPosition,
         explanation: response.data.explanation,
         confidence: response.data.confidence,

@@ -1300,6 +1300,8 @@ function normalizeChartPlanData(value: unknown): unknown {
     "chartType",
     "categoryField",
     "title",
+    "horizontalAxisTitle",
+    "verticalAxisTitle",
     "legendPosition",
     "explanation",
     "confidence",

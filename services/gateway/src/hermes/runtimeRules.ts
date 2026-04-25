@@ -237,6 +237,7 @@ For type="chart_plan":
 - each series item must use field to reference a source header name
 - do not use A1 ranges or name/range objects inside data.series
 - use categoryField when the chart should use a named category axis
+- use horizontalAxisTitle and verticalAxisTitle only for non-pie charts
 - data.explanation is required
 - data.confidence is required
 - data.requiresConfirmation must be true

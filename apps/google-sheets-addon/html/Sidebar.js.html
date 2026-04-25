@@ -1903,6 +1903,16 @@
     return ["bottom", "left", "right", "top", "none", "hidden"].includes(legendPosition);
   }
 
+  function hasGoogleSheetsChartAxisTitles(plan) {
+    return Boolean(
+      plan &&
+      (
+        (typeof plan.horizontalAxisTitle === "string" && plan.horizontalAxisTitle.trim().length > 0) ||
+        (typeof plan.verticalAxisTitle === "string" && plan.verticalAxisTitle.trim().length > 0)
+      )
+    );
+  }
+
   function isExactSafeChartSeriesLabel(series) {
     if (!series || typeof series !== "object") {
       return true;
@@ -2731,6 +2741,10 @@
         return `This Google Sheets flow can't create a ${preview.chartType} chart yet. Try bar, column, line, area, pie, or scatter.`;
       }
 
+      if (preview.chartType === "pie" && hasGoogleSheetsChartAxisTitles(preview)) {
+        return "This Google Sheets flow can only add axis titles to charts with horizontal and vertical axes.";
+      }
+
       const targetBounds = parseA1RangeReference(preview.targetRange);
       if (!targetBounds || targetBounds.startRow !== targetBounds.endRow || targetBounds.startColumn !== targetBounds.endColumn) {
         return "Google Sheets host requires a single-cell target anchor for charts.";
@@ -3184,6 +3198,8 @@
           categoryField: response.data.categoryField,
           series: response.data.series,
           title: response.data.title,
+          horizontalAxisTitle: response.data.horizontalAxisTitle,
+          verticalAxisTitle: response.data.verticalAxisTitle,
           legendPosition: response.data.legendPosition,
           explanation: response.data.explanation,
           confidence: response.data.confidence,

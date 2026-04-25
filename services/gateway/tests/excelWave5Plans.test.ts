@@ -683,6 +683,20 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         text: "",
         visible: false
       },
+      axes: {
+        categoryAxis: {
+          title: {
+            text: "",
+            visible: false
+          }
+        },
+        valueAxis: {
+          title: {
+            text: "",
+            visible: false
+          }
+        }
+      },
       legend: {
         position: "",
         visible: true
@@ -741,6 +755,8 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
           { field: "Margin", label: "Margin" }
         ],
         title: "Revenue vs Margin",
+        horizontalAxisTitle: "Month",
+        verticalAxisTitle: "Amount",
         legendPosition: "bottom",
         explanation: "Chart monthly revenue and margin.",
         confidence: 0.93,
@@ -767,6 +783,8 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         { field: "Margin", label: "Margin" }
       ],
       title: "Revenue vs Margin",
+      horizontalAxisTitle: "Month",
+      verticalAxisTitle: "Amount",
       legendPosition: "bottom",
       summary: "Created line chart on Sales Chart!A1."
     });
@@ -777,6 +795,10 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
     expect(chart.setPosition).toHaveBeenCalledWith(targetAnchorRange);
     expect(chart.title.visible).toBe(true);
     expect(chart.title.text).toBe("Revenue vs Margin");
+    expect(chart.axes.categoryAxis.title.visible).toBe(true);
+    expect(chart.axes.categoryAxis.title.text).toBe("Month");
+    expect(chart.axes.valueAxis.title.visible).toBe(true);
+    expect(chart.axes.valueAxis.title.text).toBe("Amount");
     expect(chart.legend.visible).toBe(true);
     expect(chart.legend.position).toBe("Bottom");
   });
@@ -830,5 +852,56 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       runId: "run_chart_label_apply_excel_001",
       approvalToken: "token"
     })).rejects.toThrow("Excel host can't rename chart series labels during creation.");
+  });
+
+  it("fails closed for chart previews and apply paths when a pie chart asks for axis titles", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn()
+        }
+      }
+    });
+
+    const response = {
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:B20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartType: "pie",
+        categoryField: "Month",
+        series: [
+          { field: "Revenue", label: "Revenue" }
+        ],
+        title: "Revenue Share",
+        horizontalAxisTitle: "Month",
+        verticalAxisTitle: "Revenue",
+        legendPosition: "bottom",
+        explanation: "Chart revenue share by month.",
+        confidence: 0.93,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:B20", "Sales Chart!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(taskpane.isWritePlanResponse(response)).toBe(false);
+    const html = taskpane.renderStructuredPreview(response, {
+      runId: "run_chart_pie_axis_preview_excel_001",
+      requestId: "req_chart_pie_axis_preview_excel_001"
+    });
+    expect(html).toContain("can only add axis titles to charts with horizontal and vertical axes");
+    expect(html).not.toContain("Confirm Chart");
+
+    await expect(taskpane.applyWritePlan({
+      plan: response.data,
+      requestId: "req_chart_pie_axis_apply_excel_001",
+      runId: "run_chart_pie_axis_apply_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host does not support exact-safe chart axis titles for pie charts.");
   });
 });

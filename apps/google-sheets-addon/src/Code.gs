@@ -1634,6 +1634,20 @@ function validateChartSeriesLabels_(plan) {
   });
 }
 
+function hasChartAxisTitles_(plan) {
+  return Boolean(
+    plan &&
+    ((typeof plan.horizontalAxisTitle === 'string' && plan.horizontalAxisTitle.trim().length > 0) ||
+      (typeof plan.verticalAxisTitle === 'string' && plan.verticalAxisTitle.trim().length > 0))
+  );
+}
+
+function validateChartAxisTitles_(plan) {
+  if (hasChartAxisTitles_(plan) && plan.chartType === 'pie') {
+    throw new Error('Google Sheets host does not support exact-safe axis titles for pie charts.');
+  }
+}
+
 function buildChartSeriesOptions_(plan) {
   const options = {};
 
@@ -1723,6 +1737,7 @@ function applyChartPlan_(spreadsheet, plan) {
   const headerMap = buildHeaderMap_(sourceRange);
   validateChartSourceLayout_(sourceRange, headerMap, plan);
   validateChartSeriesLabels_(plan);
+  validateChartAxisTitles_(plan);
   const targetRange = targetSheet.getRange(plan.targetRange);
   requireSingleCellAnchor_(targetRange, 'charts');
 
@@ -1744,8 +1759,10 @@ function applyChartPlan_(spreadsheet, plan) {
   });
   chartBuilder.setChartType(chartConfig.chartType);
   chartBuilder.setPosition(targetRange.getRow(), targetRange.getColumn(), 0, 0);
+  const horizontalAxisTitle = typeof plan.horizontalAxisTitle === 'string' ? plan.horizontalAxisTitle.trim() : '';
+  const verticalAxisTitle = typeof plan.verticalAxisTitle === 'string' ? plan.verticalAxisTitle.trim() : '';
 
-  if ((plan.title || legendPosition || chartConfig.stacked) && typeof chartBuilder.setOption !== 'function') {
+  if ((plan.title || legendPosition || chartConfig.stacked || horizontalAxisTitle || verticalAxisTitle) && typeof chartBuilder.setOption !== 'function') {
     throw new Error('Google Sheets host does not support exact-safe chart creation yet.');
   }
 
@@ -1755,6 +1772,14 @@ function applyChartPlan_(spreadsheet, plan) {
 
   if (legendPosition) {
     applyChartOptionOrFail_(chartBuilder, 'legend', { position: legendPosition }, 'legend positioning');
+  }
+
+  if (horizontalAxisTitle) {
+    applyChartOptionOrFail_(chartBuilder, 'hAxis', { title: horizontalAxisTitle }, 'axis titles');
+  }
+
+  if (verticalAxisTitle) {
+    applyChartOptionOrFail_(chartBuilder, 'vAxis', { title: verticalAxisTitle }, 'axis titles');
   }
 
   if (chartConfig.stacked) {
@@ -1782,6 +1807,8 @@ function applyChartPlan_(spreadsheet, plan) {
     categoryField: plan.categoryField,
     series: plan.series,
     title: plan.title,
+    horizontalAxisTitle: plan.horizontalAxisTitle,
+    verticalAxisTitle: plan.verticalAxisTitle,
     legendPosition: plan.legendPosition,
     explanation: plan.explanation,
     confidence: plan.confidence,

@@ -361,6 +361,8 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
           { field: "Margin", label: "Margin" }
         ],
         title: "Revenue vs Margin",
+        horizontalAxisTitle: "Month",
+        verticalAxisTitle: "Amount",
         legendPosition: "hidden",
         explanation: "Chart monthly revenue and margin.",
         confidence: 0.93,
@@ -710,6 +712,8 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
           { field: "Margin", label: "Margin" }
         ],
         title: "Revenue vs Margin",
+        horizontalAxisTitle: "Month",
+        verticalAxisTitle: "Amount",
         legendPosition: "hidden",
         explanation: "Chart monthly revenue and margin.",
         confidence: 0.93,
@@ -727,6 +731,8 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     expect(chartBuilder.setPosition).toHaveBeenCalledWith(1, 1, 0, 0);
     expect(chartBuilder.setOption).toHaveBeenNthCalledWith(1, "title", "Revenue vs Margin");
     expect(chartBuilder.setOption).toHaveBeenNthCalledWith(2, "legend", { position: "none" });
+    expect(chartBuilder.setOption).toHaveBeenNthCalledWith(3, "hAxis", { title: "Month" });
+    expect(chartBuilder.setOption).toHaveBeenNthCalledWith(4, "vAxis", { title: "Amount" });
     expect(chartBuilder.build).toHaveBeenCalledTimes(1);
     expect(chartSheet.newChart).toHaveBeenCalledTimes(1);
     expect(chartSheet.insertChart).toHaveBeenCalledWith(builtChart);
@@ -745,6 +751,8 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
         { field: "Margin", label: "Margin" }
       ],
       title: "Revenue vs Margin",
+      horizontalAxisTitle: "Month",
+      verticalAxisTitle: "Amount",
       legendPosition: "hidden",
       summary: "Created line chart on Sales Chart!A1."
     });
@@ -998,6 +1006,42 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     });
     expect(html).toContain("Will create a line chart on Sales Chart!A1.");
     expect(html).toContain("Confirm Chart");
+  });
+
+  it("fails closed in the sidebar when a pie chart asks for axis titles", () => {
+    const sidebar = loadSidebarContext();
+    const response = {
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:B20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartType: "pie",
+        categoryField: "Month",
+        series: [
+          { field: "Revenue", label: "Revenue" }
+        ],
+        title: "Revenue Share",
+        horizontalAxisTitle: "Month",
+        verticalAxisTitle: "Revenue",
+        legendPosition: "bottom",
+        explanation: "Chart revenue share by month.",
+        confidence: 0.93,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:B20", "Sales Chart!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(sidebar.isWritePlanResponse(response)).toBe(false);
+    const html = sidebar.renderStructuredPreview(response, {
+      runId: "run_chart_pie_axis_preview_google_001",
+      requestId: "req_chart_pie_axis_preview_google_001"
+    });
+    expect(html).toContain("can only add axis titles to charts with horizontal and vertical axes");
+    expect(html).not.toContain("Confirm Chart");
   });
 
   it("applies a demo-safe pivot plan through Code.gs", () => {
