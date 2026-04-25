@@ -2511,12 +2511,37 @@ function isDataCleanupPlan(plan) {
   );
 }
 
+function mapDataValidationComparatorToExcel(comparator) {
+  const operator = Excel?.DataValidationOperator;
+  const map = {
+    between: operator?.between || "Between",
+    not_between: operator?.notBetween || "NotBetween",
+    equal_to: operator?.equalTo || "EqualTo",
+    not_equal_to: operator?.notEqualTo || "NotEqualTo",
+    greater_than: operator?.greaterThan || "GreaterThan",
+    greater_than_or_equal_to: operator?.greaterThanOrEqualTo || "GreaterThanOrEqualTo",
+    less_than: operator?.lessThan || "LessThan",
+    less_than_or_equal_to: operator?.lessThanOrEqualTo || "LessThanOrEqualTo"
+  };
+
+  const mapped = map[comparator];
+  if (!mapped) {
+    throw new Error(`Unsupported Excel validation comparator: ${comparator}`);
+  }
+
+  return mapped;
+}
+
 function buildExcelValidationRule(plan) {
+  const operator = "comparator" in plan
+    ? mapDataValidationComparatorToExcel(plan.comparator)
+    : undefined;
+
   switch (plan.ruleType) {
     case "whole_number":
       return {
         wholeNumber: {
-          operator: plan.comparator,
+          operator,
           formula1: plan.value,
           formula2: plan.value2
         }
@@ -2524,7 +2549,7 @@ function buildExcelValidationRule(plan) {
     case "decimal":
       return {
         decimal: {
-          operator: plan.comparator,
+          operator,
           formula1: plan.value,
           formula2: plan.value2
         }
@@ -2532,7 +2557,7 @@ function buildExcelValidationRule(plan) {
     case "date":
       return {
         date: {
-          operator: plan.comparator,
+          operator,
           formula1: plan.value,
           formula2: plan.value2
         }
@@ -2540,7 +2565,7 @@ function buildExcelValidationRule(plan) {
     case "text_length":
       return {
         textLength: {
-          operator: plan.comparator,
+          operator,
           formula1: plan.value,
           formula2: plan.value2
         }

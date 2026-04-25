@@ -100,6 +100,16 @@ async function loadTaskpaneModule(excelContext: Record<string, unknown>) {
     CellControlType: {
       checkbox: "Checkbox"
     },
+    DataValidationOperator: {
+      between: "Between",
+      notBetween: "NotBetween",
+      equalTo: "EqualTo",
+      notEqualTo: "NotEqualTo",
+      greaterThan: "GreaterThan",
+      greaterThanOrEqualTo: "GreaterThanOrEqualTo",
+      lessThan: "LessThan",
+      lessThanOrEqualTo: "LessThanOrEqualTo"
+    },
     SheetVisibility: {
       visible: "visible",
       hidden: "hidden",
@@ -409,7 +419,7 @@ describe("Excel wave 2 plan helpers", () => {
 
     expect(validationRule.set).toHaveBeenCalledWith({
       wholeNumber: {
-        operator: "between",
+        operator: "Between",
         formula1: 1,
         formula2: 10
       }
@@ -424,6 +434,93 @@ describe("Excel wave 2 plan helpers", () => {
       message: "Values must match the approved validation rule.",
       style: "stop",
       showAlert: true
+    });
+  });
+
+  it("maps Excel data validation comparators to Office.js operators", async () => {
+    const validationRule = { set: vi.fn() };
+    const ignoreBlanks = { set: vi.fn() };
+    const prompt = { set: vi.fn() };
+    const errorAlert = { set: vi.fn() };
+    const dataValidation = {};
+    Object.defineProperty(dataValidation, "rule", {
+      configurable: true,
+      set(rule) {
+        validationRule.set(rule);
+      }
+    });
+    Object.defineProperty(dataValidation, "ignoreBlanks", {
+      configurable: true,
+      set(value) {
+        ignoreBlanks.set(value);
+      }
+    });
+    Object.defineProperty(dataValidation, "prompt", {
+      configurable: true,
+      set(value) {
+        prompt.set(value);
+      }
+    });
+    Object.defineProperty(dataValidation, "errorAlert", {
+      configurable: true,
+      set(value) {
+        errorAlert.set(value);
+      }
+    });
+    const targetRange = {
+      load: vi.fn(),
+      address: "Sheet1!C2:C20",
+      rowCount: 19,
+      columnCount: 1,
+      dataValidation
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      names: {
+        add: vi.fn()
+      }
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        },
+        names: {
+          add: vi.fn()
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "C2:C20",
+        ruleType: "decimal",
+        comparator: "greater_than_or_equal_to",
+        value: 5,
+        allowBlank: true,
+        invalidDataBehavior: "warn",
+        explanation: "Restrict values to at least five.",
+        confidence: 0.95,
+        requiresConfirmation: true
+      },
+      requestId: "req_validation_operator_001",
+      runId: "run_validation_operator_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "data_validation_update",
+      targetSheet: "Sheet1",
+      targetRange: "C2:C20"
+    });
+
+    expect(validationRule.set).toHaveBeenCalledWith({
+      decimal: {
+        operator: "GreaterThanOrEqualTo",
+        formula1: 5,
+        formula2: undefined
+      }
     });
   });
 
