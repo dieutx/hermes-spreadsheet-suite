@@ -1403,12 +1403,8 @@ function validateExcelChartSeriesLabels(plan) {
 
   for (const series of plan.series) {
     const label = typeof series?.label === "string" ? series.label.trim() : "";
-    if (!label) {
-      continue;
-    }
-
-    if (label !== normalizeExcelChartField(series.field)) {
-      throw new Error("Excel host can't rename chart series labels during creation.");
+    if (label.length > 255) {
+      throw new Error("Excel host requires chart series labels to be 255 characters or fewer.");
     }
   }
 }
@@ -1431,10 +1427,6 @@ function getExcelChartSupportError(preview) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error || "");
 
-    if (/rename chart series labels during creation/i.test(message)) {
-      return "This Excel runtime can't rename chart series labels during creation. Keep each label the same as its source field or omit it.";
-    }
-
     if (/chart fields to be unique/i.test(message) ||
       /requires categoryField/i.test(message) ||
       /requires at least one series/i.test(message) ||
@@ -1444,6 +1436,10 @@ function getExcelChartSupportError(preview) {
 
     if (/legend positioning/i.test(message)) {
       return "This Excel runtime can't place the chart legend exactly there. Use top, bottom, left, right, or hidden.";
+    }
+
+    if (/series labels to be 255 characters or fewer/i.test(message)) {
+      return "This Excel runtime requires chart series labels to be 255 characters or fewer.";
     }
 
     if (/single series when creating pie charts/i.test(message)) {
@@ -3867,6 +3863,40 @@ function applyExcelChartLegend(chart, legendPosition) {
   }
 }
 
+function getExcelChartCustomSeriesLabels(plan) {
+  if (!Array.isArray(plan?.series)) {
+    return [];
+  }
+
+  return plan.series
+    .map((series, index) => ({
+      index,
+      field: normalizeExcelChartField(series?.field),
+      label: typeof series?.label === "string" ? series.label.trim() : ""
+    }))
+    .filter((series) => series.label && series.label !== series.field);
+}
+
+function applyExcelChartSeriesLabels(chart, plan) {
+  const customLabels = getExcelChartCustomSeriesLabels(plan);
+  if (customLabels.length === 0) {
+    return;
+  }
+
+  if (!chart?.series || typeof chart.series.getItemAt !== "function") {
+    throw new Error("Excel host does not support exact-safe chart series labels.");
+  }
+
+  customLabels.forEach((series) => {
+    const chartSeries = chart.series.getItemAt(series.index);
+    if (!chartSeries || typeof chartSeries !== "object" || !("name" in chartSeries)) {
+      throw new Error("Excel host does not support exact-safe chart series labels.");
+    }
+
+    chartSeries.name = series.label;
+  });
+}
+
 async function applyExcelChartPlan(context, worksheets, plan, platform) {
   assertExcelChartPlanSupport(plan);
 
@@ -3900,6 +3930,7 @@ async function applyExcelChartPlan(context, worksheets, plan, platform) {
   chart.setPosition(targetRange);
   applyExcelChartTitle(chart, plan.title);
   applyExcelChartLegend(chart, plan.legendPosition);
+  applyExcelChartSeriesLabels(chart, plan);
   await context.sync();
 
   return {
