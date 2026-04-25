@@ -30,6 +30,7 @@ import {
   isCompositePlan
 } from "./compositePlan.js?v=20260423w";
 import {
+  expandRangeBorderLines,
   getConditionalFormatStatusSummary,
   getDataCleanupStatusSummary,
   getRangeFormatStatusSummary,
@@ -2388,8 +2389,109 @@ function formatWorkbookPositionLabel(position) {
 function formatRangeFormatFields(format) {
   return Object.entries(format || {})
     .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => `${key}=${value}`)
+    .map(([key, value]) => `${key}=${formatRangeFormatValue(value)}`)
     .join(" • ");
+}
+
+function formatRangeFormatValue(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return String(value);
+  }
+
+  return Object.entries(value)
+    .filter(([, nestedValue]) => nestedValue !== undefined)
+    .map(([nestedKey, nestedValue]) => {
+      if (!nestedValue || typeof nestedValue !== "object") {
+        return `${nestedKey}:${nestedValue}`;
+      }
+
+      return `${nestedKey}:${Object.entries(nestedValue)
+        .filter(([, lineValue]) => lineValue !== undefined)
+        .map(([lineKey, lineValue]) => `${lineKey}=${lineValue}`)
+        .join(",")}`;
+    })
+    .join(";");
+}
+
+function mapRangeBorderSideToExcel(side) {
+  const borderIndex = Excel?.BorderIndex || {};
+  switch (side) {
+    case "top":
+      return borderIndex.edgeTop || "EdgeTop";
+    case "bottom":
+      return borderIndex.edgeBottom || "EdgeBottom";
+    case "left":
+      return borderIndex.edgeLeft || "EdgeLeft";
+    case "right":
+      return borderIndex.edgeRight || "EdgeRight";
+    case "innerHorizontal":
+      return borderIndex.insideHorizontal || "InsideHorizontal";
+    case "innerVertical":
+      return borderIndex.insideVertical || "InsideVertical";
+    default:
+      return null;
+  }
+}
+
+function mapRangeBorderLineStyleToExcel(style) {
+  const borderLineStyle = Excel?.BorderLineStyle || Excel?.LineStyle || {};
+  switch (style) {
+    case "none":
+      return borderLineStyle.none || "None";
+    case "dashed":
+      return borderLineStyle.dash || "Dash";
+    case "dotted":
+      return borderLineStyle.dot || "Dot";
+    case "double":
+      return borderLineStyle.double || "Double";
+    case "solid":
+    case "medium":
+    case "thick":
+      return borderLineStyle.continuous || "Continuous";
+    default:
+      return null;
+  }
+}
+
+function mapRangeBorderWeightToExcel(style) {
+  const borderWeight = Excel?.BorderWeight || {};
+  switch (style) {
+    case "medium":
+      return borderWeight.medium || "Medium";
+    case "thick":
+      return borderWeight.thick || "Thick";
+    case "solid":
+    case "dashed":
+    case "dotted":
+    case "double":
+      return borderWeight.thin || "Thin";
+    default:
+      return null;
+  }
+}
+
+function applyExcelRangeBorder(target, borderPlan) {
+  for (const { side, line } of expandRangeBorderLines(borderPlan)) {
+    const excelSide = mapRangeBorderSideToExcel(side);
+    const lineStyle = mapRangeBorderLineStyleToExcel(line.style);
+    if (!excelSide || !lineStyle) {
+      continue;
+    }
+
+    const border = target.format.borders.getItem(excelSide);
+    border.lineStyle = lineStyle;
+
+    if (line.style !== "none") {
+      if (line.color) {
+        border.color = line.color;
+      }
+
+      const weight = mapRangeBorderWeightToExcel(line.style);
+      if (weight) {
+        border.weight = weight;
+      }
+    }
+  }
 }
 
 function isDataValidationPlan(plan) {
@@ -6663,12 +6765,30 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         target.format.font.color = plan.format.textColor;
       }
 
+      if (plan.format.fontFamily) {
+        target.format.font.name = plan.format.fontFamily;
+      }
+
+      if (typeof plan.format.fontSize === "number") {
+        target.format.font.size = plan.format.fontSize;
+      }
+
       if (typeof plan.format.bold === "boolean") {
         target.format.font.bold = plan.format.bold;
       }
 
       if (typeof plan.format.italic === "boolean") {
         target.format.font.italic = plan.format.italic;
+      }
+
+      if (typeof plan.format.underline === "boolean") {
+        target.format.font.underline = plan.format.underline
+          ? (Excel?.RangeUnderlineStyle?.single || "Single")
+          : (Excel?.RangeUnderlineStyle?.none || "None");
+      }
+
+      if (typeof plan.format.strikethrough === "boolean") {
+        target.format.font.strikethrough = plan.format.strikethrough;
       }
 
       const horizontalAlignment = mapHorizontalAlignmentToExcel(plan.format.horizontalAlignment);
@@ -6690,6 +6810,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         target.numberFormat = Array.from({ length: target.rowCount }, () =>
           Array.from({ length: target.columnCount }, () => plan.format.numberFormat)
         );
+      }
+
+      if (plan.format.border) {
+        applyExcelRangeBorder(target, plan.format.border);
       }
 
       if (typeof plan.format.columnWidth === "number") {

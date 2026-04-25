@@ -3824,6 +3824,89 @@ function getWrapStrategyEnum_(strategy) {
   }
 }
 
+function getBorderStyleEnum_(style) {
+  const borderStyle = SpreadsheetApp.BorderStyle || {};
+  switch (style) {
+    case 'solid':
+      return borderStyle.SOLID || null;
+    case 'dashed':
+      return borderStyle.DASHED || null;
+    case 'dotted':
+      return borderStyle.DOTTED || null;
+    case 'double':
+      return borderStyle.DOUBLE || null;
+    case 'medium':
+      return borderStyle.SOLID_MEDIUM || borderStyle.SOLID || null;
+    case 'thick':
+      return borderStyle.SOLID_THICK || borderStyle.SOLID || null;
+    default:
+      return null;
+  }
+}
+
+function expandRangeBorderLines_(border) {
+  if (!border || typeof border !== 'object') {
+    return [];
+  }
+
+  const lines = [];
+  const pushLine = function(side, line) {
+    if (line && typeof line === 'object' && typeof line.style === 'string') {
+      lines.push({
+        side: side,
+        line: line
+      });
+    }
+  };
+
+  if (border.all) {
+    ['top', 'bottom', 'left', 'right', 'innerHorizontal', 'innerVertical'].forEach(function(side) {
+      pushLine(side, border.all);
+    });
+  }
+
+  if (border.outer) {
+    ['top', 'bottom', 'left', 'right'].forEach(function(side) {
+      pushLine(side, border.outer);
+    });
+  }
+
+  if (border.inner) {
+    ['innerHorizontal', 'innerVertical'].forEach(function(side) {
+      pushLine(side, border.inner);
+    });
+  }
+
+  pushLine('top', border.top);
+  pushLine('bottom', border.bottom);
+  pushLine('left', border.left);
+  pushLine('right', border.right);
+  pushLine('innerHorizontal', border.innerHorizontal);
+  pushLine('innerVertical', border.innerVertical);
+
+  return lines;
+}
+
+function applyRangeBorderLine_(range, side, line) {
+  const enabled = line.style !== 'none';
+  const style = enabled ? getBorderStyleEnum_(line.style) : null;
+  const color = enabled ? (line.color || null) : null;
+  const top = side === 'top' ? enabled : null;
+  const left = side === 'left' ? enabled : null;
+  const bottom = side === 'bottom' ? enabled : null;
+  const right = side === 'right' ? enabled : null;
+  const vertical = side === 'innerVertical' ? enabled : null;
+  const horizontal = side === 'innerHorizontal' ? enabled : null;
+
+  range.setBorder(top, left, bottom, right, vertical, horizontal, color, style);
+}
+
+function applyRangeBorders_(range, border) {
+  expandRangeBorderLines_(border).forEach(function(entry) {
+    applyRangeBorderLine_(range, entry.side, entry.line);
+  });
+}
+
 function getRowSliceRange_(sheet, startIndex, count) {
   return sheet.getRange(startIndex + 1, 1, count, 1);
 }
@@ -5184,12 +5267,35 @@ function applyWritePlan(input) {
       target.setFontColor(plan.format.textColor);
     }
 
+    if (plan.format.fontFamily) {
+      target.setFontFamily(plan.format.fontFamily);
+    }
+
+    if (typeof plan.format.fontSize === 'number') {
+      target.setFontSize(plan.format.fontSize);
+    }
+
     if (typeof plan.format.bold === 'boolean') {
       target.setFontWeight(plan.format.bold ? 'bold' : 'normal');
     }
 
     if (typeof plan.format.italic === 'boolean') {
       target.setFontStyle(plan.format.italic ? 'italic' : 'normal');
+    }
+
+    if (typeof plan.format.underline === 'boolean' ||
+      typeof plan.format.strikethrough === 'boolean') {
+      if (plan.format.underline && plan.format.strikethrough) {
+        throw new Error('Google Sheets host cannot apply underline and strikethrough together as an exact static range format.');
+      }
+
+      if (plan.format.underline) {
+        target.setFontLine('underline');
+      } else if (plan.format.strikethrough) {
+        target.setFontLine('line-through');
+      } else {
+        target.setFontLine('none');
+      }
     }
 
     if (plan.format.horizontalAlignment) {
@@ -5213,6 +5319,10 @@ function applyWritePlan(input) {
 
     if (plan.format.numberFormat) {
       target.setNumberFormat(plan.format.numberFormat);
+    }
+
+    if (plan.format.border) {
+      applyRangeBorders_(target, plan.format.border);
     }
 
     if (typeof plan.format.columnWidth === 'number') {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  expandRangeBorderLines,
   getCompositeStepWritebackStatusLine,
   getConditionalFormatStatusSummary,
   getDataCleanupStatusSummary,
@@ -54,6 +55,31 @@ describe("Excel write plan helpers", () => {
       targetSheet: "Sheet1",
       targetRange: "A1:B2"
     })).toBe(false);
+  });
+
+  it("expands range border groups with specific side overrides last", () => {
+    expect(expandRangeBorderLines({
+      outer: {
+        style: "solid",
+        color: "#1f1f1f"
+      },
+      inner: {
+        style: "dotted",
+        color: "#d9d9d9"
+      },
+      top: {
+        style: "thick",
+        color: "#000000"
+      }
+    })).toEqual([
+      { side: "top", line: { style: "solid", color: "#1f1f1f" } },
+      { side: "bottom", line: { style: "solid", color: "#1f1f1f" } },
+      { side: "left", line: { style: "solid", color: "#1f1f1f" } },
+      { side: "right", line: { style: "solid", color: "#1f1f1f" } },
+      { side: "innerHorizontal", line: { style: "dotted", color: "#d9d9d9" } },
+      { side: "innerVertical", line: { style: "dotted", color: "#d9d9d9" } },
+      { side: "top", line: { style: "thick", color: "#000000" } }
+    ]);
   });
 
   it("builds status summaries for workbook and range writes", () => {
