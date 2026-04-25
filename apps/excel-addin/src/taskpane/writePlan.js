@@ -112,6 +112,41 @@ export function getRangeFormatStatusSummary(plan) {
   return `Applied formatting to ${target}.`;
 }
 
+export function expandRangeBorderLines(border) {
+  if (!border || typeof border !== "object") {
+    return [];
+  }
+
+  const lines = [];
+  const pushLine = (side, line) => {
+    if (line && typeof line === "object" && typeof line.style === "string") {
+      lines.push({ side, line });
+    }
+  };
+
+  if (border.all) {
+    ["top", "bottom", "left", "right", "innerHorizontal", "innerVertical"]
+      .forEach((side) => pushLine(side, border.all));
+  }
+
+  if (border.outer) {
+    ["top", "bottom", "left", "right"].forEach((side) => pushLine(side, border.outer));
+  }
+
+  if (border.inner) {
+    ["innerHorizontal", "innerVertical"].forEach((side) => pushLine(side, border.inner));
+  }
+
+  pushLine("top", border.top);
+  pushLine("bottom", border.bottom);
+  pushLine("left", border.left);
+  pushLine("right", border.right);
+  pushLine("innerHorizontal", border.innerHorizontal);
+  pushLine("innerVertical", border.innerVertical);
+
+  return lines;
+}
+
 export function getCompositeStepWritebackStatusLine(plan, result) {
   if (result?.kind === "range_write") {
     const targetSheet = plan?.targetSheet || result.targetSheet;
