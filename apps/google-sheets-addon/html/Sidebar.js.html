@@ -2132,8 +2132,31 @@
   function formatRangeFormatFields(format) {
     return Object.entries(format || {})
       .filter((entry) => entry[1] !== undefined)
-      .map((entry) => `${entry[0]}=${entry[1]}`)
+      .map((entry) => `${entry[0]}=${formatRangeFormatValue(entry[1])}`)
       .join(" • ");
+  }
+
+  function formatRangeFormatValue(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return String(value);
+    }
+
+    return Object.entries(value)
+      .filter((entry) => entry[1] !== undefined)
+      .map((entry) => {
+        const nestedKey = entry[0];
+        const nestedValue = entry[1];
+
+        if (!nestedValue || typeof nestedValue !== "object") {
+          return `${nestedKey}:${nestedValue}`;
+        }
+
+        return `${nestedKey}:${Object.entries(nestedValue)
+          .filter((lineEntry) => lineEntry[1] !== undefined)
+          .map((lineEntry) => `${lineEntry[0]}=${lineEntry[1]}`)
+          .join(",")}`;
+      })
+      .join(";");
   }
 
   function formatStructureIndexSpan(label, startIndex, count) {

@@ -1385,15 +1385,54 @@ export const WrapStrategySchema = z.enum([
   "overflow"
 ]);
 
+export const RangeBorderLineStyleSchema = z.enum([
+  "none",
+  "solid",
+  "dashed",
+  "dotted",
+  "double",
+  "medium",
+  "thick"
+]);
+
+export const RangeBorderLineSchema = strictObject({
+  style: RangeBorderLineStyleSchema,
+  color: HexColorSchema.optional()
+});
+
+export const RangeBorderSchema = strictObject({
+  all: RangeBorderLineSchema.optional(),
+  outer: RangeBorderLineSchema.optional(),
+  inner: RangeBorderLineSchema.optional(),
+  top: RangeBorderLineSchema.optional(),
+  bottom: RangeBorderLineSchema.optional(),
+  left: RangeBorderLineSchema.optional(),
+  right: RangeBorderLineSchema.optional(),
+  innerHorizontal: RangeBorderLineSchema.optional(),
+  innerVertical: RangeBorderLineSchema.optional()
+}).superRefine((data, ctx) => {
+  if (!Object.values(data).some((value) => value !== undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "border must include at least one side or group."
+    });
+  }
+});
+
 export const RangeFormatSchema = strictObject({
   numberFormat: z.string().min(1).max(128).optional(),
   backgroundColor: HexColorSchema.optional(),
   textColor: HexColorSchema.optional(),
+  fontFamily: z.string().min(1).max(128).optional(),
+  fontSize: z.number().positive().max(409).optional(),
   bold: z.boolean().optional(),
   italic: z.boolean().optional(),
+  underline: z.boolean().optional(),
+  strikethrough: z.boolean().optional(),
   horizontalAlignment: HorizontalAlignmentSchema.optional(),
   verticalAlignment: VerticalAlignmentSchema.optional(),
   wrapStrategy: WrapStrategySchema.optional(),
+  border: RangeBorderSchema.optional(),
   columnWidth: z.number().positive().max(1000).optional(),
   rowHeight: z.number().positive().max(1000).optional()
 }).superRefine((data, ctx) => {
@@ -2465,6 +2504,9 @@ export type DryRunResult = z.infer<typeof DryRunResultSchema>;
 export type PlanHistoryEntry = z.infer<typeof PlanHistoryEntrySchema>;
 export type PlanHistoryPage = z.infer<typeof PlanHistoryPageSchema>;
 export type WorkbookStructureUpdateData = z.infer<typeof WorkbookStructureUpdateDataSchema>;
+export type RangeBorderLineStyle = z.infer<typeof RangeBorderLineStyleSchema>;
+export type RangeBorderLine = z.infer<typeof RangeBorderLineSchema>;
+export type RangeBorder = z.infer<typeof RangeBorderSchema>;
 export type RangeFormat = z.infer<typeof RangeFormatSchema>;
 export type RangeFormatUpdateData = z.infer<typeof RangeFormatUpdateDataSchema>;
 export type ConditionalFormatManagementMode = z.infer<

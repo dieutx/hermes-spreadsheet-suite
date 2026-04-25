@@ -1657,11 +1657,26 @@ describe("Hermes spreadsheet contracts", () => {
         format: {
           backgroundColor: "#fff2cc",
           textColor: "#1f1f1f",
+          fontFamily: "Aptos",
+          fontSize: 12,
           bold: true,
+          italic: false,
+          underline: true,
+          strikethrough: false,
           horizontalAlignment: "center",
           verticalAlignment: "middle",
           wrapStrategy: "wrap",
           numberFormat: "0.00",
+          border: {
+            outer: {
+              style: "solid",
+              color: "#1f1f1f"
+            },
+            inner: {
+              style: "dotted",
+              color: "#d9d9d9"
+            }
+          },
           columnWidth: 96,
           rowHeight: 24
         },
@@ -1675,6 +1690,7 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.type).toBe("range_format_update");
     expect((parsed.data as any).targetRange).toBe("A1:J10");
     expect((parsed.data as any).format.bold).toBe(true);
+    expect((parsed.data as any).format.border.outer.style).toBe("solid");
   });
 
   it("accepts a replace-all single-color conditional format plan", () => {

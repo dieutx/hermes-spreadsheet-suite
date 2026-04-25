@@ -114,7 +114,9 @@ For type="range_format_update":
 - data.requiresConfirmation must be true
 - data.overwriteRisk is optional
 - data.format must contain at least one supported formatting field
-- supported formatting fields are: numberFormat, backgroundColor, textColor, bold, italic, horizontalAlignment, verticalAlignment, wrapStrategy, columnWidth, rowHeight
+- supported formatting fields are: numberFormat, backgroundColor, textColor, fontFamily, fontSize, bold, italic, underline, strikethrough, horizontalAlignment, verticalAlignment, wrapStrategy, border, columnWidth, rowHeight
+- data.format.border may include all, outer, inner, top, bottom, left, right, innerHorizontal, or innerVertical
+- each border line must include style, where style is one of none, solid, dashed, dotted, double, medium, or thick; border line color is optional
 - range_format_update is for direct static formatting only and is distinct from conditional_format_plan
 
 For type="conditional_format_plan":

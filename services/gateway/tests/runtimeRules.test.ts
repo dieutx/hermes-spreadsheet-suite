@@ -49,6 +49,14 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("unsupported workbook or formatting action");
   });
 
+  it("documents advanced static range formatting fields", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("fontFamily");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("fontSize");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("underline");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("strikethrough");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("border");
+  });
+
   it("documents conditional formatting as a distinct write-plan family with fail-closed semantics", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("conditional_format_plan");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("distinct from range_format_update");
