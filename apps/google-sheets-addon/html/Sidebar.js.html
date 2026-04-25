@@ -2559,7 +2559,7 @@
       return `This Google Sheets flow can't manage conditional formatting with mode ${preview.managementMode}.`;
     }
 
-    const unsupportedStyleFields = ["underline", "strikethrough", "numberFormat"].filter((field) =>
+    const unsupportedStyleFields = ["numberFormat"].filter((field) =>
       preview.style && preview.style[field] !== undefined
     );
 

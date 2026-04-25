@@ -2178,7 +2178,7 @@ function getUnsupportedConditionalFormatStyleFields_(style) {
     return [];
   }
 
-  return ['underline', 'strikethrough', 'numberFormat'].filter(function(field) {
+  return ['numberFormat'].filter(function(field) {
     return style[field] !== undefined;
   });
 }
@@ -2546,6 +2546,20 @@ function applyConditionalFormatStyleToBuilder_(builder, style) {
       throw new Error('Google Sheets host does not support exact conditional-format style mapping for fields: italic.');
     }
     builder.setItalic(style.italic);
+  }
+
+  if (style && style.underline !== undefined) {
+    if (typeof builder.setUnderline !== 'function') {
+      throw new Error('Google Sheets host does not support exact conditional-format style mapping for fields: underline.');
+    }
+    builder.setUnderline(style.underline);
+  }
+
+  if (style && style.strikethrough !== undefined) {
+    if (typeof builder.setStrikethrough !== 'function') {
+      throw new Error('Google Sheets host does not support exact conditional-format style mapping for fields: strikethrough.');
+    }
+    builder.setStrikethrough(style.strikethrough);
   }
 }
 

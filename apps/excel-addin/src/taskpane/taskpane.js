@@ -3496,8 +3496,6 @@ function getUnsupportedConditionalFormatStyleFields(style) {
   }
 
   return [
-    "underline",
-    "strikethrough",
     "numberFormat"
   ].filter((field) => style[field] !== undefined);
 }
@@ -3533,6 +3531,16 @@ function applyConditionalFormatStyle(format, style) {
 
   if (typeof style.italic === "boolean" && format.font) {
     format.font.italic = style.italic;
+  }
+
+  if (typeof style.underline === "boolean" && format.font) {
+    format.font.underline = style.underline
+      ? (Excel?.RangeUnderlineStyle?.single || "Single")
+      : (Excel?.RangeUnderlineStyle?.none || "None");
+  }
+
+  if (typeof style.strikethrough === "boolean" && format.font) {
+    format.font.strikethrough = style.strikethrough;
   }
 }
 

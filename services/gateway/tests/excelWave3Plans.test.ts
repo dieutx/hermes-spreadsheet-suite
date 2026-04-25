@@ -115,7 +115,9 @@ describe("Excel wave 3 conditional-format plans", () => {
         style: {
           backgroundColor: "#ffcccc",
           textColor: "#990000",
-          bold: true
+          bold: true,
+          underline: true,
+          strikethrough: true
         },
         explanation: "Highlight overdue rows.",
         confidence: 0.94,
@@ -180,6 +182,24 @@ describe("Excel wave 3 conditional-format plans", () => {
         styleAssignments.bold = value;
       }
     });
+    Object.defineProperty(conditionalFormat.containsText.format.font, "italic", {
+      configurable: true,
+      set(value) {
+        styleAssignments.italic = value;
+      }
+    });
+    Object.defineProperty(conditionalFormat.containsText.format.font, "underline", {
+      configurable: true,
+      set(value) {
+        styleAssignments.underline = value;
+      }
+    });
+    Object.defineProperty(conditionalFormat.containsText.format.font, "strikethrough", {
+      configurable: true,
+      set(value) {
+        styleAssignments.strikethrough = value;
+      }
+    });
 
     const add = vi.fn(() => conditionalFormat);
     const targetRange = {
@@ -211,7 +231,10 @@ describe("Excel wave 3 conditional-format plans", () => {
         style: {
           backgroundColor: "#ffcccc",
           textColor: "#990000",
-          bold: true
+          bold: true,
+          italic: false,
+          underline: true,
+          strikethrough: true
         },
         explanation: "Highlight overdue rows.",
         confidence: 0.94,
@@ -240,7 +263,10 @@ describe("Excel wave 3 conditional-format plans", () => {
     expect(styleAssignments).toEqual({
       backgroundColor: "#ffcccc",
       textColor: "#990000",
-      bold: true
+      bold: true,
+      italic: false,
+      underline: "Single",
+      strikethrough: true
     });
   });
 
@@ -378,7 +404,7 @@ describe("Excel wave 3 conditional-format plans", () => {
         text: "overdue",
         style: {
           backgroundColor: "#ffcccc",
-          underline: true
+          numberFormat: "0.00"
         },
         explanation: "Highlight overdue rows.",
         confidence: 0.94,
@@ -390,7 +416,7 @@ describe("Excel wave 3 conditional-format plans", () => {
       runId: "run_conditional_format_style_invalid_001",
       approvalToken: "token"
     })).rejects.toThrow(
-      "Excel host does not support exact conditional-format style mapping for fields: underline."
+      "Excel host does not support exact conditional-format style mapping for fields: numberFormat."
     );
 
     expect(add).not.toHaveBeenCalled();
