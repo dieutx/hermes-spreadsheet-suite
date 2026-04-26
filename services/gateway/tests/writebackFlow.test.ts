@@ -5289,7 +5289,7 @@ describe("writeback confirmation flow", () => {
     });
   });
 
-  it("accepts copy transfer completions that report the resolved target rectangle from a single-cell anchor", () => {
+  it("rejects range transfer approvals whose targetRange is only an anchor", () => {
     const traceBus = new TraceBus();
     const plan = {
       sourceSheet: "RawData",
@@ -5325,37 +5325,10 @@ describe("writeback confirmation flow", () => {
       }
     });
 
-    expect(approval.status).toBe(200);
-
-    const completion = invokeWritebackRoute({
-      traceBus,
-      path: "/complete",
-      body: {
-        requestId: "req_range_transfer_anchor_copy",
-        runId: "run_range_transfer_anchor_copy",
-        approvalToken: (approval.body as any).approvalToken,
-        planDigest: (approval.body as any).planDigest,
-        result: {
-          kind: "range_transfer_update",
-          operation: "range_transfer_update",
-          hostPlatform: "excel_windows",
-          sourceSheet: "RawData",
-          sourceRange: "A2:B3",
-          targetSheet: "Report",
-          targetRange: "F2:G3",
-          transferOperation: "copy",
-          pasteMode: "values",
-          transpose: false,
-          summary: "Copied RawData!A2:B3 to Report!F2:G3."
-        }
-      }
-    });
-
-    expect(completion.status).toBe(200);
-    expect(completion.body).toEqual({ ok: true });
+    expectRouteError(approval, 400, "INVALID_REQUEST");
   });
 
-  it("accepts append transfer completions that report the resolved rows written inside the approved target block", () => {
+  it("rejects append transfer approvals whose targetRange is a search window", () => {
     const traceBus = new TraceBus();
     const plan = {
       sourceSheet: "RawData",
@@ -5391,34 +5364,7 @@ describe("writeback confirmation flow", () => {
       }
     });
 
-    expect(approval.status).toBe(200);
-
-    const completion = invokeWritebackRoute({
-      traceBus,
-      path: "/complete",
-      body: {
-        requestId: "req_range_transfer_append_actual_range",
-        runId: "run_range_transfer_append_actual_range",
-        approvalToken: (approval.body as any).approvalToken,
-        planDigest: (approval.body as any).planDigest,
-        result: {
-          kind: "range_transfer_update",
-          operation: "range_transfer_update",
-          hostPlatform: "google_sheets",
-          sourceSheet: "RawData",
-          sourceRange: "A2:B3",
-          targetSheet: "Report",
-          targetRange: "F5:G6",
-          transferOperation: "append",
-          pasteMode: "values",
-          transpose: false,
-          summary: "Appended RawData!A2:B3 into Report!F5:G6."
-        }
-      }
-    });
-
-    expect(completion.status).toBe(200);
-    expect(completion.body).toEqual({ ok: true });
+    expectRouteError(approval, 400, "INVALID_REQUEST");
   });
 
   it("rejects range transfer completion results with same-family detail mismatches through /complete", () => {

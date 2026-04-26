@@ -174,7 +174,7 @@ describe("HermesAgentClient", () => {
           sourceSheet: "Sheet1",
           sourceRange: "A1:D20",
           targetSheet: "Archive",
-          targetRange: "A1",
+          targetRange: "A1:D20",
           operation: "move",
           pasteMode: "values",
           transpose: false,
@@ -1257,7 +1257,7 @@ describe("HermesAgentClient", () => {
           sourceSheet: "Sheet1",
           sourceRange: "A1:D20",
           targetSheet: "Archive",
-          targetRange: "A1",
+          targetRange: "A1:D20",
           operation: "move",
           pasteMode: "values",
           transpose: false,
@@ -1278,7 +1278,7 @@ describe("HermesAgentClient", () => {
       runId: "run_range_transfer_001",
       request: baseRequest({
         requestId: "req_range_transfer_001",
-        userMessage: "Move A1:D20 to Archive!A1."
+        userMessage: "Move A1:D20 to Archive!A1:D20."
       }),
       traceBus
     });
@@ -1299,7 +1299,7 @@ describe("HermesAgentClient", () => {
         sourceSheet: "Sheet1",
         sourceRange: "A1:D20",
         targetSheet: "Archive",
-        targetRange: "A1",
+        targetRange: "A1:D20",
         operation: "move",
         pasteMode: "values",
         requiresConfirmation: true,

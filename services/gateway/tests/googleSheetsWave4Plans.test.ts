@@ -680,7 +680,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
-  it("applies append transfers at the first trailing blank block in Google Sheets", () => {
+  it("rejects append transfers when targetRange is a larger search window in Google Sheets", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B3",
       row: 2,
@@ -749,7 +749,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     };
     const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
 
-    const result = applyWritePlan({
+    expect(() => applyWritePlan({
       plan: {
         sourceSheet: "RawData",
         sourceRange: "A2:B3",
@@ -765,27 +765,11 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    });
+    })).toThrow("The approved targetRange does not match the transfer shape.");
 
-    expect(result).toEqual({
-      kind: "range_transfer_update",
-      hostPlatform: "google_sheets",
-      operation: "range_transfer_update",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Archive",
-      targetRange: "D7:E8",
-      transferOperation: "append",
-      pasteMode: "values",
-      transpose: false,
-      summary: "Appended RawData!A2:B3 into Archive!D7:E8."
-    });
-    expect(appendWriteRange.setValues).toHaveBeenCalledWith([
-      ["Ada", "Lovelace"],
-      ["Grace", "Hopper"]
-    ]);
+    expect(appendWriteRange.setValues).not.toHaveBeenCalled();
     expect(targetRange.setValues).not.toHaveBeenCalled();
-    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush).not.toHaveBeenCalled();
   });
 
   it("uses Google Sheets copy semantics for formula-mode transfers so relative references can rebase", () => {
@@ -982,7 +966,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
-  it("applies format-only append transfers in Google Sheets", () => {
+  it("rejects format-only append transfers when targetRange is a larger search window in Google Sheets", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B3",
       row: 2,
@@ -1057,7 +1041,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     };
     const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
 
-    const result = applyWritePlan({
+    expect(() => applyWritePlan({
       plan: {
         sourceSheet: "RawData",
         sourceRange: "A2:B3",
@@ -1073,24 +1057,11 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    });
+    })).toThrow("The approved targetRange does not match the transfer shape.");
 
-    expect(result).toEqual({
-      kind: "range_transfer_update",
-      hostPlatform: "google_sheets",
-      operation: "range_transfer_update",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Archive",
-      targetRange: "D7:E8",
-      transferOperation: "append",
-      pasteMode: "formats",
-      transpose: false,
-      summary: "Appended RawData!A2:B3 into Archive!D7:E8."
-    });
-    expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
+    expect(sourceRange.copyTo).not.toHaveBeenCalled();
     expect(appendWriteRange.setValues).not.toHaveBeenCalled();
-    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush).not.toHaveBeenCalled();
   });
 
   it("fails closed when a fully blank multi-row append target is too small in Google Sheets", () => {
@@ -1161,7 +1132,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    })).toThrow("Google Sheets host cannot append exactly within the approved target range.");
+    })).toThrow("The approved targetRange does not match the transfer shape.");
 
     expect(targetRange.setValues).not.toHaveBeenCalled();
     expect(flush).not.toHaveBeenCalled();

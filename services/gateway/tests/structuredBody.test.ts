@@ -835,7 +835,7 @@ describe("structured body normalization", () => {
               sourceSheet: "Sales",
               sourceRange: "A2:B10",
               targetSheet: "Archive",
-              targetRange: "D5",
+              targetRange: "D5:E13",
               operation: "copy",
               pasteMode: "values",
               transpose: false,

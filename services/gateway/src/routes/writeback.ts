@@ -832,47 +832,14 @@ function resolveExpectedRangeTransferTargetRange(plan: RangeTransferPlanData): s
     return buildA1RangeFromBounds(parsedTargetRange);
   }
 
-  if (parsedTargetRange.rows === 1 && parsedTargetRange.columns === 1) {
-    return buildA1RangeFromBounds({
-      column: parsedTargetRange.column,
-      row: parsedTargetRange.row,
-      endColumn: parsedTargetRange.column + shape.columns - 1,
-      endRow: parsedTargetRange.row + shape.rows - 1
-    });
-  }
-
-  throw new Error("Approved range transfer targetRange does not match an exact or anchor destination.");
+  throw new Error("Approved range transfer targetRange does not match the full destination rectangle.");
 }
 
 function matchesExpectedAppendTargetRange(
   plan: Extract<RangeTransferPlanData, { operation: "append" }>,
   actualTargetRange: string
 ): boolean {
-  const approvedTargetRange = parseA1Range(plan.targetRange);
-  const actualRange = parseA1Range(actualTargetRange);
-  if (!approvedTargetRange || !actualRange) {
-    return false;
-  }
-
-  const shape = getRangeTransferShape(plan);
-  if (approvedTargetRange.columns !== shape.columns ||
-    actualRange.rows !== shape.rows ||
-    actualRange.columns !== shape.columns) {
-    return false;
-  }
-
-  if (actualRange.column !== approvedTargetRange.column ||
-    actualRange.endColumn !== approvedTargetRange.column + shape.columns - 1) {
-    return false;
-  }
-
-  if (approvedTargetRange.rows === 1 && shape.rows > 1) {
-    return actualRange.row === approvedTargetRange.row &&
-      actualRange.endRow === approvedTargetRange.row + shape.rows - 1;
-  }
-
-  return actualRange.row >= approvedTargetRange.row &&
-    actualRange.endRow <= approvedTargetRange.endRow;
+  return a1RangesEqual(actualTargetRange, resolveExpectedRangeTransferTargetRange(plan));
 }
 
 function assertSheetStructureCompletionMatchesApprovedPlan(

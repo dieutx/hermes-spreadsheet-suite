@@ -2278,6 +2278,46 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.confirmationLevel).toBe("destructive");
   });
 
+  it("rejects range transfer plans whose targetRange is only an anchor", () => {
+    const parsed = RangeTransferPlanDataSchema.safeParse({
+      sourceSheet: "Sheet1",
+      sourceRange: "B2:C10",
+      targetSheet: "Archive",
+      targetRange: "A1",
+      operation: "copy",
+      pasteMode: "values",
+      transpose: false,
+      explanation: "Copy the staged rows into the archive sheet.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      confirmationLevel: "standard",
+      affectedRanges: ["Sheet1!B2:C10", "Archive!A1"],
+      overwriteRisk: "low"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects range transfer plans whose targetRange is an append search window", () => {
+    const parsed = RangeTransferPlanDataSchema.safeParse({
+      sourceSheet: "Sheet1",
+      sourceRange: "B2:C10",
+      targetSheet: "Archive",
+      targetRange: "A1:B50",
+      operation: "append",
+      pasteMode: "values",
+      transpose: false,
+      explanation: "Append the staged rows to the archive sheet.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      confirmationLevel: "standard",
+      affectedRanges: ["Sheet1!B2:C10", "Archive!A1:B50"],
+      overwriteRisk: "low"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects a move transfer plan with standard confirmation", () => {
     const parsed = RangeTransferPlanDataSchema.safeParse({
       sourceSheet: "Sheet1",

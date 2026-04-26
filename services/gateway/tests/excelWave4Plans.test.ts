@@ -726,7 +726,7 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     ]);
   });
 
-  it("applies an append transfer in Excel when targetRange is an exact-safe append anchor", async () => {
+  it("rejects an append transfer in Excel when targetRange is only an anchor row", async () => {
     const sourceRange = createRangeStub({
       address: "RawData!A2:B3",
       rowCount: 2,
@@ -814,27 +814,13 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       requestId: "req_range_transfer_append_anchor_excel_001",
       runId: "run_range_transfer_append_anchor_excel_001",
       approvalToken: "token"
-    })).resolves.toMatchObject({
-      kind: "range_transfer_update",
-      operation: "range_transfer_update",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Report",
-      targetRange: "D5:E6",
-      transferOperation: "append",
-      pasteMode: "values",
-      transpose: false,
-      summary: "Appended RawData!A2:B3 into Report!D5:E6."
-    });
+    })).rejects.toThrow("The approved targetRange does not match the transfer shape.");
 
-    expect(anchorRange.getResizedRange).toHaveBeenCalledTimes(1);
-    expect(expandedWriteRange.__appliedValues).toEqual([
-      ["Ada", "Lovelace"],
-      ["Grace", "Hopper"]
-    ]);
+    expect(anchorRange.getResizedRange).not.toHaveBeenCalled();
+    expect(expandedWriteRange.__appliedValues).toBeUndefined();
   });
 
-  it("applies a format-only append transfer in Excel when targetRange is an exact-safe append anchor", async () => {
+  it("rejects a format-only append transfer in Excel when targetRange is only an anchor row", async () => {
     const sourceRange = createRangeStub({
       address: "RawData!A2:B3",
       rowCount: 2,
@@ -921,24 +907,13 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       requestId: "req_range_transfer_append_formats_excel_001",
       runId: "run_range_transfer_append_formats_excel_001",
       approvalToken: "token"
-    })).resolves.toMatchObject({
-      kind: "range_transfer_update",
-      operation: "range_transfer_update",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Report",
-      targetRange: "D5:E6",
-      transferOperation: "append",
-      pasteMode: "formats",
-      transpose: false,
-      summary: "Appended RawData!A2:B3 into Report!D5:E6."
-    });
+    })).rejects.toThrow("The approved targetRange does not match the transfer shape.");
 
-    expect(anchorRange.getResizedRange).toHaveBeenCalledTimes(1);
-    expect(expandedWriteRange.copyFrom).toHaveBeenCalledTimes(1);
+    expect(anchorRange.getResizedRange).not.toHaveBeenCalled();
+    expect(expandedWriteRange.copyFrom).not.toHaveBeenCalled();
   });
 
-  it("reports the expanded target range for anchor-based non-append transfers in Excel", async () => {
+  it("rejects non-append transfers in Excel when targetRange is only a single-cell anchor", async () => {
     const sourceRange = createRangeStub({
       address: "RawData!A2:B3",
       rowCount: 2,
@@ -1026,24 +1001,10 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       requestId: "req_range_transfer_anchor_excel_001",
       runId: "run_range_transfer_anchor_excel_001",
       approvalToken: "token"
-    })).resolves.toMatchObject({
-      kind: "range_transfer_update",
-      operation: "range_transfer_update",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Report",
-      targetRange: "F2:G3",
-      transferOperation: "copy",
-      pasteMode: "values",
-      transpose: false,
-      summary: "Copied RawData!A2:B3 to Report!F2:G3."
-    });
+    })).rejects.toThrow("The approved targetRange does not match the transfer shape.");
 
-    expect(anchorRange.getResizedRange).toHaveBeenCalledTimes(1);
-    expect(expandedWriteRange.__appliedValues).toEqual([
-      ["Ada", "Lovelace"],
-      ["Grace", "Hopper"]
-    ]);
+    expect(anchorRange.getResizedRange).not.toHaveBeenCalled();
+    expect(expandedWriteRange.__appliedValues).toBeUndefined();
   });
 
   it("applies trim_whitespace cleanup in Excel", async () => {
