@@ -1413,6 +1413,13 @@ function validateExcelChartSeriesLabels(plan) {
   }
 }
 
+function hasExcelChartAxisTitles(plan) {
+  return Boolean(
+    (typeof plan?.horizontalAxisTitle === "string" && plan.horizontalAxisTitle.trim().length > 0) ||
+    (typeof plan?.verticalAxisTitle === "string" && plan.verticalAxisTitle.trim().length > 0)
+  );
+}
+
 function assertExcelChartPlanSupport(plan) {
   getExcelChartTypeConfig(plan?.chartType);
   getExcelChartLegendConfig(plan?.legendPosition);
@@ -1421,6 +1428,10 @@ function assertExcelChartPlanSupport(plan) {
 
   if (plan?.chartType === "pie" && fieldSequence.length !== 2) {
     throw new Error("Excel host only supports a single series when creating pie charts.");
+  }
+
+  if (plan?.chartType === "pie" && hasExcelChartAxisTitles(plan)) {
+    throw new Error("Excel host does not support axis titles for pie charts.");
   }
 }
 
@@ -1448,6 +1459,10 @@ function getExcelChartSupportError(preview) {
 
     if (/single series when creating pie charts/i.test(message)) {
       return "This Excel runtime only supports a single series when creating pie charts.";
+    }
+
+    if (/axis titles for pie charts/i.test(message)) {
+      return "Pie charts do not support axis titles. Remove the horizontal and vertical axis titles or choose a chart type with axes.";
     }
 
     if (/chart type/i.test(message)) {
@@ -3867,6 +3882,38 @@ function applyExcelChartLegend(chart, legendPosition) {
   }
 }
 
+function applyExcelChartAxisTitle(axis, title, axisLabel) {
+  if (typeof title !== "string" || title.trim().length === 0) {
+    return;
+  }
+
+  if (!axis?.title || typeof axis.title !== "object" || !("text" in axis.title)) {
+    throw new Error(`Excel host does not support exact-safe ${axisLabel} axis titles.`);
+  }
+
+  if ("visible" in axis.title) {
+    axis.title.visible = true;
+  }
+  axis.title.text = title.trim();
+}
+
+function applyExcelChartAxisTitles(chart, plan) {
+  if (!hasExcelChartAxisTitles(plan)) {
+    return;
+  }
+
+  if (plan?.chartType === "pie") {
+    throw new Error("Excel host does not support axis titles for pie charts.");
+  }
+
+  if (!chart?.axes || typeof chart.axes !== "object") {
+    throw new Error("Excel host does not support exact-safe chart axis titles.");
+  }
+
+  applyExcelChartAxisTitle(chart.axes.categoryAxis, plan.horizontalAxisTitle, "horizontal");
+  applyExcelChartAxisTitle(chart.axes.valueAxis, plan.verticalAxisTitle, "vertical");
+}
+
 async function applyExcelChartPlan(context, worksheets, plan, platform) {
   assertExcelChartPlanSupport(plan);
 
@@ -3900,6 +3947,7 @@ async function applyExcelChartPlan(context, worksheets, plan, platform) {
   chart.setPosition(targetRange);
   applyExcelChartTitle(chart, plan.title);
   applyExcelChartLegend(chart, plan.legendPosition);
+  applyExcelChartAxisTitles(chart, plan);
   await context.sync();
 
   return {
@@ -3923,6 +3971,8 @@ async function applyExcelChartPlan(context, worksheets, plan, platform) {
       : [],
     title: plan.title,
     legendPosition: plan.legendPosition,
+    horizontalAxisTitle: plan.horizontalAxisTitle,
+    verticalAxisTitle: plan.verticalAxisTitle,
     explanation: plan.explanation,
     confidence: plan.confidence,
     requiresConfirmation: plan.requiresConfirmation,
@@ -4182,6 +4232,8 @@ function getStructuredPreview(response) {
         series: response.data.series,
         title: response.data.title,
         legendPosition: response.data.legendPosition,
+        horizontalAxisTitle: response.data.horizontalAxisTitle,
+        verticalAxisTitle: response.data.verticalAxisTitle,
         explanation: response.data.explanation,
         confidence: response.data.confidence,
         requiresConfirmation: response.data.requiresConfirmation,
@@ -5123,7 +5175,9 @@ function renderStructuredPreview(response, message) {
     const chartDetails = [
       preview.categoryField ? `category ${preview.categoryField}` : "",
       preview.title ? `title ${preview.title}` : "",
-      preview.legendPosition ? `legend ${preview.legendPosition}` : ""
+      preview.legendPosition ? `legend ${preview.legendPosition}` : "",
+      preview.horizontalAxisTitle ? `horizontal axis ${preview.horizontalAxisTitle}` : "",
+      preview.verticalAxisTitle ? `vertical axis ${preview.verticalAxisTitle}` : ""
     ].filter(Boolean).join(" • ");
     const supportError = getExcelPlanSupportError(preview);
 

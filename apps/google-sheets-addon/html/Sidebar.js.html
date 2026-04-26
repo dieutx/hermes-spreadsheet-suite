@@ -1903,6 +1903,13 @@
     return ["bottom", "left", "right", "top", "none", "hidden"].includes(legendPosition);
   }
 
+  function hasChartAxisTitles(plan) {
+    return Boolean(
+      (typeof plan?.horizontalAxisTitle === "string" && plan.horizontalAxisTitle.trim().length > 0) ||
+      (typeof plan?.verticalAxisTitle === "string" && plan.verticalAxisTitle.trim().length > 0)
+    );
+  }
+
   function isExactSafeChartSeriesLabel(series) {
     if (!series || typeof series !== "object") {
       return true;
@@ -2760,6 +2767,10 @@
         return `This Google Sheets flow can't place the chart legend at ${preview.legendPosition}.`;
       }
 
+      if (preview.chartType === "pie" && hasChartAxisTitles(preview)) {
+        return "Pie charts do not support axis titles. Remove the horizontal and vertical axis titles or choose a chart type with axes.";
+      }
+
       return "";
     }
 
@@ -3185,6 +3196,8 @@
           series: response.data.series,
           title: response.data.title,
           legendPosition: response.data.legendPosition,
+          horizontalAxisTitle: response.data.horizontalAxisTitle,
+          verticalAxisTitle: response.data.verticalAxisTitle,
           explanation: response.data.explanation,
           confidence: response.data.confidence,
           requiresConfirmation: response.data.requiresConfirmation,
@@ -3717,7 +3730,9 @@
         preview.categoryField ? `category ${preview.categoryField}` : "",
         `series ${preview.series.map((series) => series.label ? `${series.field} as ${series.label}` : series.field).join(", ")}`,
         preview.title ? `title ${preview.title}` : "",
-        preview.legendPosition ? `legend ${preview.legendPosition}` : ""
+        preview.legendPosition ? `legend ${preview.legendPosition}` : "",
+        preview.horizontalAxisTitle ? `horizontal axis ${preview.horizontalAxisTitle}` : "",
+        preview.verticalAxisTitle ? `vertical axis ${preview.verticalAxisTitle}` : ""
       ].filter(Boolean).join(" • ");
 
       return `

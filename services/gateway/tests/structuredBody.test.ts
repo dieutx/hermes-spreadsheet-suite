@@ -395,6 +395,39 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes chart axis title aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:C20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartType: "line",
+        categoryField: "Month",
+        series: [{ field: "Revenue", label: "Revenue" }],
+        title: "Revenue",
+        xAxisTitle: "Month",
+        yAxisTitle: "USD",
+        explanation: "Chart monthly revenue.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "chart_plan",
+      data: {
+        horizontalAxisTitle: "Month",
+        verticalAxisTitle: "USD"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("coerces formula alternateFormulas string entries into contract-valid objects", () => {
     const rawBody = {
       type: "formula",

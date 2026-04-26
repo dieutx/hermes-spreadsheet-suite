@@ -687,6 +687,20 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         position: "",
         visible: true
       },
+      axes: {
+        categoryAxis: {
+          title: {
+            text: "",
+            visible: false
+          }
+        },
+        valueAxis: {
+          title: {
+            text: "",
+            visible: false
+          }
+        }
+      },
       setPosition: vi.fn()
     };
     const chartSheet = {
@@ -742,6 +756,8 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         ],
         title: "Revenue vs Margin",
         legendPosition: "bottom",
+        horizontalAxisTitle: "Month",
+        verticalAxisTitle: "USD",
         explanation: "Chart monthly revenue and margin.",
         confidence: 0.93,
         requiresConfirmation: true,
@@ -768,6 +784,8 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       ],
       title: "Revenue vs Margin",
       legendPosition: "bottom",
+      horizontalAxisTitle: "Month",
+      verticalAxisTitle: "USD",
       summary: "Created line chart on Sales Chart!A1."
     });
 
@@ -779,6 +797,60 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
     expect(chart.title.text).toBe("Revenue vs Margin");
     expect(chart.legend.visible).toBe(true);
     expect(chart.legend.position).toBe("Bottom");
+    expect(chart.axes.categoryAxis.title.visible).toBe(true);
+    expect(chart.axes.categoryAxis.title.text).toBe("Month");
+    expect(chart.axes.valueAxis.title.visible).toBe(true);
+    expect(chart.axes.valueAxis.title.text).toBe("USD");
+  });
+
+  it("fails closed when a pie chart requests axis titles in Excel", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn()
+        }
+      }
+    });
+
+    const response = {
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:B20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartType: "pie",
+        categoryField: "Region",
+        series: [
+          { field: "Revenue", label: "Revenue" }
+        ],
+        title: "Revenue by Region",
+        horizontalAxisTitle: "Region",
+        verticalAxisTitle: "USD",
+        explanation: "Chart revenue by region.",
+        confidence: 0.93,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:B20", "Sales Chart!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(taskpane.isWritePlanResponse(response)).toBe(false);
+    const html = taskpane.renderStructuredPreview(response, {
+      runId: "run_chart_pie_axes_preview_excel_001",
+      requestId: "req_chart_pie_axes_preview_excel_001"
+    });
+    expect(html).toContain("Pie charts do not support axis titles");
+    expect(html).not.toContain("Confirm Chart");
+
+    await expect(taskpane.applyWritePlan({
+      plan: response.data,
+      requestId: "req_chart_pie_axes_apply_excel_001",
+      runId: "run_chart_pie_axes_apply_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host does not support axis titles for pie charts.");
   });
 
   it("fails closed for chart previews and apply paths when the plan would rename series labels", async () => {
