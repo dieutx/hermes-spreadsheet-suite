@@ -9,6 +9,10 @@ import type {
   ChartPlanResponse,
   ChartUpdateData,
   ChartUpdateResponse,
+  TablePlanData,
+  TablePlanResponse,
+  TableUpdateData,
+  TableUpdateResponse,
   CompositePlanData,
   CompositePlanResponse,
   CompositeUpdateData,
@@ -164,6 +168,12 @@ export type StructuredPreview =
       details: string[];
     }
   | {
+      kind: "table_plan";
+    } & TablePlanData & {
+      summary: string;
+      details: string[];
+    }
+  | {
       kind: "range_format_update";
       targetSheet: string;
       targetRange: string;
@@ -228,6 +238,9 @@ export type StructuredPreview =
   | {
       kind: "chart_update";
     } & ChartUpdateData
+  | {
+      kind: "table_update";
+    } & TableUpdateData
   | {
     kind: "conditional_format_update";
       operation: "conditional_format_update";
@@ -812,6 +825,51 @@ function buildChartPreview(
   };
 }
 
+function buildTableDetails(plan: TablePlanData): string[] {
+  const details = [
+    `Target sheet: ${plan.targetSheet}.`,
+    `Target range: ${plan.targetRange}.`,
+    `Headers: ${plan.hasHeaders ? "yes" : "no"}.`
+  ];
+
+  if (plan.name) {
+    details.push(`Name: ${plan.name}.`);
+  }
+
+  if (plan.styleName) {
+    details.push(`Style: ${plan.styleName}.`);
+  }
+
+  const toggles = [
+    plan.showBandedRows !== undefined ? `banded rows ${plan.showBandedRows ? "on" : "off"}` : "",
+    plan.showBandedColumns !== undefined ? `banded columns ${plan.showBandedColumns ? "on" : "off"}` : "",
+    plan.showFilterButton !== undefined ? `filter buttons ${plan.showFilterButton ? "on" : "off"}` : "",
+    plan.showTotalsRow !== undefined ? `totals row ${plan.showTotalsRow ? "on" : "off"}` : ""
+  ].filter(Boolean);
+
+  if (toggles.length > 0) {
+    details.push(`Options: ${joinNaturalList(toggles)}.`);
+  }
+
+  details.push(`Affected ranges: ${plan.affectedRanges.join(", ")}.`);
+  details.push(`Overwrite risk: ${plan.overwriteRisk}.`);
+  details.push(`Confirmation level: ${plan.confirmationLevel}.`);
+
+  return details;
+}
+
+function buildTablePreview(
+  plan: TablePlanData
+): Extract<StructuredPreview, { kind: "table_plan" }> {
+  const name = plan.name ? ` ${plan.name}` : "";
+  return {
+    kind: "table_plan",
+    ...plan,
+    summary: `Will format table${name} on ${plan.targetSheet}!${plan.targetRange}.`,
+    details: buildTableDetails(plan)
+  };
+}
+
 function formatRangeTransferSummary(plan: RangeTransferPlanData): string {
   const action = plan.operation === "copy"
     ? "copy"
@@ -1205,6 +1263,8 @@ export function getStructuredPreview(response: HermesResponse): StructuredPrevie
       return buildPivotTablePreview(response.data);
     case "chart_plan":
       return buildChartPreview(response.data);
+    case "table_plan":
+      return buildTablePreview(response.data);
     case "conditional_format_plan":
       return buildConditionalFormatPreview(response.data);
     case "range_sort_plan":
@@ -1236,6 +1296,11 @@ export function getStructuredPreview(response: HermesResponse): StructuredPrevie
     case "chart_update":
       return {
         kind: "chart_update",
+        ...response.data
+      };
+    case "table_update":
+      return {
+        kind: "table_update",
         ...response.data
       };
     case "conditional_format_update":
@@ -1327,6 +1392,8 @@ export function getResponseBodyText(response: HermesResponse): string {
       return buildPivotTablePreview(response.data).summary;
     case "chart_plan":
       return buildChartPreview(response.data).summary;
+    case "table_plan":
+      return buildTablePreview(response.data).summary;
     case "workbook_structure_update":
       switch (response.data.operation) {
         case "create_sheet":
@@ -1374,6 +1441,8 @@ export function getResponseBodyText(response: HermesResponse): string {
       return response.data.summary;
     case "chart_update":
       return response.data.summary;
+    case "table_update":
+      return response.data.summary;
     case "conditional_format_update":
       return response.data.summary;
     case "sheet_update":
@@ -1416,6 +1485,7 @@ export function getResponseConfidence(response: HermesResponse): number | undefi
     case "analysis_report_plan":
     case "pivot_table_plan":
     case "chart_plan":
+    case "table_plan":
       return response.data.confidence;
     default:
       return undefined;
@@ -1448,6 +1518,7 @@ export function getRequiresConfirmation(response: HermesResponse): boolean {
     case "named_range_update":
     case "pivot_table_plan":
     case "chart_plan":
+    case "table_plan":
       return response.data.requiresConfirmation;
     case "analysis_report_plan":
       return response.data.outputMode === "materialize_report";
@@ -1544,5 +1615,6 @@ export function isWritePlanResponse(
     response.type === "named_range_update" ||
     response.type === "pivot_table_plan" ||
     response.type === "chart_plan" ||
+    response.type === "table_plan" ||
     (response.type === "analysis_report_plan" && response.data.outputMode === "materialize_report");
 }

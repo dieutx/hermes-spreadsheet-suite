@@ -461,6 +461,53 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes table plans before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "table_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        styleName: "TableStyleMedium2",
+        showBandedRows: true,
+        showBandedColumns: false,
+        showFilterButton: true,
+        showTotalsRow: false,
+        explanation: "Convert the selected sales range into a native table.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "This creates table metadata over the selected cells.",
+        confirmationLevel: "standard",
+        previewOnly: "drop-me"
+      },
+      extra: "drop-me"
+    });
+
+    expect(normalized).toEqual({
+      type: "table_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        styleName: "TableStyleMedium2",
+        showBandedRows: true,
+        showBandedColumns: false,
+        showFilterButton: true,
+        showTotalsRow: false,
+        explanation: "Convert the selected sales range into a native table.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("coerces formula alternateFormulas string entries into contract-valid objects", () => {
     const rawBody = {
       type: "formula",

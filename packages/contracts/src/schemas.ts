@@ -154,9 +154,11 @@ export const HermesTraceEventSchema = strictObject({
     "analysis_report_plan_ready",
     "pivot_table_plan_ready",
     "chart_plan_ready",
+    "table_plan_ready",
     "analysis_report_update_ready",
     "pivot_table_update_ready",
     "chart_update_ready",
+    "table_update_ready",
     "completed",
     "failed"
   ]),
@@ -1151,6 +1153,24 @@ export const ChartPlanDataSchema = strictObject({
   confirmationLevel: ConfirmationLevelSchema
 });
 
+export const TablePlanDataSchema = strictObject({
+  targetSheet: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
+  name: z.string().min(1).max(255).regex(/^[A-Za-z_][A-Za-z0-9_]*$/).optional(),
+  hasHeaders: z.boolean(),
+  styleName: z.string().min(1).max(128).optional(),
+  showBandedRows: z.boolean().optional(),
+  showBandedColumns: z.boolean().optional(),
+  showFilterButton: z.boolean().optional(),
+  showTotalsRow: z.boolean().optional(),
+  explanation: z.string().min(1).max(12000),
+  confidence: z.number().min(0).max(1),
+  requiresConfirmation: z.literal(true),
+  affectedRanges: z.array(z.string().min(1).max(128)).max(12),
+  overwriteRisk: OverwriteRiskSchema,
+  confirmationLevel: ConfirmationLevelSchema
+});
+
 export const AnalysisReportUpdateDataSchema = strictObject({
   operation: z.literal("analysis_report_update"),
   targetSheet: z.string().min(1).max(128),
@@ -1172,6 +1192,20 @@ export const ChartUpdateDataSchema = strictObject({
   chartType: ChartPlanDataSchema.shape.chartType,
   horizontalAxisTitle: ChartPlanDataSchema.shape.horizontalAxisTitle,
   verticalAxisTitle: ChartPlanDataSchema.shape.verticalAxisTitle,
+  summary: z.string().min(1).max(500)
+});
+
+export const TableUpdateDataSchema = strictObject({
+  operation: z.literal("table_update"),
+  targetSheet: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
+  name: z.string().min(1).max(255).regex(/^[A-Za-z_][A-Za-z0-9_]*$/).optional(),
+  hasHeaders: z.boolean(),
+  styleName: z.string().min(1).max(128).optional(),
+  showBandedRows: z.boolean().optional(),
+  showBandedColumns: z.boolean().optional(),
+  showFilterButton: z.boolean().optional(),
+  showTotalsRow: z.boolean().optional(),
   summary: z.string().min(1).max(500)
 });
 
@@ -1953,7 +1987,8 @@ const CompositeExecutablePlanSchema = z.union([
   DataCleanupPlanDataSchema,
   AnalysisReportCompositePlanDataSchema,
   PivotTablePlanDataSchema,
-  ChartPlanDataSchema
+  ChartPlanDataSchema,
+  TablePlanDataSchema
 ]);
 
 const CompositePlanStepSchema = strictObject({
@@ -2025,7 +2060,10 @@ export const CompositePlanDataSchema = strictObject({
   }
 
   const hasKnownNonReversibleStep = data.steps.some(
-    (step) => ("rowGroups" in step.plan) || ("chartType" in step.plan && "series" in step.plan)
+    (step) =>
+      ("rowGroups" in step.plan) ||
+      ("chartType" in step.plan && "series" in step.plan) ||
+      ("hasHeaders" in step.plan)
   );
   if (hasKnownNonReversibleStep && data.reversible) {
     ctx.addIssue({
@@ -2341,6 +2379,7 @@ export const PivotTablePlanResponseSchema = createResponseSchema(
   PivotTablePlanDataSchema
 );
 export const ChartPlanResponseSchema = createResponseSchema("chart_plan", ChartPlanDataSchema);
+export const TablePlanResponseSchema = createResponseSchema("table_plan", TablePlanDataSchema);
 export const NamedRangeUpdateResponseSchema = createResponseSchema(
   "named_range_update",
   NamedRangeUpdateDataSchema
@@ -2366,6 +2405,11 @@ export const PivotTableUpdateResponseSchema = createResponseSchema(
 export const ChartUpdateResponseSchema = createResponseSchema(
   "chart_update",
   ChartUpdateDataSchema,
+  hostOrHermesProcessedBySchema
+);
+export const TableUpdateResponseSchema = createResponseSchema(
+  "table_update",
+  TableUpdateDataSchema,
   hostOrHermesProcessedBySchema
 );
 export const RangeTransferUpdateDataSchema = strictObject({
@@ -2435,12 +2479,14 @@ export const HermesResponseSchema = z.discriminatedUnion("type", [
   AnalysisReportPlanResponseSchema,
   PivotTablePlanResponseSchema,
   ChartPlanResponseSchema,
+  TablePlanResponseSchema,
   NamedRangeUpdateResponseSchema,
   RangeTransferPlanResponseSchema,
   DataCleanupPlanResponseSchema,
   AnalysisReportUpdateResponseSchema,
   PivotTableUpdateResponseSchema,
   ChartUpdateResponseSchema,
+  TableUpdateResponseSchema,
   RangeTransferUpdateResponseSchema,
   DataCleanupUpdateResponseSchema,
   SheetUpdateResponseSchema,
@@ -2485,10 +2531,12 @@ export type PivotAggregation = z.infer<typeof PivotAggregationSchema>;
 export type PivotFilter = z.infer<typeof PivotFilterSchema>;
 export type PivotTablePlanData = z.infer<typeof PivotTablePlanDataSchema>;
 export type ChartPlanData = z.infer<typeof ChartPlanDataSchema>;
+export type TablePlanData = z.infer<typeof TablePlanDataSchema>;
 export type ExternalDataPlanData = z.infer<typeof ExternalDataPlanDataSchema>;
 export type AnalysisReportUpdateData = z.infer<typeof AnalysisReportUpdateDataSchema>;
 export type PivotTableUpdateData = z.infer<typeof PivotTableUpdateDataSchema>;
 export type ChartUpdateData = z.infer<typeof ChartUpdateDataSchema>;
+export type TableUpdateData = z.infer<typeof TableUpdateDataSchema>;
 export type NamedRangeUpdateData = z.infer<typeof NamedRangeUpdateDataSchema>;
 export type TransferPasteMode = z.infer<typeof TransferPasteModeSchema>;
 export type Wave4CleanupOperation = z.infer<typeof Wave4CleanupOperationSchema>;
@@ -2552,12 +2600,14 @@ export type DataValidationPlanResponse = z.infer<typeof DataValidationPlanRespon
 export type AnalysisReportPlanResponse = z.infer<typeof AnalysisReportPlanResponseSchema>;
 export type PivotTablePlanResponse = z.infer<typeof PivotTablePlanResponseSchema>;
 export type ChartPlanResponse = z.infer<typeof ChartPlanResponseSchema>;
+export type TablePlanResponse = z.infer<typeof TablePlanResponseSchema>;
 export type NamedRangeUpdateResponse = z.infer<typeof NamedRangeUpdateResponseSchema>;
 export type RangeTransferPlanResponse = z.infer<typeof RangeTransferPlanResponseSchema>;
 export type DataCleanupPlanResponse = z.infer<typeof DataCleanupPlanResponseSchema>;
 export type AnalysisReportUpdateResponse = z.infer<typeof AnalysisReportUpdateResponseSchema>;
 export type PivotTableUpdateResponse = z.infer<typeof PivotTableUpdateResponseSchema>;
 export type ChartUpdateResponse = z.infer<typeof ChartUpdateResponseSchema>;
+export type TableUpdateResponse = z.infer<typeof TableUpdateResponseSchema>;
 export type RangeTransferUpdateResponse = z.infer<typeof RangeTransferUpdateResponseSchema>;
 export type DataCleanupUpdateResponse = z.infer<typeof DataCleanupUpdateResponseSchema>;
 export type SheetUpdateResponse = z.infer<typeof SheetUpdateResponseSchema>;

@@ -878,6 +878,7 @@ export class HermesAgentClient {
           : "Tell me the exact cell or range you want me to change, or retry the write request more explicitly.";
       case "pivot_table_plan":
       case "chart_plan":
+      case "table_plan":
       case "external_data_plan":
       case "analysis_report_plan":
         return currentRegionAvailable
@@ -1017,6 +1018,7 @@ export class HermesAgentClient {
       case "data_validation_plan":
       case "pivot_table_plan":
       case "chart_plan":
+      case "table_plan":
       case "named_range_update":
       case "range_transfer_plan":
       case "data_cleanup_plan":
@@ -1042,6 +1044,7 @@ export class HermesAgentClient {
       case "analysis_report_update":
       case "pivot_table_update":
       case "chart_update":
+      case "table_update":
         return {
           displayMode: "structured-preview",
           showTrace: true,
@@ -1146,6 +1149,10 @@ export class HermesAgentClient {
         pushIfMissing({ event: "chart_plan_ready", timestamp: completedAt });
         pushIfMissing({ event: "completed", timestamp: completedAt });
         break;
+      case "table_plan":
+        pushIfMissing({ event: "table_plan_ready", timestamp: completedAt });
+        pushIfMissing({ event: "completed", timestamp: completedAt });
+        break;
       case "named_range_update":
         pushIfMissing({ event: "named_range_update_ready", timestamp: completedAt });
         pushIfMissing({ event: "completed", timestamp: completedAt });
@@ -1168,6 +1175,10 @@ export class HermesAgentClient {
         break;
       case "chart_update":
         pushIfMissing({ event: "chart_update_ready", timestamp: completedAt });
+        pushIfMissing({ event: "completed", timestamp: completedAt });
+        break;
+      case "table_update":
+        pushIfMissing({ event: "table_update_ready", timestamp: completedAt });
         pushIfMissing({ event: "completed", timestamp: completedAt });
         break;
       case "error":

@@ -968,9 +968,11 @@
       analysis_report_plan_ready: "Analysis report plan ready",
       pivot_table_plan_ready: "Pivot table plan ready",
       chart_plan_ready: "Chart plan ready",
+      table_plan_ready: "Table plan ready",
       analysis_report_update_ready: "Analysis report update ready",
       pivot_table_update_ready: "Pivot table update ready",
       chart_update_ready: "Chart update ready",
+      table_update_ready: "Table update ready",
       sheet_update_plan_ready: "Sheet update plan ready",
       sheet_import_plan_ready: "Sheet import plan ready",
       completed: "Completed",
@@ -1011,6 +1013,8 @@
         return `Prepared a pivot table preview for ${response.data.targetSheet}!${response.data.targetRange}.`;
       case "chart_plan":
         return `Prepared a chart preview for ${response.data.targetSheet}!${response.data.targetRange}.`;
+      case "table_plan":
+        return `Prepared a table preview for ${response.data.targetSheet}!${response.data.targetRange}.`;
       case "external_data_plan":
         return `Prepared an external data preview for ${response.data.targetSheet}!${response.data.targetRange}.`;
       case "workbook_structure_update":
@@ -1315,7 +1319,7 @@
       return response.data.outputMode === "materialize_report";
     }
 
-    if (response.type === "pivot_table_plan" || response.type === "chart_plan") {
+    if (response.type === "pivot_table_plan" || response.type === "chart_plan" || response.type === "table_plan") {
       return isWritePlanResponse(response) && Boolean(response.data.requiresConfirmation);
     }
 
@@ -1942,6 +1946,7 @@
   function isPreviewSupportCheckedWritePlanType(responseType) {
     return responseType === "pivot_table_plan" ||
       responseType === "chart_plan" ||
+      responseType === "table_plan" ||
       responseType === "conditional_format_plan" ||
       responseType === "range_filter_plan" ||
       responseType === "data_validation_plan" ||
@@ -1971,6 +1976,12 @@
 
     if (typeof preview.chartType === "string" && Array.isArray(preview.series)) {
       return "chart_plan";
+    }
+
+    if (typeof preview.hasHeaders === "boolean" &&
+      typeof preview.targetSheet === "string" &&
+      typeof preview.targetRange === "string") {
+      return "table_plan";
     }
 
     if (Array.isArray(preview.rowGroups) && Array.isArray(preview.valueAggregations)) {
@@ -2774,6 +2785,22 @@
       return "";
     }
 
+    if (kind === "table_plan") {
+      if (preview.showTotalsRow === true) {
+        return "Google Sheets can format this range as a table-like range, but it cannot create an exact native totals row here.";
+      }
+
+      if (typeof preview.styleName === "string" && preview.styleName.trim().length > 0) {
+        return "Google Sheets table-like formatting cannot apply Excel table style names exactly.";
+      }
+
+      if (preview.showFilterButton === true && preview.hasHeaders !== true) {
+        return "Google Sheets filter buttons require a header row for exact table-like formatting.";
+      }
+
+      return "";
+    }
+
     if (kind === "external_data_plan") {
       if (!isSingleCellA1Anchor(preview.targetRange)) {
         return "Google Sheets external data imports require a single destination anchor cell.";
@@ -3064,7 +3091,8 @@
         result.kind === "composite_update" ||
         result.kind === "analysis_report_update" ||
         result.kind === "pivot_table_update" ||
-        result.kind === "chart_update"
+        result.kind === "chart_update" ||
+        result.kind === "table_update"
       )
     ) {
       return result.summary || "Write applied.";
@@ -3213,6 +3241,28 @@
           overwriteRisk: response.data.overwriteRisk,
           confirmationLevel: response.data.confirmationLevel,
           summary: getChartPreviewSummary(response.data)
+        };
+      case "table_plan":
+        return {
+          kind: "table_plan",
+          targetSheet: response.data.targetSheet,
+          targetRange: response.data.targetRange,
+          name: response.data.name,
+          hasHeaders: response.data.hasHeaders,
+          styleName: response.data.styleName,
+          showBandedRows: response.data.showBandedRows,
+          showBandedColumns: response.data.showBandedColumns,
+          showFilterButton: response.data.showFilterButton,
+          showTotalsRow: response.data.showTotalsRow,
+          explanation: response.data.explanation,
+          confidence: response.data.confidence,
+          requiresConfirmation: response.data.requiresConfirmation,
+          affectedRanges: response.data.affectedRanges,
+          overwriteRisk: response.data.overwriteRisk,
+          confirmationLevel: response.data.confirmationLevel,
+          summary: response.data.name
+            ? `Will format table-like range ${response.data.name} on ${response.data.targetSheet}!${response.data.targetRange}.`
+            : `Will format table-like range on ${response.data.targetSheet}!${response.data.targetRange}.`
         };
       case "external_data_plan":
         return {
@@ -3767,6 +3817,42 @@
             <div class="preview-actions">
               <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
                 Confirm Chart
+              </button>
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }
+
+    if (preview.kind === "table_plan") {
+      const supportError = getGoogleSheetsPlanSupportError(preview);
+      const tableDetails = [
+        preview.name ? `name ${preview.name}` : "",
+        preview.hasHeaders ? "headers on" : "headers off",
+        preview.showBandedRows !== undefined ? `banded rows ${preview.showBandedRows ? "on" : "off"}` : "",
+        preview.showBandedColumns !== undefined ? `banded columns ${preview.showBandedColumns ? "on" : "off"}` : "",
+        preview.showFilterButton !== undefined ? `filters ${preview.showFilterButton ? "on" : "off"}` : "",
+        preview.showTotalsRow !== undefined ? `totals ${preview.showTotalsRow ? "on" : "off"}` : ""
+      ].filter(Boolean).join(" • ");
+
+      return `
+        <div class="preview">
+          <div class="preview-meta">
+            ${escapeHtml(preview.targetSheet)}!${escapeHtml(preview.targetRange)}
+            ${preview.overwriteRisk ? ` • overwrite ${escapeHtml(preview.overwriteRisk)}` : ""}
+            ${preview.confirmationLevel ? ` • ${escapeHtml(preview.confirmationLevel)}` : ""}
+          </div>
+          <div>${escapeHtml(preview.explanation)}</div>
+          <div class="preview-meta">${escapeHtml(preview.summary)}</div>
+          ${tableDetails ? `<div class="preview-meta">${escapeHtml(tableDetails)}</div>` : ""}
+          ${Array.isArray(preview.affectedRanges) && preview.affectedRanges.length > 0
+            ? `<div class="preview-meta">${escapeHtml(preview.affectedRanges.join(", "))}</div>`
+            : ""}
+          ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
+          ${getRequiresConfirmation(response) && !supportError ? `
+            <div class="preview-actions">
+              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+                Confirm Table
               </button>
             </div>
           ` : ""}
