@@ -13,7 +13,8 @@ import type {
   RangeTransferUpdateData,
   SheetImportPlanData,
   SheetStructureUpdateData,
-  SheetUpdateData
+  SheetUpdateData,
+  TableUpdateData
 } from "@hermes/contracts";
 
 export type RunStatus = "accepted" | "processing" | "completed" | "failed";
@@ -127,6 +128,14 @@ export type WritebackResult =
       targetSheet: ChartUpdateData["targetSheet"];
       targetRange: ChartUpdateData["targetRange"];
       chartType: ChartUpdateData["chartType"];
+      summary: string;
+    }
+  | {
+      kind: "table_update";
+      hostPlatform: "google_sheets" | "excel_windows" | "excel_macos";
+      operation: TableUpdateData["operation"];
+      targetSheet: TableUpdateData["targetSheet"];
+      targetRange: TableUpdateData["targetRange"];
       summary: string;
     };
 

@@ -910,6 +910,15 @@ function isChartPlan_(plan) {
   );
 }
 
+function isTablePlan_(plan) {
+  return Boolean(
+    plan &&
+    typeof plan.targetSheet === 'string' &&
+    typeof plan.targetRange === 'string' &&
+    typeof plan.hasHeaders === 'boolean'
+  );
+}
+
 function isExternalDataPlan_(plan) {
   return Boolean(
     plan &&
@@ -1812,6 +1821,69 @@ function applyChartPlan_(spreadsheet, plan) {
     overwriteRisk: plan.overwriteRisk,
     confirmationLevel: plan.confirmationLevel,
     summary: 'Created ' + plan.chartType + ' chart on ' + plan.targetSheet + '!' + normalizeA1_(plan.targetRange) + '.'
+  };
+}
+
+function validateGoogleSheetsTablePlanSupport_(plan) {
+  if (plan.showTotalsRow === true) {
+    throw new Error('Google Sheets can format this range as a table-like range, but it cannot create an exact native totals row here.');
+  }
+
+  if (typeof plan.styleName === 'string' && plan.styleName.trim()) {
+    throw new Error('Google Sheets table-like formatting cannot apply Excel table style names exactly.');
+  }
+
+  if (plan.showFilterButton === true && plan.hasHeaders !== true) {
+    throw new Error('Google Sheets filter buttons require a header row for exact table-like formatting.');
+  }
+}
+
+function applyTablePlan_(spreadsheet, plan) {
+  validateGoogleSheetsTablePlanSupport_(plan);
+  const sheet = spreadsheet.getSheetByName(plan.targetSheet);
+
+  if (!sheet) {
+    throw new Error('Target sheet not found: ' + plan.targetSheet);
+  }
+
+  const targetRange = sheet.getRange(plan.targetRange);
+
+  if (plan.showBandedRows !== false) {
+    if (typeof targetRange.applyRowBanding !== 'function') {
+      throw new Error('Google Sheets host does not support exact table-like row banding.');
+    }
+    targetRange.applyRowBanding();
+  }
+
+  if (plan.showBandedColumns === true) {
+    if (typeof targetRange.applyColumnBanding !== 'function') {
+      throw new Error('Google Sheets host does not support exact table-like column banding.');
+    }
+    targetRange.applyColumnBanding();
+  }
+
+  if (plan.showFilterButton !== false) {
+    if (typeof targetRange.createFilter !== 'function') {
+      throw new Error('Google Sheets host does not support exact table-like filter buttons.');
+    }
+    targetRange.createFilter();
+  }
+
+  SpreadsheetApp.flush();
+
+  return {
+    kind: 'table_update',
+    operation: 'table_update',
+    hostPlatform: 'google_sheets',
+    targetSheet: plan.targetSheet,
+    targetRange: plan.targetRange,
+    name: plan.name,
+    hasHeaders: plan.hasHeaders,
+    showBandedRows: plan.showBandedRows,
+    showBandedColumns: plan.showBandedColumns,
+    showFilterButton: plan.showFilterButton,
+    showTotalsRow: plan.showTotalsRow,
+    summary: getTableStatusSummary_(plan)
   };
 }
 
@@ -2946,6 +3018,16 @@ function getExternalDataStatusSummary_(plan) {
     ? String(plan.provider).toUpperCase()
     : 'external';
   return 'Applied ' + provider + ' import formula at ' + target + '.';
+}
+
+function getTableStatusSummary_(plan) {
+  const label = plan && typeof plan.name === 'string' && plan.name.trim()
+    ? ' ' + plan.name.trim()
+    : '';
+  const target = plan && plan.targetSheet && plan.targetRange
+    ? plan.targetSheet + '!' + plan.targetRange
+    : 'the target range';
+  return 'Formatted table-like range' + label + ' on ' + target + '.';
 }
 
 function getRangeFormatStatusSummary_(plan) {
@@ -4712,6 +4794,10 @@ function applyWritePlan(input) {
 
   if (isChartPlan_(plan)) {
     return applyChartPlan_(spreadsheet, plan);
+  }
+
+  if (isTablePlan_(plan)) {
+    return applyTablePlan_(spreadsheet, plan);
   }
 
   if (isWorkbookStructurePlan_(plan)) {

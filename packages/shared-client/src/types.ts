@@ -11,6 +11,8 @@ import type {
   ImageAttachment,
   ChartPlanData,
   ChartUpdateData,
+  TablePlanData,
+  TableUpdateData,
   ConditionalFormatPlanData,
   DataValidationPlanData,
   DataCleanupPlanData,
@@ -57,7 +59,8 @@ export type WritePlan =
   | DataCleanupPlanData
   | AnalysisReportWritePlanData
   | PivotTablePlanData
-  | ChartPlanData;
+  | ChartPlanData
+  | TablePlanData;
 
 export type CompositeWritePlan = CompositePlanData;
 
@@ -194,6 +197,13 @@ export type ChartUpdateWritebackResult = ChartPlanData & {
   summary: string;
 };
 
+export type TableUpdateWritebackResult = TablePlanData & {
+  kind: "table_update";
+  hostPlatform: HermesRequest["host"]["platform"];
+  operation: TableUpdateData["operation"];
+  summary: string;
+};
+
 export type CompositeUpdateWritebackResult = {
   kind: "composite_update";
   hostPlatform: HermesRequest["host"]["platform"];
@@ -218,6 +228,7 @@ export type WritebackResult =
   | AnalysisReportUpdateWritebackResult
   | PivotTableUpdateWritebackResult
   | ChartUpdateWritebackResult
+  | TableUpdateWritebackResult
   | CompositeUpdateWritebackResult;
 
 export type WritebackDestructiveConfirmation = {

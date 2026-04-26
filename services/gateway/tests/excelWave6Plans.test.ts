@@ -1422,6 +1422,94 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(cleanupHtml).not.toContain("Confirm Cleanup");
   });
 
+  it("renders and applies native Excel table plans", async () => {
+    const table = {
+      name: "",
+      style: "",
+      showBandedRows: false,
+      showBandedColumns: false,
+      showFilterButton: false,
+      showTotals: false
+    };
+    const targetRange = {
+      rowCount: 50,
+      columnCount: 6,
+      load: vi.fn()
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      tables: {
+        add: vi.fn(() => table)
+      }
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+    const response = {
+      type: "table_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        styleName: "TableStyleMedium2",
+        showBandedRows: true,
+        showBandedColumns: false,
+        showFilterButton: true,
+        showTotalsRow: false,
+        explanation: "Convert the sales range into a native table.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(taskpane.isWritePlanResponse(response)).toBe(true);
+    expect(taskpane.getStructuredPreview(response)).toMatchObject({
+      kind: "table_plan",
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      name: "SalesTable"
+    });
+    expect(taskpane.renderStructuredPreview(response, {
+      runId: "run_table_preview_excel_001",
+      requestId: "req_table_preview_excel_001"
+    })).toContain("Confirm Table");
+
+    await expect(taskpane.applyWritePlan({
+      plan: response.data,
+      requestId: "req_table_apply_excel_001",
+      runId: "run_table_apply_excel_001",
+      approvalToken: "token",
+      executionId: "exec_table_apply_excel_001"
+    })).resolves.toMatchObject({
+      kind: "table_update",
+      operation: "table_update",
+      hostPlatform: "excel_windows",
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      name: "SalesTable",
+      hasHeaders: true,
+      summary: "Created table SalesTable on Sales!A1:F50."
+    });
+    expect(worksheet.tables.add).toHaveBeenCalledWith(targetRange, true);
+    expect(table).toMatchObject({
+      name: "SalesTable",
+      style: "TableStyleMedium2",
+      showBandedRows: true,
+      showBandedColumns: false,
+      showFilterButton: true,
+      showTotals: false
+    });
+  });
+
   it("renders advisory formula-debug previews with intent metadata without treating them as write plans", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})

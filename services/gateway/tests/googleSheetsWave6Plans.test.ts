@@ -1626,6 +1626,47 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(html).toContain("symbol CURRENCY:BTCUSD");
   });
 
+  it("renders exact-safe Google Sheets table-like previews and rejects unsupported totals rows", () => {
+    const sidebar = loadSidebarContext();
+    const response = {
+      type: "table_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        showBandedRows: true,
+        showBandedColumns: false,
+        showFilterButton: true,
+        showTotalsRow: false,
+        explanation: "Format the sales range as a filterable table.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+    const unsupportedTotals = {
+      type: "table_plan",
+      data: {
+        ...response.data,
+        showTotalsRow: true
+      }
+    };
+
+    expect(sidebar.isWritePlanResponse(response)).toBe(true);
+    expect(sidebar.renderStructuredPreview(response, {
+      runId: "run_table_preview_google_001",
+      requestId: "req_table_preview_google_001"
+    })).toContain("Confirm Table");
+    expect(sidebar.isWritePlanResponse(unsupportedTotals)).toBe(false);
+    expect(sidebar.renderStructuredPreview(unsupportedTotals, {
+      runId: "run_table_preview_google_unsupported_001",
+      requestId: "req_table_preview_google_unsupported_001"
+    })).toContain("Google Sheets can format this range as a table-like range, but it cannot create an exact native totals row here.");
+  });
+
   it("renders a composite preview with dry-run and destructive flags and requires destructive confirmation for destructive child steps", () => {
     const sidebar = loadSidebarContext();
     const confirmMock = vi.fn(() => true);
@@ -2375,6 +2416,71 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     });
     expect(targetRange.setFormula).toHaveBeenCalledWith('=GOOGLEFINANCE("CURRENCY:BTCUSD","price")');
     expect(targetRange.getFormulas()).toEqual([['=GOOGLEFINANCE("CURRENCY:BTCUSD","price")']]);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("applies Google Sheets table-like plans with banding and filters", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6
+    });
+    targetRange.applyRowBanding = vi.fn();
+    targetRange.createFilter = vi.fn();
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("A1:F50");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getId() {
+        return "sheet-123";
+      },
+      getSheetByName(name: string) {
+        if (name === "Sales") {
+          return sheet;
+        }
+        return null;
+      }
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyWritePlan({
+      requestId: "req_table_apply_google_001",
+      runId: "run_table_apply_google_001",
+      approvalToken: "token",
+      executionId: "exec_table_apply_google_001",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        showBandedRows: true,
+        showBandedColumns: false,
+        showFilterButton: true,
+        showTotalsRow: false,
+        explanation: "Format the sales range as a filterable table.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    })).toMatchObject({
+      kind: "table_update",
+      operation: "table_update",
+      hostPlatform: "google_sheets",
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      name: "SalesTable",
+      hasHeaders: true,
+      summary: "Formatted table-like range SalesTable on Sales!A1:F50."
+    });
+    expect(targetRange.applyRowBanding).toHaveBeenCalledTimes(1);
+    expect(targetRange.createFilter).toHaveBeenCalledTimes(1);
     expect(code.flush).toHaveBeenCalled();
   });
 

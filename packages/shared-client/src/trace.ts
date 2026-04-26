@@ -32,9 +32,11 @@ const EVENT_LABELS: Record<string, string> = {
   analysis_report_plan_ready: "Analysis report plan ready",
   pivot_table_plan_ready: "Pivot table plan ready",
   chart_plan_ready: "Chart plan ready",
+  table_plan_ready: "Table plan ready",
   analysis_report_update_ready: "Analysis report update ready",
   pivot_table_update_ready: "Pivot table update ready",
   chart_update_ready: "Chart update ready",
+  table_update_ready: "Table update ready",
   composite_plan_ready: "Composite plan ready",
   composite_update_ready: "Composite update ready",
   dry_run_requested: "Dry run requested",
@@ -101,6 +103,7 @@ export function formatWritebackStatusLine(result: WritebackResult): string {
     case "analysis_report_update":
     case "pivot_table_update":
     case "chart_update":
+    case "table_update":
     case "composite_update":
       return result.summary;
   }

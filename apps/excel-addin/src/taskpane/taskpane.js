@@ -35,12 +35,15 @@ import {
   getDataCleanupStatusSummary,
   getRangeFormatStatusSummary,
   getRangeTransferStatusSummary,
+  getTablePreviewSummary,
+  getTableStatusSummary,
   getWorkbookStructureStatusSummary,
   getDataValidationStatusSummary,
   getNamedRangeStatusSummary,
   getCompositeStepWritebackStatusLine,
   getWritebackStatusLine,
   isRangeFormatPlan,
+  isTablePlan,
   isWorkbookStructurePlan,
   mapHorizontalAlignmentToExcel,
   mapVerticalAlignmentToExcel,
@@ -1018,10 +1021,12 @@ function getTraceLabel(event) {
     analysis_report_plan_ready: "Analysis report plan ready",
     pivot_table_plan_ready: "Pivot table plan ready",
     chart_plan_ready: "Chart plan ready",
+    table_plan_ready: "Table plan ready",
     external_data_plan_ready: "External data plan ready",
     analysis_report_update_ready: "Analysis report update ready",
     pivot_table_update_ready: "Pivot table update ready",
     chart_update_ready: "Chart update ready",
+    table_update_ready: "Table update ready",
     sheet_update_plan_ready: "Sheet update plan ready",
     sheet_import_plan_ready: "Sheet import plan ready",
     completed: "Completed",
@@ -1087,6 +1092,7 @@ function appendGatewayIssueSummary(message, issues) {
 function isExcelPreviewSupportCheckedWritePlanType(responseType) {
   return responseType === "pivot_table_plan" ||
     responseType === "chart_plan" ||
+    responseType === "table_plan" ||
     responseType === "external_data_plan" ||
     responseType === "conditional_format_plan" ||
     responseType === "range_filter_plan" ||
@@ -1106,6 +1112,12 @@ function inferExcelPreviewSupportKind(preview) {
 
   if (typeof preview.chartType === "string" && Array.isArray(preview.series)) {
     return "chart_plan";
+  }
+
+  if (typeof preview.hasHeaders === "boolean" &&
+    typeof preview.targetSheet === "string" &&
+    typeof preview.targetRange === "string") {
+    return "table_plan";
   }
 
   if (Array.isArray(preview.rowGroups) && Array.isArray(preview.valueAggregations)) {
@@ -1698,6 +1710,16 @@ function getExcelPlanSupportError(preview) {
 
   if (kind === "chart_plan") {
     return getExcelChartSupportError(preview);
+  }
+
+  if (kind === "table_plan") {
+    if (typeof preview.name === "string" &&
+      preview.name.trim().length > 0 &&
+      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(preview.name.trim())) {
+      return "Excel table names must start with a letter or underscore and contain only letters, numbers, and underscores.";
+    }
+
+    return "";
   }
 
   if (kind === "external_data_plan") {
@@ -2306,6 +2328,8 @@ function getResponseBodyText(response) {
       return `Prepared a pivot table preview for ${response.data.targetSheet}!${response.data.targetRange}.`;
     case "chart_plan":
       return `Prepared a chart preview for ${response.data.targetSheet}!${response.data.targetRange}.`;
+    case "table_plan":
+      return `Prepared a table preview for ${response.data.targetSheet}!${response.data.targetRange}.`;
     case "external_data_plan":
       return `Prepared an external data preview for ${response.data.targetSheet}!${response.data.targetRange}.`;
     case "sheet_update":
@@ -2379,6 +2403,7 @@ function getRequiresConfirmation(response) {
     response.type === "range_transfer_plan" ||
     response.type === "data_cleanup_plan" ||
     response.type === "external_data_plan" ||
+    response.type === "table_plan" ||
     response.type === "composite_plan" ||
     response.type === "sheet_update" ||
     response.type === "sheet_import_plan"
@@ -4282,6 +4307,111 @@ async function applyExcelChartPlan(context, worksheets, plan, platform) {
   };
 }
 
+function assertExcelTablePlanSupport(plan) {
+  const supportError = getExcelPlanSupportError({
+    kind: "table_plan",
+    ...plan
+  });
+  if (supportError) {
+    throw new Error(supportError);
+  }
+}
+
+function setExcelTableProperty(table, propertyName, value, supportMessage) {
+  if (value === undefined) {
+    return;
+  }
+
+  if (!table || !(propertyName in table)) {
+    throw new Error(supportMessage);
+  }
+
+  table[propertyName] = value;
+}
+
+async function applyExcelTablePlan(context, worksheets, plan, platform) {
+  assertExcelTablePlanSupport(plan);
+
+  const worksheet = worksheets.getItem(plan.targetSheet);
+  const targetRange = worksheet.getRange(plan.targetRange);
+  targetRange.load(["rowCount", "columnCount"]);
+  await context.sync();
+
+  if (targetRange.rowCount < 1 || targetRange.columnCount < 1) {
+    throw new Error("Excel host requires a non-empty range for table creation.");
+  }
+
+  if (!worksheet.tables || typeof worksheet.tables.add !== "function") {
+    throw new Error("Excel host does not support exact-safe native table creation.");
+  }
+
+  const table = worksheet.tables.add(targetRange, plan.hasHeaders);
+  if (!table) {
+    throw new Error("Excel host did not create a native table.");
+  }
+
+  if (plan.name) {
+    setExcelTableProperty(
+      table,
+      "name",
+      plan.name,
+      "Excel host does not support exact-safe table naming."
+    );
+  }
+
+  if (plan.styleName) {
+    setExcelTableProperty(
+      table,
+      "style",
+      plan.styleName,
+      "Excel host does not support exact-safe table styles."
+    );
+  }
+
+  setExcelTableProperty(
+    table,
+    "showBandedRows",
+    plan.showBandedRows,
+    "Excel host does not support exact-safe table banded rows."
+  );
+  setExcelTableProperty(
+    table,
+    "showBandedColumns",
+    plan.showBandedColumns,
+    "Excel host does not support exact-safe table banded columns."
+  );
+  setExcelTableProperty(
+    table,
+    "showFilterButton",
+    plan.showFilterButton,
+    "Excel host does not support exact-safe table filter buttons."
+  );
+  setExcelTableProperty(
+    table,
+    "showTotals",
+    plan.showTotalsRow,
+    "Excel host does not support exact-safe table totals rows."
+  );
+
+  await context.sync();
+
+  return {
+    kind: "table_update",
+    operation: "table_update",
+    hostPlatform: platform,
+    targetSheet: plan.targetSheet,
+    targetRange: plan.targetRange,
+    name: plan.name,
+    hasHeaders: plan.hasHeaders,
+    styleName: plan.styleName,
+    showBandedRows: plan.showBandedRows,
+    showBandedColumns: plan.showBandedColumns,
+    showFilterButton: plan.showFilterButton,
+    showTotalsRow: plan.showTotalsRow,
+    summary: getTableStatusSummary(plan)
+  };
+}
+
 function getStructuredPreview(response) {
   if (!response || typeof response !== "object" || typeof response.type !== "string") {
     return null;
@@ -4545,6 +4675,26 @@ function getStructuredPreview(response) {
         overwriteRisk: response.data.overwriteRisk,
         confirmationLevel: response.data.confirmationLevel,
         summary: getChartPreviewSummary(response.data)
+      };
+    case "table_plan":
+      return {
+        kind: "table_plan",
+        targetSheet: response.data.targetSheet,
+        targetRange: response.data.targetRange,
+        name: response.data.name,
+        hasHeaders: response.data.hasHeaders,
+        styleName: response.data.styleName,
+        showBandedRows: response.data.showBandedRows,
+        showBandedColumns: response.data.showBandedColumns,
+        showFilterButton: response.data.showFilterButton,
+        showTotalsRow: response.data.showTotalsRow,
+        explanation: response.data.explanation,
+        confidence: response.data.confidence,
+        requiresConfirmation: response.data.requiresConfirmation,
+        affectedRanges: response.data.affectedRanges,
+        overwriteRisk: response.data.overwriteRisk,
+        confirmationLevel: response.data.confirmationLevel,
+        summary: getTablePreviewSummary(response.data)
       };
     case "external_data_plan":
       return {
@@ -5507,6 +5657,43 @@ function renderStructuredPreview(response, message) {
           <div class="preview-actions">
             <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
               Confirm Chart
+            </button>
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  if (preview.kind === "table_plan") {
+    const supportError = getExcelPlanSupportError(preview);
+    const tableDetails = [
+      preview.name ? `name ${preview.name}` : "",
+      preview.styleName ? `style ${preview.styleName}` : "",
+      preview.hasHeaders ? "headers on" : "headers off",
+      preview.showBandedRows !== undefined ? `banded rows ${preview.showBandedRows ? "on" : "off"}` : "",
+      preview.showBandedColumns !== undefined ? `banded columns ${preview.showBandedColumns ? "on" : "off"}` : "",
+      preview.showFilterButton !== undefined ? `filters ${preview.showFilterButton ? "on" : "off"}` : "",
+      preview.showTotalsRow !== undefined ? `totals ${preview.showTotalsRow ? "on" : "off"}` : ""
+    ].filter(Boolean).join(" • ");
+
+    return `
+      <div class="preview">
+        <div class="preview-meta">
+          ${escapeHtml(preview.targetSheet)}!${escapeHtml(preview.targetRange)}
+          ${preview.overwriteRisk ? ` • overwrite ${escapeHtml(preview.overwriteRisk)}` : ""}
+          ${preview.confirmationLevel ? ` • ${escapeHtml(preview.confirmationLevel)}` : ""}
+        </div>
+        <div>${escapeHtml(preview.explanation)}</div>
+        <div class="preview-meta">${escapeHtml(preview.summary)}</div>
+        ${tableDetails ? `<div class="preview-meta">${escapeHtml(tableDetails)}</div>` : ""}
+        ${Array.isArray(preview.affectedRanges) && preview.affectedRanges.length > 0
+          ? `<div class="preview-meta">${escapeHtml(preview.affectedRanges.join(", "))}</div>`
+          : ""}
+        ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
+        ${getRequiresConfirmation(response) && !supportError ? `
+          <div class="preview-actions">
+            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              Confirm Table
             </button>
           </div>
         ` : ""}
@@ -7180,6 +7367,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
 
     if (isChartPlan(resolvedPlan)) {
       return applyExcelChartPlan(context, worksheets, resolvedPlan, platform);
+    }
+
+    if (isTablePlan(resolvedPlan)) {
+      return applyExcelTablePlan(context, worksheets, resolvedPlan, platform);
     }
 
     const sheet = worksheets.getItem(plan.targetSheet);
