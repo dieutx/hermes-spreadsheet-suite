@@ -6707,13 +6707,19 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             copiedSheet.name = resolvedPlan.newSheetName;
           }
 
+          copiedSheet.load?.("name");
           await context.sync();
+          const copiedSheetName = typeof copiedSheet.name === "string" &&
+            copiedSheet.name.trim().length > 0
+            ? copiedSheet.name
+            : resolvedPlan.newSheetName || resolvedPlan.sheetName;
+
           return {
             kind: "workbook_structure_update",
             hostPlatform: platform,
             sheetName: resolvedPlan.sheetName,
             operation: resolvedPlan.operation,
-            newSheetName: resolvedPlan.newSheetName || resolvedPlan.sheetName,
+            newSheetName: copiedSheetName,
             positionResolved: desiredPosition,
             sheetCount: orderedSheets.length + 1,
             summary: getWorkbookStructureStatusSummary(resolvedPlan)

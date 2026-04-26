@@ -858,6 +858,56 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(message.response?.type).toBe("chat");
   });
 
+  it("reports Excel-generated duplicate sheet names when no new name is approved", async () => {
+    const copiedSheet = {
+      name: "Template (2)",
+      position: 1,
+      visibility: "visible",
+      load: vi.fn()
+    };
+    const sourceSheet = {
+      name: "Template",
+      position: 0,
+      visibility: "visible",
+      copy: vi.fn(() => copiedSheet)
+    };
+    const worksheets = {
+      items: [sourceSheet],
+      load: vi.fn()
+    };
+    const sync = vi.fn(async () => {});
+    const taskpane = await loadTaskpaneModule({
+      sync,
+      workbook: { worksheets }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        operation: "duplicate_sheet",
+        sheetName: "Template",
+        position: "end",
+        explanation: "Duplicate the template sheet.",
+        confidence: 0.95,
+        requiresConfirmation: true,
+        overwriteRisk: "low"
+      },
+      requestId: "req_duplicate_generated_name_excel_001",
+      runId: "run_duplicate_generated_name_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "duplicate_sheet",
+      sheetName: "Template",
+      newSheetName: "Template (2)",
+      positionResolved: 1,
+      sheetCount: 2,
+      summary: "Duplicated sheet Template."
+    });
+
+    expect(sourceSheet.copy).toHaveBeenCalledWith("end");
+    expect(copiedSheet.load).toHaveBeenCalledWith("name");
+  });
+
   it("truncates oversized prompt and conversation content before building the Excel request envelope", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})
