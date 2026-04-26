@@ -1634,6 +1634,14 @@ function validateChartSeriesLabels_(plan) {
   });
 }
 
+function hasChartAxisTitles_(plan) {
+  return Boolean(
+    plan &&
+    ((typeof plan.horizontalAxisTitle === 'string' && plan.horizontalAxisTitle.trim().length > 0) ||
+      (typeof plan.verticalAxisTitle === 'string' && plan.verticalAxisTitle.trim().length > 0))
+  );
+}
+
 function buildChartSeriesOptions_(plan) {
   const options = {};
 
@@ -1704,6 +1712,10 @@ function applyChartOptionOrFail_(chartBuilder, optionName, optionValue, failureL
 }
 
 function applyChartPlan_(spreadsheet, plan) {
+  if (plan.chartType === 'pie' && hasChartAxisTitles_(plan)) {
+    throw new Error('Google Sheets host does not support axis titles for pie charts.');
+  }
+
   const sourceSheet = spreadsheet.getSheetByName(plan.sourceSheet);
   const targetSheet = spreadsheet.getSheetByName(plan.targetSheet);
 
@@ -1745,7 +1757,7 @@ function applyChartPlan_(spreadsheet, plan) {
   chartBuilder.setChartType(chartConfig.chartType);
   chartBuilder.setPosition(targetRange.getRow(), targetRange.getColumn(), 0, 0);
 
-  if ((plan.title || legendPosition || chartConfig.stacked) && typeof chartBuilder.setOption !== 'function') {
+  if ((plan.title || legendPosition || chartConfig.stacked || hasChartAxisTitles_(plan)) && typeof chartBuilder.setOption !== 'function') {
     throw new Error('Google Sheets host does not support exact-safe chart creation yet.');
   }
 
@@ -1759,6 +1771,14 @@ function applyChartPlan_(spreadsheet, plan) {
 
   if (chartConfig.stacked) {
     applyChartOptionOrFail_(chartBuilder, 'isStacked', true, 'stacking');
+  }
+
+  if (typeof plan.horizontalAxisTitle === 'string' && plan.horizontalAxisTitle.trim().length > 0) {
+    applyChartOptionOrFail_(chartBuilder, 'hAxis', { title: plan.horizontalAxisTitle.trim() }, 'horizontal axis title');
+  }
+
+  if (typeof plan.verticalAxisTitle === 'string' && plan.verticalAxisTitle.trim().length > 0) {
+    applyChartOptionOrFail_(chartBuilder, 'vAxis', { title: plan.verticalAxisTitle.trim() }, 'vertical axis title');
   }
 
   const seriesOptions = buildChartSeriesOptions_(plan);
@@ -1783,6 +1803,8 @@ function applyChartPlan_(spreadsheet, plan) {
     series: plan.series,
     title: plan.title,
     legendPosition: plan.legendPosition,
+    horizontalAxisTitle: plan.horizontalAxisTitle,
+    verticalAxisTitle: plan.verticalAxisTitle,
     explanation: plan.explanation,
     confidence: plan.confidence,
     requiresConfirmation: plan.requiresConfirmation,

@@ -1301,6 +1301,8 @@ function normalizeChartPlanData(value: unknown): unknown {
     "categoryField",
     "title",
     "legendPosition",
+    "horizontalAxisTitle",
+    "verticalAxisTitle",
     "explanation",
     "confidence",
     "requiresConfirmation",
@@ -1311,6 +1313,14 @@ function normalizeChartPlanData(value: unknown): unknown {
 
   if (hasOwn(value, "series") && Array.isArray(value.series)) {
     normalized.series = value.series.map((item) => normalizeChartSeriesValue(item));
+  }
+
+  if (!hasOwn(normalized, "horizontalAxisTitle") && hasOwn(value, "xAxisTitle")) {
+    normalized.horizontalAxisTitle = value.xAxisTitle;
+  }
+
+  if (!hasOwn(normalized, "verticalAxisTitle") && hasOwn(value, "yAxisTitle")) {
+    normalized.verticalAxisTitle = value.yAxisTitle;
   }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
@@ -1611,7 +1621,25 @@ function normalizeChartUpdateData(value: unknown): unknown {
     return value;
   }
 
-  return pickFields(value, ["operation", "targetSheet", "targetRange", "chartType", "summary"]);
+  const normalized = pickFields(value, [
+    "operation",
+    "targetSheet",
+    "targetRange",
+    "chartType",
+    "horizontalAxisTitle",
+    "verticalAxisTitle",
+    "summary"
+  ]);
+
+  if (!hasOwn(normalized, "horizontalAxisTitle") && hasOwn(value, "xAxisTitle")) {
+    normalized.horizontalAxisTitle = value.xAxisTitle;
+  }
+
+  if (!hasOwn(normalized, "verticalAxisTitle") && hasOwn(value, "yAxisTitle")) {
+    normalized.verticalAxisTitle = value.yAxisTitle;
+  }
+
+  return normalized;
 }
 
 function normalizeSheetImportPlanData(value: unknown): unknown {

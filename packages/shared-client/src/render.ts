@@ -786,6 +786,14 @@ function buildChartDetails(plan: ChartPlanData): string[] {
     details.push(`Legend position: ${plan.legendPosition}.`);
   }
 
+  if (plan.horizontalAxisTitle) {
+    details.push(`Horizontal axis title: ${plan.horizontalAxisTitle}.`);
+  }
+
+  if (plan.verticalAxisTitle) {
+    details.push(`Vertical axis title: ${plan.verticalAxisTitle}.`);
+  }
+
   details.push(`Affected ranges: ${plan.affectedRanges.join(", ")}.`);
   details.push(`Overwrite risk: ${plan.overwriteRisk}.`);
   details.push(`Confirmation level: ${plan.confirmationLevel}.`);

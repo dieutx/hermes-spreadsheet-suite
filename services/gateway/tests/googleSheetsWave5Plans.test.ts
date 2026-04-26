@@ -362,6 +362,8 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
         ],
         title: "Revenue vs Margin",
         legendPosition: "hidden",
+        horizontalAxisTitle: "Month",
+        verticalAxisTitle: "USD",
         explanation: "Chart monthly revenue and margin.",
         confidence: 0.93,
         requiresConfirmation: true,
@@ -711,6 +713,8 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
         ],
         title: "Revenue vs Margin",
         legendPosition: "hidden",
+        horizontalAxisTitle: "Month",
+        verticalAxisTitle: "USD",
         explanation: "Chart monthly revenue and margin.",
         confidence: 0.93,
         requiresConfirmation: true,
@@ -727,6 +731,8 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     expect(chartBuilder.setPosition).toHaveBeenCalledWith(1, 1, 0, 0);
     expect(chartBuilder.setOption).toHaveBeenNthCalledWith(1, "title", "Revenue vs Margin");
     expect(chartBuilder.setOption).toHaveBeenNthCalledWith(2, "legend", { position: "none" });
+    expect(chartBuilder.setOption).toHaveBeenNthCalledWith(3, "hAxis", { title: "Month" });
+    expect(chartBuilder.setOption).toHaveBeenNthCalledWith(4, "vAxis", { title: "USD" });
     expect(chartBuilder.build).toHaveBeenCalledTimes(1);
     expect(chartSheet.newChart).toHaveBeenCalledTimes(1);
     expect(chartSheet.insertChart).toHaveBeenCalledWith(builtChart);
@@ -746,9 +752,55 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
       ],
       title: "Revenue vs Margin",
       legendPosition: "hidden",
+      horizontalAxisTitle: "Month",
+      verticalAxisTitle: "USD",
       summary: "Created line chart on Sales Chart!A1."
     });
     expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed when a pie chart requests axis titles in Google Sheets", () => {
+    const sidebar = loadSidebarContext();
+    const response = {
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:B20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartType: "pie",
+        categoryField: "Region",
+        series: [
+          { field: "Revenue", label: "Revenue" }
+        ],
+        title: "Revenue by Region",
+        horizontalAxisTitle: "Region",
+        verticalAxisTitle: "USD",
+        explanation: "Chart revenue by region.",
+        confidence: 0.93,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:B20", "Sales Chart!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(sidebar.isWritePlanResponse(response)).toBe(false);
+    const html = sidebar.renderStructuredPreview(response, {
+      runId: "run_chart_pie_axes_preview_google_001",
+      requestId: "req_chart_pie_axes_preview_google_001"
+    });
+    expect(html).toContain("Pie charts do not support axis titles");
+    expect(html).not.toContain("Confirm Chart");
+
+    const { applyWritePlan } = loadCodeModule({
+      spreadsheet: {
+        getSheetByName: vi.fn()
+      }
+    });
+    expect(() => applyWritePlan({ plan: response.data })).toThrow(
+      "Google Sheets host does not support axis titles for pie charts."
+    );
   });
 
   it("accepts a demo-safe chart plan when a series label is omitted", () => {

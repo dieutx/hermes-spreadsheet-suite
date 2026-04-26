@@ -1137,6 +1137,8 @@ export const ChartPlanDataSchema = strictObject({
   ).min(1).max(10),
   title: z.string().min(1).max(256).optional(),
   legendPosition: z.enum(["top", "bottom", "left", "right", "hidden"]).optional(),
+  horizontalAxisTitle: z.string().min(1).max(256).optional(),
+  verticalAxisTitle: z.string().min(1).max(256).optional(),
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
@@ -1164,6 +1166,8 @@ export const ChartUpdateDataSchema = strictObject({
   targetSheet: z.string().min(1).max(128),
   targetRange: A1TargetRangeSchema,
   chartType: ChartPlanDataSchema.shape.chartType,
+  horizontalAxisTitle: ChartPlanDataSchema.shape.horizontalAxisTitle,
+  verticalAxisTitle: ChartPlanDataSchema.shape.verticalAxisTitle,
   summary: z.string().min(1).max(500)
 });
 
