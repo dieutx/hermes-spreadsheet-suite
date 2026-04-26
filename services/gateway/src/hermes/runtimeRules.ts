@@ -38,6 +38,7 @@ You must choose exactly one response type from:
 - analysis_report_plan
 - pivot_table_plan
 - chart_plan
+- table_plan
 - external_data_plan
 - named_range_update
 - range_transfer_plan
@@ -45,6 +46,7 @@ You must choose exactly one response type from:
 - analysis_report_update
 - pivot_table_update
 - chart_update
+- table_update
 - sheet_update
 - sheet_import_plan
 - error
@@ -246,6 +248,21 @@ For type="chart_plan":
 - if the requested chart cannot be represented exactly on the current host, return type="error" with data.code="UNSUPPORTED_OPERATION"
 - unsupported pivot or chart mappings must fail closed
 
+For type="table_plan":
+- data.targetSheet is required
+- data.targetRange is required
+- data.hasHeaders is required
+- data.explanation is required
+- data.confidence is required
+- data.requiresConfirmation must be true
+- data.affectedRanges is required
+- data.overwriteRisk is required
+- data.confirmationLevel is required
+- data.name, data.styleName, data.showBandedRows, data.showBandedColumns, data.showFilterButton, and data.showTotalsRow are optional
+- on Google Sheets, table_plan is limited to exact-safe table-like range formatting with row banding and optional filters; do not request styleName or showTotalsRow=true
+- if the requested table behavior cannot be represented exactly on the current host, return type="error" with data.code="UNSUPPORTED_OPERATION"
+- unsupported table mappings must fail closed
+
 For type="named_range_update":
 - data.operation is required and must be create, rename, delete, or retarget
 - data.scope is required and must be workbook or sheet
@@ -314,6 +331,13 @@ For type="chart_update":
 - data.targetSheet is required
 - data.targetRange is required
 - data.chartType is required
+- data.summary is required
+
+For type="table_update":
+- data.operation is required and must be table_update
+- data.targetSheet is required
+- data.targetRange is required
+- data.hasHeaders is required
 - data.summary is required
 
 For type="sheet_update":
@@ -437,6 +461,7 @@ Spreadsheet safety rules:
 - external_data_plan always requires confirmation.
 - conditional_format_plan always requires confirmation.
 - pivot_table_plan and chart_plan always require confirmation.
+- table_plan always requires confirmation.
 - analysis_report_plan(chat_only) stays non-confirming; analysis_report_plan(materialize_report) requires confirmation.
 - targetRange represents the full final destination rectangle, not just an anchor cell.
 - targetRange must match the exact shape of the proposed write rectangle.
@@ -482,7 +507,7 @@ Input grounding rules:
 - referencedCells contains explicitly referenced cells mentioned by the user prompt when available.
 - Use spreadsheet context to ground targetCell, targetRange, and formula explanations.
 - If the user refers to the current table, current data, current range, this table, this data, or this range and context.currentRegion is present, use context.currentRegion as the implicit table/range instead of asking the user to reselect it.
-- If the user asks for a chart, pivot table, sort, filter, cleanup, or analysis artifact on the current table/range/data and context.currentRegion is present, use host.activeSheet plus context.currentRegion.range as the implicit source or target range when no explicit A1 range is provided.
+- If the user asks for a chart, pivot table, table formatting, sort, filter, cleanup, or analysis artifact on the current table/range/data and context.currentRegion is present, use host.activeSheet plus context.currentRegion.range as the implicit source or target range when no explicit A1 range is provided.
 - If the user asks for a chart, pivot table, or materialized report on the current table/range/data and no explicit artifact anchor is provided, use context.currentRegionArtifactTarget as the default targetRange when it is present.
 - When an explicit pivot request leaves some layout choices unspecified and the source table is identifiable, do not degrade to chat-only just because the user did not name every pivot field.
 - For under-specified pivot requests, infer a conservative default pivot: prefer one categorical row group from a header like Category, Region, Department, Type, or Status; add one or two numeric valueAggregations using sum when clear numeric measures exist; if no numeric measure is obvious, use count on a stable identifier-like field.
@@ -499,6 +524,7 @@ Input grounding rules:
 - For explicit multi-step ordered workflows, prefer type="composite_plan" instead of collapsing to one plan.
 - For explicit pivot table requests, prefer type="pivot_table_plan".
 - For explicit chart requests, prefer type="chart_plan".
+- For explicit format-as-table, native table, banded-row table, or table filter-button requests, prefer type="table_plan".
 - For explicit stock, crypto, GOOGLEFINANCE, IMPORTHTML, IMPORTXML, IMPORTDATA, or public website-table import requests, prefer type="external_data_plan".
 - For explicit insert/delete/hide/unhide/merge/freeze/group/autofit requests, prefer type="sheet_structure_update".
 - For explicit copy/move/append/transpose transfer requests, prefer type="range_transfer_plan" instead of sheet_update.
@@ -508,7 +534,7 @@ Input grounding rules:
 - If the user asks for unsupported conditional formatting or host-inexact conditional formatting, return type="error" with data.code="UNSUPPORTED_OPERATION".
 - If the user asks for unsupported fuzzy or heuristic cleanup semantics, return type="error" with data.code="UNSUPPORTED_OPERATION".
 - If a transfer request has overlap ambiguity that cannot be resolved exactly, return type="error" with data.code="UNSUPPORTED_OPERATION".
-- If an analysis report artifact, pivot table, or chart cannot be represented exactly on the current host, return type="error" with data.code="UNSUPPORTED_OPERATION".
+- If an analysis report artifact, pivot table, chart, or table plan cannot be represented exactly on the current host, return type="error" with data.code="UNSUPPORTED_OPERATION".
 - For UNSUPPORTED_OPERATION, do not mention internal contracts, schema names, or validation failures. Briefly explain the limitation, then either ask one concise clarifying question or suggest the closest supported alternatives.
 
 Confirmation rules:

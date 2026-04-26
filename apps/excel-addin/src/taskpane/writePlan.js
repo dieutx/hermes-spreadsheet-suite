@@ -35,6 +35,30 @@ export function isRangeFormatPlan(plan) {
   );
 }
 
+export function isTablePlan(plan) {
+  return Boolean(
+    plan &&
+    typeof plan.targetSheet === "string" &&
+    typeof plan.targetRange === "string" &&
+    typeof plan.hasHeaders === "boolean"
+  );
+}
+
+export function getTablePreviewSummary(plan) {
+  const label = typeof plan?.name === "string" && plan.name.trim().length > 0
+    ? ` ${plan.name.trim()}`
+    : "";
+  return `Will format table${label} on ${plan.targetSheet}!${plan.targetRange}.`;
+}
+
+export function getTableStatusSummary(plan, options = {}) {
+  const label = typeof plan?.name === "string" && plan.name.trim().length > 0
+    ? ` ${plan.name.trim()}`
+    : "";
+  const verb = options.tableLike ? "Formatted table-like range" : "Created table";
+  return `${verb}${label} on ${plan.targetSheet}!${plan.targetRange}.`;
+}
+
 export function getWorkbookStructureStatusSummary(plan) {
   switch (plan?.operation) {
     case "create_sheet":
@@ -221,6 +245,10 @@ export function getWritebackStatusLine(result) {
 
   if (result?.kind === "chart_update") {
     return result.summary || getChartStatusSummary(result);
+  }
+
+  if (result?.kind === "table_update") {
+    return result.summary || getTableStatusSummary(result);
   }
 
   if (result?.kind === "composite_update") {

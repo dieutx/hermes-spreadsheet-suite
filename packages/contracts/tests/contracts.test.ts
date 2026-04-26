@@ -27,6 +27,7 @@ import {
   SheetImportPlanDataSchema,
   SheetStructureUpdateDataSchema,
   SheetUpdateDataSchema,
+  TablePlanDataSchema,
   UndoRequestSchema
 } from "../src/index.ts";
 
@@ -1334,6 +1335,29 @@ describe("Hermes spreadsheet contracts", () => {
     });
 
     expect(parsed.chartType).toBe("line");
+  });
+
+  it("accepts a table plan with native table options", () => {
+    const parsed = TablePlanDataSchema.parse({
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      name: "SalesTable",
+      hasHeaders: true,
+      styleName: "TableStyleMedium2",
+      showBandedRows: true,
+      showBandedColumns: false,
+      showFilterButton: true,
+      showTotalsRow: false,
+      explanation: "Convert the sales range into a table.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.name).toBe("SalesTable");
+    expect(parsed.showFilterButton).toBe(true);
   });
 
   it("accepts a chart_update response envelope", () => {

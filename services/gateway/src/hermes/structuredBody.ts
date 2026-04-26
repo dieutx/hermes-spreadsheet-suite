@@ -26,6 +26,8 @@ import {
   SheetImportPlanDataSchema,
   SheetStructureUpdateDataSchema,
   SheetUpdateDataSchema,
+  TablePlanDataSchema,
+  TableUpdateDataSchema,
   WarningSchema,
   WorkbookStructureUpdateDataSchema
 } from "@hermes/contracts";
@@ -46,12 +48,14 @@ const STRUCTURED_BODY_TYPES = [
   "analysis_report_plan",
   "pivot_table_plan",
   "chart_plan",
+  "table_plan",
   "named_range_update",
   "range_transfer_plan",
   "data_cleanup_plan",
   "analysis_report_update",
   "pivot_table_update",
   "chart_update",
+  "table_update",
   "sheet_update",
   "sheet_import_plan",
   "external_data_plan",
@@ -505,6 +509,7 @@ type CompositeStepPlanType =
   | "analysis_report_plan"
   | "pivot_table_plan"
   | "chart_plan"
+  | "table_plan"
   | "named_range_update"
   | "range_transfer_plan"
   | "data_cleanup_plan"
@@ -592,6 +597,10 @@ const COMPOSITE_STEP_PLAN_NORMALIZERS: CompositeStepPlanNormalizer[] = [
   {
     type: "chart_plan",
     matches: (value) => hasOwn(value, "chartType") && hasOwn(value, "series")
+  },
+  {
+    type: "table_plan",
+    matches: (value) => hasOwn(value, "hasHeaders") && hasOwn(value, "targetSheet") && hasOwn(value, "targetRange")
   },
   {
     type: "named_range_update",
@@ -1322,7 +1331,14 @@ function normalizeChartPlanData(value: unknown): unknown {
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {
-    normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+    const overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+    normalized.overwriteRisk =
+      overwriteRisk === "none" ||
+      overwriteRisk === "low" ||
+      overwriteRisk === "medium" ||
+      overwriteRisk === "high"
+        ? overwriteRisk
+        : "low";
   } else {
     normalized.overwriteRisk = "low";
   }
@@ -1337,6 +1353,60 @@ function normalizeChartPlanData(value: unknown): unknown {
     if (refs.length > 0) {
       normalized.affectedRanges = refs;
     }
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel = "standard";
+  }
+
+  return normalized;
+}
+
+function normalizeTablePlanData(value: unknown): unknown {
+  if (!isObject(value)) {
+    return value;
+  }
+
+  const normalized = pickFields(value, [
+    "targetSheet",
+    "targetRange",
+    "name",
+    "hasHeaders",
+    "styleName",
+    "showBandedRows",
+    "showBandedColumns",
+    "showFilterButton",
+    "showTotalsRow",
+    "explanation",
+    "confidence",
+    "requiresConfirmation",
+    "affectedRanges",
+    "overwriteRisk",
+    "confirmationLevel"
+  ]);
+
+  if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
+    normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
+  }
+
+  if (hasOwn(normalized, "overwriteRisk")) {
+    const overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+    normalized.overwriteRisk =
+      overwriteRisk === "none" ||
+      overwriteRisk === "low" ||
+      overwriteRisk === "medium" ||
+      overwriteRisk === "high"
+        ? overwriteRisk
+        : "low";
+  } else {
+    normalized.overwriteRisk = "low";
   }
 
   if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
@@ -1614,6 +1684,26 @@ function normalizeChartUpdateData(value: unknown): unknown {
   return pickFields(value, ["operation", "targetSheet", "targetRange", "chartType", "summary"]);
 }
 
+function normalizeTableUpdateData(value: unknown): unknown {
+  if (!isObject(value)) {
+    return value;
+  }
+
+  return pickFields(value, [
+    "operation",
+    "targetSheet",
+    "targetRange",
+    "name",
+    "hasHeaders",
+    "styleName",
+    "showBandedRows",
+    "showBandedColumns",
+    "showFilterButton",
+    "showTotalsRow",
+    "summary"
+  ]);
+}
+
 function normalizeSheetImportPlanData(value: unknown): unknown {
   if (!isObject(value)) {
     return value;
@@ -1748,6 +1838,8 @@ function normalizeDataByType(type: HermesStructuredBodyType, value: unknown): un
       return normalizePivotTablePlanData(value);
     case "chart_plan":
       return normalizeChartPlanData(value);
+    case "table_plan":
+      return normalizeTablePlanData(value);
     case "external_data_plan":
       return normalizeExternalDataPlanData(value);
     case "named_range_update":
@@ -1762,6 +1854,8 @@ function normalizeDataByType(type: HermesStructuredBodyType, value: unknown): un
       return normalizePivotTableUpdateData(value);
     case "chart_update":
       return normalizeChartUpdateData(value);
+    case "table_update":
+      return normalizeTableUpdateData(value);
     case "sheet_update":
       return normalizeSheetUpdateData(value);
     case "sheet_import_plan":
@@ -1844,6 +1938,7 @@ export const HermesStructuredBodySchema = z.discriminatedUnion("type", [
   createStructuredBodySchema("analysis_report_plan", AnalysisReportPlanDataSchema),
   createStructuredBodySchema("pivot_table_plan", PivotTablePlanDataSchema),
   createStructuredBodySchema("chart_plan", ChartPlanDataSchema),
+  createStructuredBodySchema("table_plan", TablePlanDataSchema),
   createStructuredBodySchema("external_data_plan", ExternalDataPlanDataSchema),
   createStructuredBodySchema("named_range_update", NamedRangeUpdateDataSchema),
   createStructuredBodySchema("range_transfer_plan", RangeTransferPlanDataSchema),
@@ -1851,6 +1946,7 @@ export const HermesStructuredBodySchema = z.discriminatedUnion("type", [
   createStructuredBodySchema("analysis_report_update", AnalysisReportUpdateDataSchema),
   createStructuredBodySchema("pivot_table_update", PivotTableUpdateDataSchema),
   createStructuredBodySchema("chart_update", ChartUpdateDataSchema),
+  createStructuredBodySchema("table_update", TableUpdateDataSchema),
   createStructuredBodySchema("sheet_update", SheetUpdateDataSchema),
   createStructuredBodySchema("sheet_import_plan", SheetImportPlanDataSchema),
   createStructuredBodySchema("error", ErrorDataSchema),

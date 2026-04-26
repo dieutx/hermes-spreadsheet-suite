@@ -20,6 +20,7 @@ import {
   SheetImportPlanDataSchema,
   SheetStructureUpdateDataSchema,
   SheetUpdateDataSchema,
+  TablePlanDataSchema,
   WorkbookStructureUpdateDataSchema,
   parseA1Range
 } from "@hermes/contracts";
@@ -82,6 +83,7 @@ const ApprovalRequestSchema = z.object({
     ),
     PivotTablePlanDataSchema,
     ChartPlanDataSchema,
+    TablePlanDataSchema,
     CompositePlanDataSchema
   ])
 });
@@ -437,6 +439,16 @@ const ChartWritebackResultSchema = z.intersection(
   z.preprocess(stripCompletionEnvelopeInput, ChartPlanDataSchema)
 );
 
+const TableWritebackResultSchema = z.intersection(
+  z.object({
+    kind: z.literal("table_update"),
+    operation: z.literal("table_update"),
+    hostPlatform: HostPlatformSchema,
+    summary: CompletionSummarySchema
+  }),
+  z.preprocess(stripCompletionEnvelopeInput, TablePlanDataSchema)
+);
+
 const AtomicWritebackResultSchema = z.union([
   RangeWritebackResultSchema,
   RangeFormatWritebackResultSchema,
@@ -452,7 +464,8 @@ const AtomicWritebackResultSchema = z.union([
   AnalysisReportWritebackResultSchema,
   ExternalDataWritebackResultSchema,
   PivotTableWritebackResultSchema,
-  ChartWritebackResultSchema
+  ChartWritebackResultSchema,
+  TableWritebackResultSchema
 ]);
 
 const CompositeStepWritebackResultSchema = z.object({
@@ -961,7 +974,8 @@ function getCompositeStepResponseType(plan: unknown): HermesResponse["type"] | u
     ["data_cleanup_plan", DataCleanupPlanDataSchema],
     ["analysis_report_plan", AnalysisReportPlanDataSchema],
     ["pivot_table_plan", PivotTablePlanDataSchema],
-    ["chart_plan", ChartPlanDataSchema]
+    ["chart_plan", ChartPlanDataSchema],
+    ["table_plan", TablePlanDataSchema]
   ];
 
   return candidates.find(([, schema]) => schema.safeParse(plan).success)?.[0];
@@ -1225,6 +1239,8 @@ function getExpectedResultKind(
       return "pivot_table_update";
     case "chart_plan":
       return "chart_update";
+    case "table_plan":
+      return "table_update";
     case "composite_plan":
       return "composite_update";
     default:
@@ -1253,6 +1269,7 @@ function getStoredPlan(run: ReturnType<TraceBus["getRun"]>): ApprovalPlan | unde
     case "data_cleanup_plan":
     case "pivot_table_plan":
     case "chart_plan":
+    case "table_plan":
     case "composite_plan":
       return run.response.data;
     case "analysis_report_plan":
@@ -1624,6 +1641,15 @@ function assertCompletionMatchesApprovedPlan(
       return;
     case "chart_plan":
       if (result.kind !== "chart_update") {
+        throw new Error("Writeback result does not match the approved plan details.");
+      }
+      assertCanonicalPlanSpecMatchesApprovedPlan(
+        response.data,
+        stripCompletionEnvelope(result)
+      );
+      return;
+    case "table_plan":
+      if (result.kind !== "table_update") {
         throw new Error("Writeback result does not match the approved plan details.");
       }
       assertCanonicalPlanSpecMatchesApprovedPlan(

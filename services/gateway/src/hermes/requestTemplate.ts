@@ -14,12 +14,14 @@ const STRUCTURED_BODY_TYPES = [
   "analysis_report_plan",
   "pivot_table_plan",
   "chart_plan",
+  "table_plan",
   "named_range_update",
   "range_transfer_plan",
   "data_cleanup_plan",
   "analysis_report_update",
   "pivot_table_update",
   "chart_update",
+  "table_update",
   "sheet_update",
   "sheet_import_plan",
   "external_data_plan",
@@ -47,6 +49,7 @@ export type PreferredResponseType =
   | "analysis_report_plan"
   | "pivot_table_plan"
   | "chart_plan"
+  | "table_plan"
   | "named_range_update"
   | "conditional_format_plan"
   | "range_transfer_plan"
@@ -70,6 +73,7 @@ const DATA_CLEANUP_KEYWORD_PATTERN = /\b(cleanup|clean up|reshape|trim whitespac
 const ANALYSIS_REPORT_KEYWORD_PATTERN = /\b(analy[sz]e|analysis|report|insights|findings|anomal(?:y|ies)|trend|trends|phan tich|bao cao|bat thuong|xu huong)\b/;
 const PIVOT_TABLE_KEYWORD_PATTERN = /\b(pivot table|pivot|bang tong hop)\b/;
 const CHART_KEYWORD_PATTERN = /\b(chart|graph|plot|bieu do|do thi)\b/;
+const TABLE_PLAN_KEYWORD_PATTERN = /\b(format as table|format .* as a table|convert .* to (?:a )?table|make .* (?:a )?table|create (?:a )?table from|filterable table|banded rows?|native table|excel table|structured table)\b/;
 const EXTERNAL_DATA_PROVIDER_PATTERN = /\b(googlefinance|importhtml|importxml|importdata)\b/;
 const MARKET_DATA_KEYWORD_PATTERN = /\b(stock|stocks|ticker|tickers|quote|quotes|share price|share prices|market data|price history|crypto|coin|coins|googlefinance|chung khoan|co phieu|gia co phieu|gia crypto|btc|eth)\b/;
 const WEB_IMPORT_KEYWORD_PATTERN = /\b(website|web page|web table|html table|table from a website|public url|url|importhtml|importxml|importdata|scrape table|lay bang tu website|lay du lieu tu website)\b/;
@@ -109,6 +113,7 @@ const WRITE_CAPABLE_RESPONSE_TYPES = new Set<PreferredResponseType>([
   "data_validation_plan",
   "pivot_table_plan",
   "chart_plan",
+  "table_plan",
   "named_range_update",
   "conditional_format_plan",
   "range_transfer_plan",
@@ -384,6 +389,15 @@ function isLikelyChartRequest(userMessage: string): boolean {
   );
 }
 
+function isLikelyTablePlanRequest(userMessage: string): boolean {
+  if (TABLE_PLAN_KEYWORD_PATTERN.test(userMessage)) {
+    return true;
+  }
+
+  return /\b(add|create|enable|turn on|apply|them|tao|bat|ap dung)\b/.test(userMessage) &&
+    /\b(table filters?|filter buttons?|banded rows?|totals row|native table|excel table)\b/.test(userMessage);
+}
+
 function isLikelyGeneratedDataRequest(rawMessage: string, lowerMessage: string): boolean {
   if (!GENERATED_DATA_KEYWORD_PATTERN.test(lowerMessage)) {
     return false;
@@ -453,6 +467,7 @@ function isLikelyCompositeRequest(
     isLikelyTotalsRowRequest(request, rawMessage, lowerMessage),
     isLikelyPivotTableRequest(lowerMessage),
     isLikelyChartRequest(lowerMessage),
+    isLikelyTablePlanRequest(lowerMessage),
     isLikelyAnalysisReportRequest(lowerMessage),
     /\b(insert|delete|hide|unhide|merge|unmerge|freeze|unfreeze|group|ungroup|autofit)\b/.test(lowerMessage) ||
       /\b(?:sheet\s+)?tab\s+color\b/.test(lowerMessage),
@@ -642,6 +657,9 @@ function getPreferredResponseType(
   if (isLikelyFormulaDebugRequest(request, rawMessage, userMessage)) {
     return "formula";
   }
+  if (isLikelyTablePlanRequest(userMessage)) {
+    return "table_plan";
+  }
   if (SORT_KEYWORD_PATTERN.test(userMessage) &&
     (IMPLICIT_TARGET_PATTERN.test(userMessage) ||
       /(?:^|[^a-z])\$?[a-z]{1,3}\$?\d+(?:\:\$?[a-z]{1,3}\$?\d+)?(?:[^a-z]|$)/i.test(userMessage))) {
@@ -728,6 +746,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         helperSheetLine,
         "- pivot_table_plan: limited. Require a single-cell target anchor. Supported value aggregations: sum, count, average, min, max. Supported pivot sorting: group_field on an existing row or column group, and aggregated_value only when the pivot does not mix row and column groups. Supported pivot filters use existing pivot fields with operators equal_to, not_equal_to, greater_than, greater_than_or_equal_to, less_than, or less_than_or_equal_to.",
         "- chart_plan: limited. Require a single-cell target anchor and categoryField. Supported chart types: bar, column, stacked_bar, stacked_column, line, area, pie, scatter. Series labels may use explicit custom legend text when provided. Supported legend positions: bottom, left, right, top, hidden. If you would naturally say none, emit hidden.",
+        "- table_plan: limited. Format an existing range as a table-like range using row banding and optional filter buttons. Do not emit styleName or showTotalsRow=true on Google Sheets because those are not exact native table features.",
         "- external_data_plan: limited. Require a single-cell target anchor. Supported sourceType/provider pairs: market_data/googlefinance and web_table_import/importhtml, importxml, or importdata. Formula text must match the provider exactly. Web imports only support public fetchable sources and must not assume authenticated or JavaScript-rendered pages.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats. Do not plan overlapping move or append destinations on the same sheet.",
         "- data_cleanup_plan: limited. normalize_case only supports upper, lower, and title. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
@@ -742,6 +761,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         helperSheetLine,
         "- pivot_table_plan: limited. Require a single-cell target anchor. Supported value aggregations: sum, count, average, min, max. Supported pivot sorting: group_field on an existing row or column group, and aggregated_value only when the pivot does not mix row and column groups. Supported pivot filters use existing pivot fields with operators equal_to, not_equal_to, greater_than, greater_than_or_equal_to, less_than, or less_than_or_equal_to.",
         "- chart_plan: limited. Require a single-cell target anchor, categoryField, and at least one unique series field. Supported chart types: bar, column, stacked_bar, stacked_column, line, area, pie, scatter. Series labels must match their source field. Supported legend positions: top, bottom, left, right, hidden. Pie charts support exactly one series. sourceRange must expose a header row whose field order matches categoryField followed by the requested series fields exactly.",
+        "- table_plan: limited. Create a native Excel table over an existing range. Supported options: name, styleName, hasHeaders, showBandedRows, showBandedColumns, showFilterButton, and showTotalsRow.",
         "- external_data_plan: unsupported. Do not emit external_data_plan on Excel hosts. Return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\" and suggest a simpler alternative such as a preview, a plain formula explanation, or moving the task to Google Sheets.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats.",
         "- data_cleanup_plan: limited. normalize_case only supports upper, lower, and title. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
@@ -812,12 +832,14 @@ export function buildHermesSpreadsheetRequestPrompt(request: HermesRequest): str
     "If type=\"analysis_report_plan\", data.sourceSheet, data.sourceRange, data.outputMode, data.sections, data.explanation, data.confidence, data.affectedRanges, data.overwriteRisk, and data.confirmationLevel are required. data.sections must be an array of objects with type, title, summary, and sourceRanges. Do not use plain strings or slugs for report sections. data.outputMode must be chat_only or materialize_report. chat_only requires data.requiresConfirmation=false and must not ask for confirmation. materialize_report requires data.targetSheet, data.targetRange, and data.requiresConfirmation=true. If the requested report artifact cannot be mapped exactly on the current host, return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\".",
     "If type=\"pivot_table_plan\", data.sourceSheet, data.sourceRange, data.targetSheet, data.targetRange, data.rowGroups, data.valueAggregations, data.explanation, data.confidence, data.requiresConfirmation, data.affectedRanges, data.overwriteRisk, and data.confirmationLevel are required. If the requested pivot table cannot be mapped exactly on the current host, return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\".",
     "If type=\"chart_plan\", data.sourceSheet, data.sourceRange, data.targetSheet, data.targetRange, data.chartType, data.series, data.explanation, data.confidence, data.requiresConfirmation, data.affectedRanges, data.overwriteRisk, and data.confirmationLevel are required. chartType must be bar, column, stacked_bar, stacked_column, line, area, pie, or scatter. Each series item must use field to reference a source header name. Do not use A1 ranges or name/range objects inside data.series. Use categoryField when the chart should use a named category axis. If the requested chart cannot be mapped exactly on the current host, return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\".",
+    "If type=\"table_plan\", data.targetSheet, data.targetRange, data.hasHeaders, data.explanation, data.confidence, data.requiresConfirmation, data.affectedRanges, data.overwriteRisk, and data.confirmationLevel are required. data.name, data.styleName, data.showBandedRows, data.showBandedColumns, data.showFilterButton, and data.showTotalsRow are optional. If the requested table behavior cannot be mapped exactly on the current host, return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\".",
     "If type=\"named_range_update\", data.operation, data.scope, data.name, data.explanation, data.confidence, and data.requiresConfirmation must be true. create and retarget must include targetSheet and targetRange. rename must include newName. delete must not invent a target range.",
     "If type=\"range_transfer_plan\", data.sourceSheet, data.sourceRange, data.targetSheet, data.operation, data.pasteMode, data.transpose, data.explanation, data.confidence, data.requiresConfirmation, data.affectedRanges, data.overwriteRisk, and data.confirmationLevel are required. range_transfer_plan is distinct from sheet_update. move requires data.confirmationLevel=\"destructive\". copy and append require data.confirmationLevel=\"standard\". If the target sheet is known but no target range is specified, default targetRange to A1. If overlap ambiguity cannot be resolved exactly, return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\".",
     "If type=\"data_cleanup_plan\", data.targetSheet, data.targetRange, data.operation, data.explanation, data.confidence, data.requiresConfirmation, data.affectedRanges, data.overwriteRisk, and data.confirmationLevel are required. data_cleanup_plan is distinct from sheet_update. Destructive cleanup operations require data.confirmationLevel=\"destructive\". Non-destructive cleanup operations require data.confirmationLevel=\"standard\". Do not compress multiple cleanup transforms into one broad cleanup step. If the request mixes trim, casing, duplicate removal, fill-down, split/join, or standardize-format work, prefer type=\"composite_plan\" with one exact cleanup step per transform. For operation=\"standardize_format\", target the specific column or range being normalized and include exactly one formatType and one formatPattern per step. Unsupported fuzzy or heuristic cleanup requests must return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\".",
     "If type=\"analysis_report_update\", data.operation, data.targetSheet, data.targetRange, and data.summary are required.",
     "If type=\"pivot_table_update\", data.operation, data.targetSheet, data.targetRange, and data.summary are required.",
     "If type=\"chart_update\", data.operation, data.targetSheet, data.targetRange, data.chartType, and data.summary are required.",
+    "If type=\"table_update\", data.operation, data.targetSheet, data.targetRange, data.hasHeaders, and data.summary are required.",
     "If type=\"sheet_update\", data.targetSheet, data.targetRange, data.operation, data.explanation, data.confidence, data.shape, and data.requiresConfirmation must be true. Any provided values, formulas, or notes matrix must match data.shape, and targetRange must match the same rectangle.",
     "If type=\"sheet_import_plan\", data.sourceAttachmentId, data.targetSheet, data.targetRange, data.headers, data.values, data.confidence, data.extractionMode, data.shape, and data.requiresConfirmation must be true. shape.rows includes the header row and targetRange must match data.shape.",
     "If type=\"external_data_plan\", data.targetSheet, data.targetRange, data.sourceType, data.provider, data.formula, data.explanation, data.confidence, data.requiresConfirmation, data.affectedRanges, data.overwriteRisk, and data.confirmationLevel are required. targetRange must be a single-cell anchor. For sourceType=\"market_data\", provider must be googlefinance and data.query.symbol is required. For sourceType=\"web_table_import\", provider must be importhtml, importxml, or importdata, data.sourceUrl is required, and selector requirements must match the provider exactly: importhtml uses selectorType table or list with a positive numeric selector, importxml uses selectorType xpath with a string selector, and importdata uses selectorType direct with no selector. If the requested external data flow cannot be mapped exactly on the current host, return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\".",
@@ -829,7 +851,7 @@ export function buildHermesSpreadsheetRequestPrompt(request: HermesRequest): str
     "You may receive context.currentRegion, context.currentRegionArtifactTarget, and context.currentRegionAppendTarget.",
     "For large selections or large current tables, full values/formulas matrices may be omitted to keep the payload bounded. Use the provided range, headers, activeCell, referencedCells, and any available currentRegion context instead of treating omitted large matrices as missing context by default.",
     "If the user refers to the current table, current data, current range, this table, this data, or this range and context.currentRegion is present, use context.currentRegion as the implicit table/range instead of asking the user to reselect it.",
-    "If the user asks for a chart, pivot table, sort, filter, cleanup, or analysis artifact on the current table/range/data and context.currentRegion is present, use host.activeSheet plus context.currentRegion.range as the implicit source or target range when no explicit A1 range is provided.",
+    "If the user asks for a chart, pivot table, table formatting, sort, filter, cleanup, or analysis artifact on the current table/range/data and context.currentRegion is present, use host.activeSheet plus context.currentRegion.range as the implicit source or target range when no explicit A1 range is provided.",
     "If the user asks for a chart, pivot table, or materialized report on the current table/range/data and no explicit artifact anchor is provided, use context.currentRegionArtifactTarget as the default targetRange when it is present.",
     "When an explicit pivot request leaves some layout choices unspecified and the source table is identifiable, do not degrade to chat-only just because the user did not name every pivot field.",
     "For under-specified pivot requests, infer a conservative default pivot: prefer one categorical row group from a header like Category, Region, Department, Type, or Status; add one or two numeric valueAggregations using sum when clear numeric measures exist; if no numeric measure is obvious, use count on a stable identifier-like field.",
@@ -907,6 +929,8 @@ export function buildHermesSpreadsheetRequestPrompt(request: HermesRequest): str
       ? "This request is an explicit spreadsheet pivot flow. Prefer type=\"pivot_table_plan\" for native pivot table artifacts."
       : preferredResponseType === "chart_plan"
       ? "This request is an explicit spreadsheet chart flow. Prefer type=\"chart_plan\" for native chart artifacts."
+      : preferredResponseType === "table_plan"
+      ? "This request is an explicit format-as-table flow. Prefer type=\"table_plan\" for native Excel tables or exact-safe Google Sheets table-like formatting."
       : preferredResponseType === "conditional_format_plan"
       ? "This request is an explicit conditional-formatting flow. Prefer type=\"conditional_format_plan\" for highlight, duplicate-marking, threshold-coloring, color-scale, and clear-conditional-format asks."
       : preferredResponseType === "named_range_update"
