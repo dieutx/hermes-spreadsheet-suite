@@ -503,6 +503,7 @@ const CompletionRequestSchema = z.object({
 
 type ApprovalPlan = z.infer<typeof ApprovalRequestSchema>["plan"];
 type CompletionResult = z.infer<typeof CompletionRequestSchema>["result"];
+type HostPlatform = z.infer<typeof HostPlatformSchema>;
 type WorkbookStructureCompletionResult = z.infer<typeof WorkbookStructureWritebackResultSchema>;
 type SheetStructureCompletionResult = z.infer<typeof SheetStructureWritebackResultSchema>;
 type RangeTransferCompletionResult = z.infer<typeof RangeTransferWritebackResultSchema>;
@@ -660,6 +661,7 @@ function formatWritebackRouteError(error: unknown): {
     message === "Approval token already consumed." ||
     message === "Approval token does not match the current writeback approval." ||
     message === "Writeback completion does not match the approved workbook session." ||
+    message === "Writeback completion does not match the approved host platform." ||
     message === "Invalid approval token."
   ) {
     return {
@@ -1196,6 +1198,35 @@ function completionResultsMatch(
   }
 
   return digestCanonicalPlan(left) === digestCanonicalPlan(right);
+}
+
+function inferHostPlatformFromWorkbookSessionKey(workbookSessionKey: string): HostPlatform | undefined {
+  const [candidate] = workbookSessionKey.split("::", 1);
+  return HostPlatformSchema.safeParse(candidate).success
+    ? candidate as HostPlatform
+    : undefined;
+}
+
+function assertCompletionHostPlatformMatchesApprovedSession(
+  result: CompletionResult,
+  workbookSessionKey: string
+): void {
+  const expectedHostPlatform = inferHostPlatformFromWorkbookSessionKey(workbookSessionKey);
+  if (!expectedHostPlatform) {
+    return;
+  }
+
+  if (result.hostPlatform !== expectedHostPlatform) {
+    throw new Error("Writeback completion does not match the approved host platform.");
+  }
+
+  if (result.kind === "composite_update") {
+    for (const stepResult of result.stepResults) {
+      if (stepResult.result) {
+        assertCompletionHostPlatformMatchesApprovedSession(stepResult.result, workbookSessionKey);
+      }
+    }
+  }
 }
 
 function digestApprovalPlan(plan: ApprovalPlan): string {
@@ -1819,6 +1850,7 @@ export function completeWriteback(input: {
   if (writeback.workbookSessionKey !== completionWorkbookSessionKey) {
     throw new Error("Writeback completion does not match the approved workbook session.");
   }
+  assertCompletionHostPlatformMatchesApprovedSession(input.result, writeback.workbookSessionKey);
 
   if (writeback.completedAt) {
     if (
