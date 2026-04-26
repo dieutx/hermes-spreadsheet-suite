@@ -1582,8 +1582,9 @@ function getExcelPlanSupportError(preview) {
     if (preview.operation === "normalize_case" &&
       preview.mode !== "upper" &&
       preview.mode !== "lower" &&
-      preview.mode !== "title") {
-      return `This Excel runtime only supports upper, lower, and title case normalization in cleanup plans, not ${preview.mode}.`;
+      preview.mode !== "title" &&
+      preview.mode !== "sentence") {
+      return `This Excel runtime only supports upper, lower, title, and sentence case normalization in cleanup plans, not ${preview.mode}.`;
     }
 
     if (preview.operation === "standardize_format") {
@@ -3089,6 +3090,15 @@ function toTitleCaseText(value) {
   );
 }
 
+function toSentenceCaseText(value) {
+  const lowerCased = String(value ?? "").toLocaleLowerCase();
+  if (!lowerCased) {
+    return lowerCased;
+  }
+
+  return `${lowerCased.charAt(0).toLocaleUpperCase()}${lowerCased.slice(1)}`;
+}
+
 function getFormulaAwareCleanupTransform(plan, hostLabel) {
   switch (plan.operation) {
     case "trim_whitespace":
@@ -3121,6 +3131,13 @@ function getFormulaAwareCleanupTransform(plan, hostLabel) {
             },
             formulaFunction: "PROPER"
           };
+        case "sentence":
+          return {
+            applyToValue(value) {
+              return typeof value === "string" ? toSentenceCaseText(value) : value;
+            },
+            formulaExpression: "LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text)))"
+          };
         default:
           throw new Error(`${hostLabel} does not support exact-safe cleanup semantics for normalize_case mode ${plan.mode}.`);
       }
@@ -3129,14 +3146,16 @@ function getFormulaAwareCleanupTransform(plan, hostLabel) {
   }
 }
 
-function wrapFormulaWithCleanupTransform(formula, formulaFunction) {
+function wrapFormulaWithCleanupTransform(formula, formulaAwareTransform) {
   const normalizedFormula = normalizeExcelFormulaText(formula)?.trim();
   if (!normalizedFormula?.startsWith("=")) {
     return formula;
   }
 
   const expression = normalizedFormula.slice(1);
-  return `=LET(_hermes_value, ${expression}, IF(ISTEXT(_hermes_value), ${formulaFunction}(_hermes_value), _hermes_value))`;
+  const transformedExpression = formulaAwareTransform.formulaExpression ||
+    `${formulaAwareTransform.formulaFunction}(_hermes_value)`;
+  return `=LET(_hermes_value, ${expression}, IF(ISTEXT(_hermes_value), ${transformedExpression}, _hermes_value))`;
 }
 
 function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
@@ -3161,7 +3180,7 @@ function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
       (row || []).map((value, columnIndex) => {
         const formulaValue = formulas?.[rowIndex]?.[columnIndex];
         if (typeof formulaValue === "string" && formulaValue.trim().startsWith("=")) {
-          return wrapFormulaWithCleanupTransform(formulaValue, formulaAwareTransform.formulaFunction);
+          return wrapFormulaWithCleanupTransform(formulaValue, formulaAwareTransform);
         }
 
         return formulaAwareTransform.applyToValue(value);

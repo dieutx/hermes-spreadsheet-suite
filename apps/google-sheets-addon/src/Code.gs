@@ -3604,6 +3604,15 @@ function toTitleCaseText_(value) {
   });
 }
 
+function toSentenceCaseText_(value) {
+  const lowerCased = String(value == null ? '' : value).toLocaleLowerCase();
+  if (!lowerCased) {
+    return lowerCased;
+  }
+
+  return lowerCased.charAt(0).toLocaleUpperCase() + lowerCased.slice(1);
+}
+
 function getFormulaAwareCleanupTransform_(plan, hostLabel) {
   switch (plan.operation) {
     case 'trim_whitespace':
@@ -3636,6 +3645,13 @@ function getFormulaAwareCleanupTransform_(plan, hostLabel) {
             },
             formulaFunction: 'PROPER'
           };
+        case 'sentence':
+          return {
+            applyToValue(value) {
+              return typeof value === 'string' ? toSentenceCaseText_(value) : value;
+            },
+            formulaExpression: 'LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text)))'
+          };
         default:
           throw new Error(
             hostLabel + ' does not support exact-safe cleanup semantics for normalize_case mode ' +
@@ -3648,15 +3664,17 @@ function getFormulaAwareCleanupTransform_(plan, hostLabel) {
   }
 }
 
-function wrapFormulaWithCleanupTransform_(formula, formulaFunction) {
+function wrapFormulaWithCleanupTransform_(formula, formulaAwareTransform) {
   const normalizedFormula = typeof formula === 'string' ? formula.trim() : '';
   if (!normalizedFormula || !normalizedFormula.startsWith('=')) {
     return formula;
   }
 
   const expression = normalizedFormula.slice(1);
+  const transformedExpression = formulaAwareTransform.formulaExpression ||
+    formulaAwareTransform.formulaFunction + '(_hermes_value)';
   return '=LET(_hermes_value, ' + expression + ', IF(ISTEXT(_hermes_value), ' +
-    formulaFunction + '(_hermes_value), _hermes_value))';
+    transformedExpression + ', _hermes_value))';
 }
 
 function buildCleanupWriteMatrix_(plan, inputValues, inputFormulas, hostLabel) {
@@ -3676,7 +3694,7 @@ function buildCleanupWriteMatrix_(plan, inputValues, inputFormulas, hostLabel) {
     return (row || []).map(function(value, columnIndex) {
       const formulaValue = formulas[rowIndex] && formulas[rowIndex][columnIndex];
       if (typeof formulaValue === 'string' && formulaValue.trim().startsWith('=')) {
-        return wrapFormulaWithCleanupTransform_(formulaValue, formulaAwareTransform.formulaFunction);
+        return wrapFormulaWithCleanupTransform_(formulaValue, formulaAwareTransform);
       }
 
       return formulaAwareTransform.applyToValue(value);

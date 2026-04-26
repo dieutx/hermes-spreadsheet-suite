@@ -730,7 +730,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- chart_plan: limited. Require a single-cell target anchor and categoryField. Supported chart types: bar, column, stacked_bar, stacked_column, line, area, pie, scatter. Series labels may use explicit custom legend text when provided. Supported legend positions: bottom, left, right, top, hidden. If you would naturally say none, emit hidden.",
         "- external_data_plan: limited. Require a single-cell target anchor. Supported sourceType/provider pairs: market_data/googlefinance and web_table_import/importhtml, importxml, or importdata. Formula text must match the provider exactly. Web imports only support public fetchable sources and must not assume authenticated or JavaScript-rendered pages.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats. Do not plan overlapping move or append destinations on the same sheet.",
-        "- data_cleanup_plan: limited. normalize_case only supports upper, lower, and title. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
+        "- data_cleanup_plan: limited. normalize_case only supports upper, lower, title, and sentence. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
         "- range_filter_plan: limited. Do not combine multiple OR conditions in one exact step. topN filters and repeated conditions on the same column are unsupported.",
         "- named_range_update: limited. Only workbook-scoped named ranges are exact-safe.",
         noteWriteLine
@@ -744,7 +744,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- chart_plan: limited. Require a single-cell target anchor, categoryField, and at least one unique series field. Supported chart types: bar, column, stacked_bar, stacked_column, line, area, pie, scatter. Series labels must match their source field. Supported legend positions: top, bottom, left, right, hidden. Pie charts support exactly one series. sourceRange must expose a header row whose field order matches categoryField followed by the requested series fields exactly.",
         "- external_data_plan: unsupported. Do not emit external_data_plan on Excel hosts. Return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\" and suggest a simpler alternative such as a preview, a plain formula explanation, or moving the task to Google Sheets.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats.",
-        "- data_cleanup_plan: limited. normalize_case only supports upper, lower, and title. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
+        "- data_cleanup_plan: limited. normalize_case only supports upper, lower, title, and sentence. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
         "- range_filter_plan: limited. Use combiner=and only and avoid repeated conditions on the same column in one exact step.",
         "- data_validation_plan: limited. Checkbox values must stay on true and false.",
         noteWriteLine

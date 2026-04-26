@@ -2350,6 +2350,23 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts normalize_case sentence cleanup plans", () => {
+    const parsed = DataCleanupPlanDataSchema.parse({
+      targetSheet: "Contacts",
+      targetRange: "A2:A50",
+      operation: "normalize_case",
+      mode: "sentence",
+      explanation: "Normalize contact notes into sentence case.",
+      confidence: 0.84,
+      requiresConfirmation: true,
+      confirmationLevel: "standard",
+      affectedRanges: ["Contacts!A2:A50"],
+      overwriteRisk: "low"
+    });
+
+    expect(parsed.mode).toBe("sentence");
+  });
+
   it("rejects a data cleanup update with an unsupported cleanup operation", () => {
     const parsed = DataCleanupUpdateDataSchema.safeParse({
       operation: "data_cleanup_update",
