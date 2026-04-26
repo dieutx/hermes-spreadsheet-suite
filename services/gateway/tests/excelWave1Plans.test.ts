@@ -90,7 +90,12 @@ async function loadTaskpaneModule(excelContext: Record<string, unknown>) {
           saveAsync() {}
         }
       },
-      displayLanguage: "en-US"
+      displayLanguage: "en-US",
+      requirements: {
+        isSetSupported(setName: string, minVersion: string) {
+          return setName === "ExcelApi" && minVersion === "1.18";
+        }
+      }
     },
     onReady() {}
   });
@@ -121,6 +126,50 @@ async function loadTaskpaneModule(excelContext: Record<string, unknown>) {
   });
 
   return import(`${TASKPANE_MODULE_URL}?t=${Date.now()}_${Math.random()}`);
+}
+
+function normalizeNoteKey(address: string) {
+  return address
+    .slice(address.lastIndexOf("!") + 1)
+    .replace(/\$/g, "");
+}
+
+function createNoteCollectionMock(initialNotes: Record<string, string> = {}) {
+  const notes = new Map(Object.entries(initialNotes).map(([key, value]) => [
+    normalizeNoteKey(key),
+    value
+  ]));
+
+  function createNoteObject(key: string) {
+    return {
+      get isNullObject() {
+        return !notes.has(key);
+      },
+      get content() {
+        return notes.get(key) ?? "";
+      },
+      set content(value: unknown) {
+        notes.set(key, String(value));
+      },
+      load: vi.fn(),
+      delete: vi.fn(() => {
+        notes.delete(key);
+      })
+    };
+  }
+
+  return {
+    __notes: notes,
+    add: vi.fn((cellOrAddress: { address?: string } | string, content: unknown) => {
+      const address = typeof cellOrAddress === "string"
+        ? cellOrAddress
+        : cellOrAddress.address || "";
+      const key = normalizeNoteKey(address);
+      notes.set(key, String(content));
+      return createNoteObject(key);
+    }),
+    getItemOrNullObject: vi.fn((address: string) => createNoteObject(normalizeNoteKey(address)))
+  };
 }
 
 afterEach(() => {
@@ -412,6 +461,218 @@ describe("Excel wave 1 plan helpers", () => {
       1,
       { filterOn: "custom", criterion1: "=Open" }
     );
+  });
+
+  it("applies note-only sheet updates through the Excel host without changing cell values", async () => {
+    let assignedValues: unknown[][] | null = null;
+    let assignedFormulas: unknown[][] | null = null;
+    const cells = [
+      { address: "Sheet1!B2", load: vi.fn() },
+      { address: "Sheet1!C2", load: vi.fn() }
+    ];
+    const targetRange = {
+      load: vi.fn(),
+      rowCount: 1,
+      columnCount: 2,
+      values: [["Open", "Closed"]],
+      formulas: [["", ""]],
+      getCell: vi.fn((rowIndex: number, columnIndex: number) => {
+        expect(rowIndex).toBe(0);
+        return cells[columnIndex];
+      })
+    };
+    Object.defineProperty(targetRange, "values", {
+      configurable: true,
+      get() {
+        return [["Open", "Closed"]];
+      },
+      set(nextValues) {
+        assignedValues = nextValues;
+      }
+    });
+    Object.defineProperty(targetRange, "formulas", {
+      configurable: true,
+      get() {
+        return [["", ""]];
+      },
+      set(nextFormulas) {
+        assignedFormulas = nextFormulas;
+      }
+    });
+    const noteCollection = createNoteCollectionMock({
+      C2: "Old closeout note"
+    });
+    const worksheet = {
+      notes: noteCollection,
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:C2",
+        operation: "set_notes",
+        notes: [["Needs review", ""]],
+        explanation: "Attach review notes without changing the cell values.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        overwriteRisk: "low",
+        shape: { rows: 1, columns: 2 }
+      },
+      requestId: "req_note_only_excel_001",
+      runId: "run_note_only_excel_001",
+      approvalToken: "token",
+      executionId: "exec_note_only_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_write",
+      hostPlatform: "excel_windows",
+      targetSheet: "Sheet1",
+      targetRange: "B2:C2",
+      operation: "set_notes",
+      writtenRows: 1,
+      writtenColumns: 2
+    });
+    expect(noteCollection.add).toHaveBeenCalledWith(cells[0], "Needs review");
+    expect(noteCollection.__notes.get("B2")).toBe("Needs review");
+    expect(noteCollection.__notes.has("C2")).toBe(false);
+    expect(assignedValues).toBeNull();
+    expect(assignedFormulas).toBeNull();
+    expect(result.__hermesLocalExecutionSnapshot.afterCells[0][0]).toMatchObject({
+      kind: "value",
+      note: "Needs review"
+    });
+    expect(result.__hermesLocalExecutionSnapshot.afterCells[0][1]).toMatchObject({
+      kind: "value",
+      note: ""
+    });
+  });
+
+  it("applies notes included in mixed Excel sheet updates", async () => {
+    const appliedCells: Array<{ address: string; kind: string; value: unknown }> = [];
+    const cells = [
+      { address: "Sheet1!D4", load: vi.fn() },
+      { address: "Sheet1!E4", load: vi.fn() },
+      { address: "Sheet1!D5", load: vi.fn() },
+      { address: "Sheet1!E5", load: vi.fn() }
+    ].map((cell) => ({
+      ...cell,
+      set values(value: unknown) {
+        appliedCells.push({ address: cell.address, kind: "value", value });
+      },
+      set formulas(value: unknown) {
+        appliedCells.push({ address: cell.address, kind: "formula", value });
+      }
+    }));
+    const targetRange = {
+      load: vi.fn(),
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["", ""],
+        ["", ""]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ],
+      getCell: vi.fn((rowIndex: number, columnIndex: number) => cells[(rowIndex * 2) + columnIndex])
+    };
+    const noteCollection = createNoteCollectionMock({
+      E4: "Leave this existing note alone"
+    });
+    const worksheet = {
+      notes: noteCollection,
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "D4:E5",
+        operation: "mixed_update",
+        values: [
+          ["North", null],
+          [null, "Total"]
+        ],
+        formulas: [
+          [null, "=SUM(D2:D3)"],
+          [null, null]
+        ],
+        notes: [
+          ["Review regional input", ""],
+          [null, "Manual total override"]
+        ],
+        explanation: "Write labels, formulas, and review notes together.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        overwriteRisk: "medium",
+        shape: { rows: 2, columns: 2 }
+      },
+      requestId: "req_mixed_notes_excel_001",
+      runId: "run_mixed_notes_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "range_write",
+      hostPlatform: "excel_windows",
+      operation: "mixed_update",
+      writtenRows: 2,
+      writtenColumns: 2
+    });
+
+    expect(appliedCells).toEqual([
+      { address: "Sheet1!D4", kind: "value", value: [["North"]] },
+      { address: "Sheet1!E4", kind: "formula", value: [["=SUM(D2:D3)"]] },
+      { address: "Sheet1!D5", kind: "value", value: [[null]] },
+      { address: "Sheet1!E5", kind: "value", value: [["Total"]] }
+    ]);
+    expect(noteCollection.__notes.get("D4")).toBe("Review regional input");
+    expect(noteCollection.__notes.get("E4")).toBe("Leave this existing note alone");
+    expect(noteCollection.__notes.get("E5")).toBe("Manual total override");
+  });
+
+  it("advertises Excel note-write support in request capabilities", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    });
+
+    const request = taskpane.buildRequestEnvelope({
+      userMessage: "Add notes to the review cells",
+      conversation: [{ role: "user", content: "Add notes to the review cells" }],
+      snapshot: {
+        source: {
+          channel: "excel_windows",
+          clientVersion: "test-client",
+          sessionId: "sess_test"
+        },
+        host: {
+          platform: "excel_windows",
+          workbookTitle: "Budget.xlsx",
+          activeSheet: "Sheet1"
+        },
+        context: {}
+      },
+      attachments: []
+    });
+
+    expect(request.capabilities.supportsNoteWrites).toBe(true);
   });
 
   it("fails closed in preview for unsupported Excel filter combinations", async () => {
