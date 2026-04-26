@@ -395,6 +395,39 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes data validation prompt and error-message aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "data_validation_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "list",
+        values: ["Open", "Closed"],
+        showDropdown: true,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        promptTitle: "Status",
+        promptMessage: "Choose a valid status.",
+        errorAlertTitle: "Invalid status",
+        errorAlertMessage: "Pick a value from the dropdown.",
+        explanation: "Restrict status values.",
+        confidence: 0.95,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "data_validation_plan",
+      data: {
+        inputTitle: "Status",
+        inputMessage: "Choose a valid status.",
+        errorTitle: "Invalid status",
+        errorMessage: "Pick a value from the dropdown."
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("coerces formula alternateFormulas string entries into contract-valid objects", () => {
     const rawBody = {
       type: "formula",

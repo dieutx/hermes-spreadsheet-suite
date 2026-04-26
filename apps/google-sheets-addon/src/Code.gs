@@ -4119,10 +4119,19 @@ function applyValidationBuilderOptions_(builder, plan) {
     throw new Error('Unsupported invalidDataBehavior: ' + plan.invalidDataBehavior);
   }
 
+  if (plan.errorTitle || plan.errorMessage) {
+    throw new Error('Google Sheets cannot apply custom validation error alert text.');
+  }
+
+  if (plan.inputTitle) {
+    throw new Error('Google Sheets cannot apply custom validation input titles.');
+  }
+
   builder.setAllowInvalid(plan.invalidDataBehavior !== 'reject');
 
-  if (plan.helpText) {
-    builder.setHelpText(plan.helpText);
+  const helpText = plan.inputMessage || plan.helpText;
+  if (helpText) {
+    builder.setHelpText(helpText);
   }
 
   return builder;
@@ -5166,6 +5175,10 @@ function applyWritePlan(input) {
       allowBlank: plan.allowBlank,
       invalidDataBehavior: plan.invalidDataBehavior,
       helpText: plan.helpText,
+      inputTitle: plan.inputTitle,
+      inputMessage: plan.inputMessage,
+      errorTitle: plan.errorTitle,
+      errorMessage: plan.errorMessage,
       explanation: plan.explanation,
       confidence: plan.confidence,
       requiresConfirmation: plan.requiresConfirmation,

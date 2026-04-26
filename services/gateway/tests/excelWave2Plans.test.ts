@@ -404,6 +404,10 @@ describe("Excel wave 2 plan helpers", () => {
         value2: 10,
         allowBlank: false,
         invalidDataBehavior: "reject",
+        inputTitle: "Entry guidance",
+        inputMessage: "Enter a whole number from 1 to 10.",
+        errorTitle: "Invalid entry",
+        errorMessage: "Only whole numbers from 1 to 10 are allowed.",
         explanation: "Restrict values to whole numbers between 1 and 10.",
         confidence: 0.96,
         requiresConfirmation: true
@@ -414,7 +418,11 @@ describe("Excel wave 2 plan helpers", () => {
     })).resolves.toMatchObject({
       kind: "data_validation_update",
       targetSheet: "Sheet1",
-      targetRange: "B2:B20"
+      targetRange: "B2:B20",
+      inputTitle: "Entry guidance",
+      inputMessage: "Enter a whole number from 1 to 10.",
+      errorTitle: "Invalid entry",
+      errorMessage: "Only whole numbers from 1 to 10 are allowed."
     });
 
     expect(validationRule.set).toHaveBeenCalledWith({
@@ -426,12 +434,12 @@ describe("Excel wave 2 plan helpers", () => {
     });
     expect(ignoreBlanks.set).toHaveBeenCalledWith(false);
     expect(prompt.set).toHaveBeenCalledWith({
-      title: "Validation",
-      message: "Restrict values to whole numbers between 1 and 10."
+      title: "Entry guidance",
+      message: "Enter a whole number from 1 to 10."
     });
     expect(errorAlert.set).toHaveBeenCalledWith({
-      title: "Invalid data",
-      message: "Values must match the approved validation rule.",
+      title: "Invalid entry",
+      message: "Only whole numbers from 1 to 10 are allowed.",
       style: "stop",
       showAlert: true
     });

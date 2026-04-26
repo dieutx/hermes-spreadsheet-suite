@@ -1863,6 +1863,10 @@ describe("Hermes spreadsheet contracts", () => {
       allowBlank: false,
       invalidDataBehavior: "reject",
       helpText: "Choose a valid status.",
+      inputTitle: "Status",
+      inputMessage: "Choose a status from the approved list.",
+      errorTitle: "Invalid status",
+      errorMessage: "Use one of the approved status values.",
       explanation: "Restrict the status column to approved options.",
       confidence: 0.95,
       requiresConfirmation: true,
@@ -1871,6 +1875,8 @@ describe("Hermes spreadsheet contracts", () => {
 
     expect(parsed.ruleType).toBe("list");
     expect(parsed.namedRangeName).toBe("StatusOptions");
+    expect(parsed.inputMessage).toBe("Choose a status from the approved list.");
+    expect(parsed.errorMessage).toBe("Use one of the approved status values.");
   });
 
   it("accepts the other wave 2 validation rule families", () => {

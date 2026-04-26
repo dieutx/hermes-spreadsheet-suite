@@ -1567,6 +1567,10 @@ function getExcelPlanSupportError(preview) {
       return "This Excel runtime only supports checkbox values as true and false.";
     }
 
+    if (preview.ruleType === "checkbox" && hasCustomValidationPromptOrAlert(preview)) {
+      return "This Excel runtime can't apply custom validation prompt or error text to checkbox controls.";
+    }
+
     return "";
   }
 
@@ -2688,6 +2692,27 @@ function buildExcelValidationRule(plan) {
     default:
       throw new Error("Unsupported Excel data validation rule type.");
   }
+}
+
+function getValidationInputMessage(plan) {
+  if (typeof plan.inputMessage === "string" && plan.inputMessage.trim().length > 0) {
+    return plan.inputMessage.trim();
+  }
+
+  if (typeof plan.helpText === "string" && plan.helpText.trim().length > 0) {
+    return plan.helpText.trim();
+  }
+
+  return plan.explanation;
+}
+
+function hasCustomValidationPromptOrAlert(plan) {
+  return Boolean(
+    plan.inputTitle ||
+    plan.inputMessage ||
+    plan.errorTitle ||
+    plan.errorMessage
+  );
 }
 
 function hasUnsupportedExcelCheckboxValues(plan) {
@@ -4045,6 +4070,10 @@ function getStructuredPreview(response) {
         allowBlank: response.data.allowBlank,
         invalidDataBehavior: response.data.invalidDataBehavior,
         helpText: response.data.helpText,
+        inputTitle: response.data.inputTitle,
+        inputMessage: response.data.inputMessage,
+        errorTitle: response.data.errorTitle,
+        errorMessage: response.data.errorMessage,
         replacesExistingValidation: response.data.replacesExistingValidation,
         explanation: response.data.explanation,
         confidence: response.data.confidence,
@@ -4903,6 +4932,12 @@ function renderStructuredPreview(response, message) {
         ${preview.formula ? `<div class="preview-meta">${escapeHtml(preview.formula)}</div>` : ""}
         ${checkboxValues ? `<div class="preview-meta">${escapeHtml(checkboxValues)}</div>` : ""}
         ${preview.helpText ? `<div class="preview-meta">${escapeHtml(preview.helpText)}</div>` : ""}
+        ${preview.inputTitle || preview.inputMessage
+          ? `<div class="preview-meta">${escapeHtml([preview.inputTitle, preview.inputMessage].filter(Boolean).join(": "))}</div>`
+          : ""}
+        ${preview.errorTitle || preview.errorMessage
+          ? `<div class="preview-meta">${escapeHtml([preview.errorTitle, preview.errorMessage].filter(Boolean).join(": "))}</div>`
+          : ""}
         ${validationSource ? `<div class="preview-meta">${escapeHtml(validationSource)}</div>` : ""}
         <div class="preview-meta">${escapeHtml(preview.summary)}</div>
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
@@ -6465,6 +6500,9 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const target = sheet.getRange(plan.targetRange);
 
       if (plan.ruleType === "checkbox") {
+        if (hasCustomValidationPromptOrAlert(plan)) {
+          throw new Error("Excel host cannot apply custom validation prompt or error text to checkbox controls.");
+        }
         applyExcelCheckboxValidation(target, plan);
         await context.sync();
         return {
@@ -6484,12 +6522,18 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         target.dataValidation.ignoreBlanks = plan.allowBlank;
       }
       target.dataValidation.prompt = {
-        title: "Validation",
-        message: plan.helpText || plan.explanation
+        title: typeof plan.inputTitle === "string" && plan.inputTitle.trim().length > 0
+          ? plan.inputTitle.trim()
+          : "Validation",
+        message: getValidationInputMessage(plan)
       };
       target.dataValidation.errorAlert = {
-        title: "Invalid data",
-        message: "Values must match the approved validation rule.",
+        title: typeof plan.errorTitle === "string" && plan.errorTitle.trim().length > 0
+          ? plan.errorTitle.trim()
+          : "Invalid data",
+        message: typeof plan.errorMessage === "string" && plan.errorMessage.trim().length > 0
+          ? plan.errorMessage.trim()
+          : "Values must match the approved validation rule.",
         style: plan.invalidDataBehavior === "reject" ? "stop" : "warning",
         showAlert: true
       };

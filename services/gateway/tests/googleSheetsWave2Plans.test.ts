@@ -429,6 +429,31 @@ describe("Google Sheets wave 2 plans", () => {
     expect(unsupportedValidationHtml).toContain("This validation would behave differently in Google Sheets.");
     expect(unsupportedValidationHtml).not.toContain("Confirm Validation");
 
+    const unsupportedErrorAlertHtml = sidebar.renderStructuredPreview({
+      type: "data_validation_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "whole_number",
+        comparator: "between",
+        value: 1,
+        value2: 10,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        errorTitle: "Invalid entry",
+        errorMessage: "Only whole numbers from 1 to 10 are allowed.",
+        explanation: "This plan should preview as unsupported for Google Sheets.",
+        confidence: 0.5,
+        requiresConfirmation: true
+      }
+    }, {
+      runId: "run_validation_error_alert_unsupported_preview",
+      requestId: "req_validation_error_alert_unsupported_preview"
+    });
+
+    expect(unsupportedErrorAlertHtml).toContain("Google Sheets cannot apply custom validation error alert text.");
+    expect(unsupportedErrorAlertHtml).not.toContain("Confirm Validation");
+
     const unsupportedNamedRangeHtml = sidebar.renderStructuredPreview({
       type: "named_range_update",
       data: {
@@ -506,7 +531,7 @@ describe("Google Sheets wave 2 plans", () => {
         value2: 10,
         allowBlank: false,
         invalidDataBehavior: "reject",
-        helpText: "Enter an integer between 1 and 10.",
+        inputMessage: "Enter an integer between 1 and 10.",
         explanation: "Restrict entries to integers between 1 and 10.",
         confidence: 0.95,
         requiresConfirmation: true
@@ -938,6 +963,47 @@ describe("Google Sheets wave 2 plans", () => {
         requiresConfirmation: true
       }
     })).toThrow("Google Sheets host cannot represent allowBlank=true exactly for list validation.");
+    expect(setDataValidation).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for custom validation error alert text in Google Sheets", () => {
+    const setDataValidation = vi.fn();
+    const targetRange = {
+      getA1Notation() {
+        return "B2:B20";
+      },
+      setDataValidation
+    };
+    const sheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const spreadsheet = {
+      getSheetByName() {
+        return sheet;
+      },
+      getNamedRanges() {
+        return [];
+      }
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    expect(() => applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "whole_number",
+        comparator: "between",
+        value: 1,
+        value2: 10,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        errorTitle: "Invalid entry",
+        errorMessage: "Only whole numbers from 1 to 10 are allowed.",
+        explanation: "Restrict integers.",
+        confidence: 0.5,
+        requiresConfirmation: true
+      }
+    })).toThrow("Google Sheets cannot apply custom validation error alert text.");
     expect(setDataValidation).not.toHaveBeenCalled();
   });
 
