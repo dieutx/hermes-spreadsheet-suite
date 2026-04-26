@@ -86,7 +86,15 @@ async function loadTaskpaneModule(excelContext: Record<string, unknown>) {
   vi.stubGlobal("Excel", {
     run: async (callback: (context: Record<string, unknown>) => unknown) => callback(excelContext),
     ConditionalFormatType: {
+      colorScale: "colorScale",
       containsText: "containsText"
+    },
+    ConditionalFormatColorCriterionType: {
+      highestValue: "highestValue",
+      lowestValue: "lowestValue",
+      number: "number",
+      percent: "percent",
+      percentile: "percentile"
     }
   });
 
@@ -148,6 +156,42 @@ describe("Excel wave 3 conditional-format plans", () => {
     expect(html).toContain("Confirm Conditional Formatting");
     expect(html).toContain("replace_all_on_target");
     expect(html).toContain("text_contains");
+  });
+
+  it("renders color scale conditional-format previews as confirmable in Excel", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    });
+
+    const response = {
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Summary",
+        targetRange: "A2:D20",
+        managementMode: "add",
+        ruleType: "color_scale",
+        points: [
+          { type: "min", color: "#f8696b" },
+          { type: "percentile", value: 50, color: "#ffeb84" },
+          { type: "max", color: "#63be7b" }
+        ],
+        explanation: "Apply a red-yellow-green percentile scale.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Summary!A2:D20"],
+        replacesExistingRules: false
+      }
+    };
+
+    expect(taskpane.isWritePlanResponse(response)).toBe(true);
+    const html = taskpane.renderStructuredPreview(response, {
+      runId: "run_conditional_color_scale_preview",
+      requestId: "req_conditional_color_scale_preview"
+    });
+
+    expect(html).toContain("Confirm Conditional Formatting");
+    expect(html).toContain("color_scale");
+    expect(html).not.toContain("can't apply that conditional formatting rule exactly");
   });
 
   it("applies a conditional formatting rule in Excel", async () => {
@@ -270,6 +314,91 @@ describe("Excel wave 3 conditional-format plans", () => {
     });
   });
 
+  it("applies a color scale conditional formatting rule in Excel", async () => {
+    let assignedCriteria: unknown = null;
+    const clearAll = vi.fn();
+    const colorScale = {};
+    Object.defineProperty(colorScale, "criteria", {
+      configurable: true,
+      set(value) {
+        assignedCriteria = value;
+      }
+    });
+
+    const add = vi.fn(() => ({
+      colorScale
+    }));
+    const targetRange = {
+      conditionalFormats: {
+        clearAll,
+        add
+      }
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Summary",
+        targetRange: "A2:D20",
+        managementMode: "add",
+        ruleType: "color_scale",
+        points: [
+          { type: "min", color: "#f8696b" },
+          { type: "percentile", value: 50, color: "#ffeb84" },
+          { type: "max", color: "#63be7b" }
+        ],
+        explanation: "Apply a red-yellow-green percentile scale.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Summary!A2:D20"],
+        replacesExistingRules: false
+      },
+      requestId: "req_conditional_color_scale_apply_001",
+      runId: "run_conditional_color_scale_apply_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "conditional_format_update",
+      targetSheet: "Summary",
+      targetRange: "A2:D20",
+      managementMode: "add",
+      ruleType: "color_scale",
+      affectedRanges: ["Summary!A2:D20"],
+      replacesExistingRules: false,
+      summary: "Added conditional formatting to Summary!A2:D20."
+    });
+
+    expect(clearAll).not.toHaveBeenCalled();
+    expect(add).toHaveBeenCalledWith("colorScale");
+    expect(assignedCriteria).toEqual({
+      minimum: {
+        formula: null,
+        type: "lowestValue",
+        color: "#f8696b"
+      },
+      midpoint: {
+        formula: "50",
+        type: "percentile",
+        color: "#ffeb84"
+      },
+      maximum: {
+        formula: null,
+        type: "highestValue",
+        color: "#63be7b"
+      }
+    });
+  });
+
   it("fails closed when Excel cannot represent the requested conditional-format semantics exactly", async () => {
     const styleAssignments: Record<string, unknown> = {};
     const add = vi.fn(() => ({
@@ -320,12 +449,11 @@ describe("Excel wave 3 conditional-format plans", () => {
         targetSheet: "Sheet1",
         targetRange: "B2:B20",
         managementMode: "add",
-        ruleType: "color_scale",
-        points: [
-          { type: "min", color: "#ff0000" },
-          { type: "max", color: "#00ff00" }
-        ],
-        explanation: "Apply a color scale.",
+        ruleType: "data_bar",
+        style: {
+          backgroundColor: "#ff0000"
+        },
+        explanation: "Apply a data bar.",
         confidence: 0.8,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
@@ -335,7 +463,7 @@ describe("Excel wave 3 conditional-format plans", () => {
       runId: "run_conditional_format_invalid_001",
       approvalToken: "token"
     })).rejects.toThrow(
-      "Excel host does not support exact conditional-format mapping for ruleType color_scale."
+      "Excel host does not support exact conditional-format mapping for ruleType data_bar."
     );
 
     expect(add).not.toHaveBeenCalled();
