@@ -6908,27 +6908,42 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       return total;
     }
 
-    function resolveColumnRef(columnRef, values, hasHeader) {
+    function resolveColumnRef(columnRef, values, hasHeader, targetRangeA1) {
+      const targetBounds = parseA1RangeReference(targetRangeA1);
+      const assertInTarget = (offset) => {
+        if (!Number.isInteger(offset) || offset < 0 || offset >= targetBounds.columnCount) {
+          throw new Error(`Column ${columnRef} is outside ${targetRangeA1}.`);
+        }
+
+        return offset;
+      };
+
       if (typeof columnRef === "number") {
-        return columnRef;
+        return assertInTarget(columnRef - 1);
       }
 
       if (typeof columnRef !== "string") {
-        return columnRef;
+        throw new Error(`Unsupported column reference: ${columnRef}`);
       }
 
+      const trimmed = columnRef.trim();
+
       if (hasHeader && Array.isArray(values?.[0])) {
-        const headerIndex = values[0].findIndex((value) => String(value).trim() === columnRef.trim());
+        const headerIndex = values[0].findIndex((value) => String(value).trim() === trimmed);
         if (headerIndex >= 0) {
-          return headerIndex + 1;
+          return assertInTarget(headerIndex);
         }
       }
 
-      if (/^[A-Z]+$/i.test(columnRef.trim())) {
-        return convertColumnLettersToNumber(columnRef);
+      if (/^[A-Z]+$/i.test(trimmed)) {
+        return assertInTarget(convertColumnLettersToNumber(trimmed) - targetBounds.startColumn);
       }
 
-      return columnRef;
+      if (/^\d+$/.test(trimmed)) {
+        return assertInTarget(Number(trimmed) - 1);
+      }
+
+      throw new Error(`Column ${columnRef} is outside ${targetRangeA1}.`);
     }
 
     function buildFilterCriteria(condition) {
@@ -6972,7 +6987,7 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
 
       const fields = buildExcelSortFields(plan).map((field) => ({
         ...field,
-        key: resolveColumnRef(field.key, target.values, plan.hasHeader)
+        key: resolveColumnRef(field.key, target.values, plan.hasHeader, plan.targetRange)
       }));
       const sort = typeof target.getSort === "function" ? target.getSort() : target.sort;
       if (!sort?.apply) {
@@ -7015,7 +7030,7 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
 
       const resolvedConditions = plan.conditions.map((condition) => ({
         ...condition,
-        resolvedColumnRef: resolveColumnRef(condition.columnRef, target.values, plan.hasHeader)
+        resolvedColumnRef: resolveColumnRef(condition.columnRef, target.values, plan.hasHeader, plan.targetRange)
       }));
       const resolvedColumns = new Set();
 
