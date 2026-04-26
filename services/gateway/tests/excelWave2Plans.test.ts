@@ -281,6 +281,29 @@ describe("Excel wave 2 plan helpers", () => {
     expect(checkboxHtml).toContain("checked true");
     expect(checkboxHtml).toContain("unchecked false");
 
+    const checkboxHelpTextHtml = taskpane.renderStructuredPreview({
+      type: "data_validation_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "E2:E20",
+        ruleType: "checkbox",
+        checkedValue: true,
+        uncheckedValue: false,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        helpText: "Mark completed tasks.",
+        explanation: "Use checkboxes for completion state.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    }, {
+      runId: "run_validation_checkbox_helptext",
+      requestId: "req_validation_checkbox_helptext"
+    });
+
+    expect(checkboxHelpTextHtml).toContain("can't apply custom validation prompt or error text to checkbox controls");
+    expect(checkboxHelpTextHtml).not.toContain("data-confirm-run=\"run_validation_checkbox_helptext\"");
+
     expect(taskpane.getResponseBodyText({
       type: "named_range_update",
       data: {
@@ -940,6 +963,56 @@ describe("Excel wave 2 plan helpers", () => {
       runId: "run_validation_checkbox_invalid_001",
       approvalToken: "token"
     })).rejects.toThrow("Excel checkbox controls only support boolean true/false values.");
+  });
+
+  it("fails closed for Excel checkbox plans with help text", async () => {
+    const targetRange = {
+      load: vi.fn(),
+      address: "Sheet1!D2:D20",
+      rowCount: 19,
+      columnCount: 1
+    };
+    Object.defineProperty(targetRange, "control", {
+      configurable: true,
+      set() {}
+    });
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      names: {
+        add: vi.fn()
+      }
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        },
+        names: {
+          add: vi.fn()
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "D2:D20",
+        ruleType: "checkbox",
+        checkedValue: true,
+        uncheckedValue: false,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        helpText: "Mark completed tasks.",
+        explanation: "Use checkboxes with prompt text.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      },
+      requestId: "req_validation_checkbox_helptext_001",
+      runId: "run_validation_checkbox_helptext_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host cannot apply custom validation prompt or error text to checkbox controls.");
   });
 
   it("fails closed for partial named range plans without a target range", async () => {
