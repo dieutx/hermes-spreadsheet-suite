@@ -103,6 +103,8 @@ const COLUMN_FILL_CONTEXT_PATTERN = /\b(column|field|lookup table|based on|using
 const TOOL_FLOW_LAYOUT_PATTERN = /\b(input|inputs|output|outputs|result|results|criteria|parameter|parameters|control cell|control cells|helper sheet)\b/;
 const CONTROL_CELL_ROLE_PATTERN = /\b(?:with|using|use|treat)\b[\s\S]{0,120}?\bcell\s+\$?[A-Za-z]{1,3}\$?\d+\b/i;
 const CONTROL_CELL_AS_PATTERN = /\b(?:use|using|treat)\s+\$?[A-Za-z]{1,3}\$?\d+\s+as\b/i;
+const ADVISORY_ARTIFACT_QUESTION_PATTERN = /\b(explain|describe|what is|what are|how do i|how can i|how should i|how to|why|diagnos(?:e|ing|is)?|troubleshoot|help me understand|giai thich|tai sao|huong dan)\b/;
+const DIRECT_ARTIFACT_ACTION_PATTERN = /^\s*(?:please\s+)?(?:create|make|build|insert|add|apply|set up|setup|tao|them|chen)\b/;
 const WRITE_CAPABLE_RESPONSE_TYPES = new Set<PreferredResponseType>([
   "composite_plan",
   "sheet_update",
@@ -524,6 +526,21 @@ function isLikelyNamedRangeRequest(rawMessage: string, lowerMessage: string): bo
   return false;
 }
 
+function isLikelyAdvisoryOnlyArtifactQuestion(userMessage: string): boolean {
+  if (!ADVISORY_ARTIFACT_QUESTION_PATTERN.test(userMessage)) {
+    return false;
+  }
+
+  if (DIRECT_ARTIFACT_ACTION_PATTERN.test(userMessage)) {
+    return false;
+  }
+
+  return isLikelyPivotTableRequest(userMessage) ||
+    isLikelyChartRequest(userMessage) ||
+    isLikelyTablePlanRequest(userMessage) ||
+    isLikelyConditionalFormatRequest(userMessage);
+}
+
 function hasFormulaContext(request: HermesRequest): boolean {
   if (typeof request.context.activeCell?.formula === "string" && request.context.activeCell.formula.trim()) {
     return true;
@@ -656,6 +673,9 @@ function getPreferredResponseType(
   }
   if (isLikelyFormulaDebugRequest(request, rawMessage, userMessage)) {
     return "formula";
+  }
+  if (isLikelyAdvisoryOnlyArtifactQuestion(userMessage)) {
+    return "chat";
   }
   if (isLikelyTablePlanRequest(userMessage)) {
     return "table_plan";
