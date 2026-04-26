@@ -69,6 +69,9 @@ describe("spreadsheet runtime rules", () => {
   it("documents wave-4 transfer and cleanup plan families with destructive confirmation rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('For type="range_transfer_plan"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('For type="data_cleanup_plan"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain(
+      "data.targetRange is required and must be the full destination rectangle or A1 anchor"
+    );
     expect(SPREADSHEET_RUNTIME_RULES).toContain("distinct from sheet_update");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('move transfer plans require data.confirmationLevel="destructive"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('destructive cleanup operations require data.confirmationLevel="destructive"');
