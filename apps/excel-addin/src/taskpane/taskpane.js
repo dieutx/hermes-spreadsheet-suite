@@ -40,7 +40,6 @@ import {
   getNamedRangeStatusSummary,
   getCompositeStepWritebackStatusLine,
   getWritebackStatusLine,
-  hasNonEmptyNoteValues,
   isRangeFormatPlan,
   isWorkbookStructurePlan,
   mapHorizontalAlignmentToExcel,
@@ -530,23 +529,205 @@ function deserializeExecutionSnapshotScalar(serialized) {
   }
 }
 
-function buildExecutionSnapshotCellMatrix(values, formulas) {
+function normalizeExcelNoteContent(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value);
+}
+
+function buildExecutionSnapshotCellMatrix(values, formulas, notes) {
+  const includeNotes = Array.isArray(notes);
   return (values || []).map((row, rowIndex) =>
     (row || []).map((value, columnIndex) => {
       const formulaValue = normalizeExcelFormulaText(formulas?.[rowIndex]?.[columnIndex]);
-      if (typeof formulaValue === "string" && formulaValue.trim().startsWith("=")) {
-        return {
-          kind: "formula",
-          formula: formulaValue
-        };
+      const snapshotCell = typeof formulaValue === "string" && formulaValue.trim().startsWith("=")
+        ? {
+            kind: "formula",
+            formula: formulaValue
+          }
+        : {
+            kind: "value",
+            value: serializeExecutionSnapshotScalar(value)
+          };
+
+      if (includeNotes) {
+        snapshotCell.note = normalizeExcelNoteContent(notes?.[rowIndex]?.[columnIndex]);
       }
 
-      return {
-        kind: "value",
-        value: serializeExecutionSnapshotScalar(value)
-      };
+      return snapshotCell;
     })
   );
+}
+
+function hasExecutionSnapshotNote(snapshotCell) {
+  return Object.prototype.hasOwnProperty.call(snapshotCell || {}, "note");
+}
+
+function executionSnapshotCellsHaveNotes(cells) {
+  return (cells || []).some((row) =>
+    (row || []).some((cell) => hasExecutionSnapshotNote(cell))
+  );
+}
+
+function getExcelNoteCollection(workbook, sheet) {
+  const collection = sheet?.notes || workbook?.notes;
+  if (
+    !collection ||
+    typeof collection.add !== "function" ||
+    typeof collection.getItemOrNullObject !== "function"
+  ) {
+    throw new Error("This Excel host does not support exact note write-back.");
+  }
+
+  return {
+    collection,
+    useWorksheetRelativeAddress: Boolean(sheet?.notes)
+  };
+}
+
+function getExcelNoteAddress(cell, noteCollection) {
+  const rawAddress = typeof cell?.address === "string" ? cell.address.trim() : "";
+  if (!rawAddress) {
+    throw new Error("Excel note write-back could not resolve the target cell address.");
+  }
+
+  if (!noteCollection.useWorksheetRelativeAddress) {
+    return rawAddress;
+  }
+
+  return rawAddress
+    .slice(rawAddress.lastIndexOf("!") + 1)
+    .replace(/\$/g, "");
+}
+
+async function prepareExcelNoteTargets(context, noteCollection, target, rowCount, columnCount) {
+  const noteTargets = Array.from({ length: rowCount }, () => Array.from({ length: columnCount }, () => null));
+
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+      const cell = target.getCell(rowIndex, columnIndex);
+      if (typeof cell.load === "function") {
+        cell.load("address");
+      }
+
+      noteTargets[rowIndex][columnIndex] = {
+        cell,
+        note: null
+      };
+    }
+  }
+
+  await context.sync();
+
+  for (const row of noteTargets) {
+    for (const noteTarget of row) {
+      const address = getExcelNoteAddress(noteTarget.cell, noteCollection);
+      const note = noteCollection.collection.getItemOrNullObject(address);
+      if (typeof note.load === "function") {
+        note.load("content");
+      }
+
+      noteTarget.note = note;
+    }
+  }
+
+  await context.sync();
+  return noteTargets;
+}
+
+function readPreparedExcelNoteMatrix(noteTargets) {
+  return (noteTargets || []).map((row) =>
+    (row || []).map((noteTarget) => {
+      const note = noteTarget?.note;
+      if (!note || note.isNullObject) {
+        return "";
+      }
+
+      return normalizeExcelNoteContent(note.content);
+    })
+  );
+}
+
+function getExcelNoteMatrixAfterWrite(beforeNotes, notes, options = {}) {
+  const afterNotes = cloneMatrix(beforeNotes);
+  for (let rowIndex = 0; rowIndex < afterNotes.length; rowIndex += 1) {
+    for (let columnIndex = 0; columnIndex < (afterNotes[rowIndex] || []).length; columnIndex += 1) {
+      const nextNote = normalizeExcelNoteContent(notes?.[rowIndex]?.[columnIndex]);
+      if (options.clearBlankNotes || nextNote.length > 0) {
+        afterNotes[rowIndex][columnIndex] = nextNote;
+      }
+    }
+  }
+
+  return afterNotes;
+}
+
+function queueExcelPreparedNoteWrite(noteCollection, noteTarget, noteValue, options = {}) {
+  const content = normalizeExcelNoteContent(noteValue);
+  if (!options.clearBlankNote && content.length === 0) {
+    return;
+  }
+
+  const note = noteTarget?.note;
+  if (note && !note.isNullObject) {
+    if (content.length > 0) {
+      note.content = content;
+      return;
+    }
+
+    if (typeof note.delete === "function") {
+      note.delete();
+      return;
+    }
+
+    throw new Error("This Excel host does not support clearing notes exactly.");
+  }
+
+  if (content.length > 0) {
+    noteCollection.collection.add(noteTarget.cell, content);
+  }
+}
+
+function queueExcelNoteMatrixWrites(noteCollection, noteTargets, notes, options = {}) {
+  for (let rowIndex = 0; rowIndex < (noteTargets || []).length; rowIndex += 1) {
+    for (let columnIndex = 0; columnIndex < (noteTargets[rowIndex] || []).length; columnIndex += 1) {
+      queueExcelPreparedNoteWrite(
+        noteCollection,
+        noteTargets[rowIndex][columnIndex],
+        notes?.[rowIndex]?.[columnIndex],
+        { clearBlankNote: Boolean(options.clearBlankNotes) }
+      );
+    }
+  }
+}
+
+function restoreExecutionSnapshotNotes(noteCollection, noteTargets, cells) {
+  for (let rowIndex = 0; rowIndex < (cells || []).length; rowIndex += 1) {
+    for (let columnIndex = 0; columnIndex < (cells[rowIndex] || []).length; columnIndex += 1) {
+      const snapshotCell = cells[rowIndex][columnIndex];
+      if (!hasExecutionSnapshotNote(snapshotCell)) {
+        continue;
+      }
+
+      queueExcelPreparedNoteWrite(
+        noteCollection,
+        noteTargets[rowIndex]?.[columnIndex],
+        snapshotCell.note,
+        { clearBlankNote: true }
+      );
+    }
+  }
+}
+
+function isExcelNoteWriteSupported() {
+  const requirements = Office?.context?.requirements;
+  if (!requirements || typeof requirements.isSetSupported !== "function") {
+    return false;
+  }
+
+  return requirements.isSetSupported("ExcelApi", "1.18");
 }
 
 function createLocalExecutionSnapshot({
@@ -555,8 +736,10 @@ function createLocalExecutionSnapshot({
   targetRange,
   beforeValues,
   beforeFormulas,
+  beforeNotes,
   afterValues,
-  afterFormulas
+  afterFormulas,
+  afterNotes
 }) {
   if (!executionId || !targetSheet || !targetRange) {
     return null;
@@ -566,8 +749,8 @@ function createLocalExecutionSnapshot({
     baseExecutionId: executionId,
     targetSheet,
     targetRange,
-    beforeCells: buildExecutionSnapshotCellMatrix(beforeValues, beforeFormulas),
-    afterCells: buildExecutionSnapshotCellMatrix(afterValues, afterFormulas)
+    beforeCells: buildExecutionSnapshotCellMatrix(beforeValues, beforeFormulas, beforeNotes),
+    afterCells: buildExecutionSnapshotCellMatrix(afterValues, afterFormulas, afterNotes)
   };
 }
 
@@ -699,6 +882,12 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
       throw new Error("The saved undo snapshot no longer matches the current range shape.");
     }
 
+    const shouldRestoreNotes = executionSnapshotCellsHaveNotes(cells);
+    const noteCollection = shouldRestoreNotes ? getExcelNoteCollection(context.workbook, sheet) : null;
+    const noteTargets = shouldRestoreNotes
+      ? await prepareExcelNoteTargets(context, noteCollection, target, cells.length, cells[0]?.length || 0)
+      : null;
+
     for (let rowIndex = 0; rowIndex < cells.length; rowIndex += 1) {
       for (let columnIndex = 0; columnIndex < (cells[rowIndex] || []).length; columnIndex += 1) {
         const cell = target.getCell(rowIndex, columnIndex);
@@ -709,6 +898,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
           cell.values = [[deserializeExecutionSnapshotScalar(snapshotCell?.value)]];
         }
       }
+    }
+
+    if (shouldRestoreNotes) {
+      restoreExecutionSnapshotNotes(noteCollection, noteTargets, cells);
     }
 
     await context.sync();
@@ -5839,7 +6032,7 @@ function buildRequestEnvelope(input) {
       canConfirmWriteBack: true,
       supportsImageInputs: true,
       supportsWriteBackExecution: true,
-      supportsNoteWrites: false
+      supportsNoteWrites: isExcelNoteWriteSupported()
     },
     reviewer: {
       reviewerSafeMode: runtimeConfig.reviewerSafeMode,
@@ -7033,8 +7226,21 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       throw new Error("The approved targetRange does not match the proposed shape.");
     }
 
-    if (hasNonEmptyNoteValues(plan)) {
-      throw new Error("Excel MVP write-back does not support note updates.");
+    const hasNoteMatrix = Array.isArray(plan.notes);
+    let noteCollection = null;
+    let noteTargets = null;
+    let beforeNotes = null;
+    let afterNotes = null;
+    if (hasNoteMatrix) {
+      noteCollection = getExcelNoteCollection(context.workbook, sheet);
+      noteTargets = await prepareExcelNoteTargets(
+        context,
+        noteCollection,
+        target,
+        plan.shape.rows,
+        plan.shape.columns
+      );
+      beforeNotes = readPreparedExcelNoteMatrix(noteTargets);
     }
 
     if (Array.isArray(plan.headers)) {
@@ -7070,6 +7276,11 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       target.formulas = plan.formulas.map((row) => row.map((cell) => cell ?? ""));
       target.load(["values", "formulas"]);
       await context.sync();
+    } else if (Array.isArray(plan.notes) && !plan.values && !plan.formulas) {
+      queueExcelNoteMatrixWrites(noteCollection, noteTargets, plan.notes, { clearBlankNotes: true });
+      afterNotes = getExcelNoteMatrixAfterWrite(beforeNotes, plan.notes, { clearBlankNotes: true });
+      target.load(["values", "formulas"]);
+      await context.sync();
     } else {
       for (let rowIndex = 0; rowIndex < plan.shape.rows; rowIndex += 1) {
         for (let columnIndex = 0; columnIndex < plan.shape.columns; columnIndex += 1) {
@@ -7085,6 +7296,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             cell.values = [[""]];
           }
         }
+      }
+      if (hasNoteMatrix) {
+        queueExcelNoteMatrixWrites(noteCollection, noteTargets, plan.notes, { clearBlankNotes: false });
+        afterNotes = getExcelNoteMatrixAfterWrite(beforeNotes, plan.notes, { clearBlankNotes: false });
       }
       target.load(["values", "formulas"]);
       await context.sync();
@@ -7102,8 +7317,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       targetRange: plan.targetRange,
       beforeValues,
       beforeFormulas,
+      beforeNotes,
       afterValues: target.values,
-      afterFormulas: target.formulas
+      afterFormulas: target.formulas,
+      afterNotes
     }));
   });
 }
