@@ -920,6 +920,50 @@ describe("structured body normalization", () => {
     });
   });
 
+  it("preserves all supported static range format fields during normalization", () => {
+    const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
+      type: "range_format_update",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:D8",
+        explanation: "Apply detailed static formatting.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        format: {
+          fontFamily: "Aptos",
+          fontSize: 12,
+          underline: true,
+          strikethrough: false,
+          border: {
+            outer: {
+              style: "solid",
+              color: "#222222"
+            },
+            innerHorizontal: {
+              style: "dotted"
+            }
+          }
+        }
+      }
+    }));
+
+    expect(parsed.data.format).toEqual({
+      fontFamily: "Aptos",
+      fontSize: 12,
+      underline: true,
+      strikethrough: false,
+      border: {
+        outer: {
+          style: "solid",
+          color: "#222222"
+        },
+        innerHorizontal: {
+          style: "dotted"
+        }
+      }
+    });
+  });
+
   it("normalizes raw external_data_plan steps inside composite plans before validation", () => {
     const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
       type: "composite_plan",
