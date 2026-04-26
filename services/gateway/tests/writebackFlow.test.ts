@@ -5079,6 +5079,72 @@ describe("writeback confirmation flow", () => {
     );
   });
 
+  it("rejects atomic completions when the host reports a failed status", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      operation: "create_sheet" as const,
+      sheetName: "Failed Import",
+      position: "end" as const,
+      explanation: "Create a sheet for imported data.",
+      confidence: 0.9,
+      requiresConfirmation: true as const,
+      overwriteRisk: "none" as const
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_failed_atomic_completion",
+      requestId: "req_failed_atomic_completion",
+      type: "workbook_structure_update",
+      traceEvent: "workbook_structure_update_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_failed_atomic_completion",
+        runId: "run_failed_atomic_completion",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_failed_atomic_completion",
+        runId: "run_failed_atomic_completion",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: buildWorkbookCreateSheetResult(plan, {
+          status: "failed",
+          partialFailure: true,
+          summary: "The spreadsheet host reported that sheet creation failed."
+        })
+      }
+    });
+
+    expectRouteError(
+      completion,
+      409,
+      "HOST_COMPLETION_FAILED",
+      "The spreadsheet host reported that the write-back did not complete successfully."
+    );
+    expect(traceBus.getRun("run_failed_atomic_completion")?.writeback?.completedAt).toBeUndefined();
+    expect(executionLedger.listHistory("excel_windows::workbook-123").entries[0]).toMatchObject({
+      status: "approved",
+      undoEligible: false
+    });
+  });
+
   it("rejects range-write completions that reuse the approved rectangle with different write semantics", () => {
     expectRouteCompletionDetailMismatch({
       traceBus: new TraceBus(),

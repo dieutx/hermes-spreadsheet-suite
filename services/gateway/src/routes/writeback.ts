@@ -520,11 +520,49 @@ type RouteErrorPayload = {
   };
 };
 
+const HOST_COMPLETION_FAILED_ERROR = "Host reported a failed or partial writeback completion.";
+
 function formatIssues(issues: z.ZodIssue[]): Array<{ path: string; message: string }> {
   return issues.map((issue) => ({
     path: issue.path.join("."),
     message: issue.message
   }));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hostReportedAtomicCompletionFailure(result: unknown): boolean {
+  if (!isRecord(result) || result.kind === "composite_update") {
+    return false;
+  }
+
+  if (result.partialFailure === true || result.ok === false || result.success === false) {
+    return true;
+  }
+
+  if (typeof result.status !== "string") {
+    return false;
+  }
+
+  const status = result.status.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return [
+    "failed",
+    "failure",
+    "error",
+    "errored",
+    "partial",
+    "partial_failure",
+    "partially_failed",
+    "incomplete"
+  ].includes(status);
+}
+
+function assertHostDidNotReportAtomicCompletionFailure(result: unknown): void {
+  if (hostReportedAtomicCompletionFailure(result)) {
+    throw new Error(HOST_COMPLETION_FAILED_ERROR);
+  }
 }
 
 function invalidWritebackRequest(
@@ -682,6 +720,19 @@ function formatWritebackRouteError(error: unknown): {
           code: "APPROVAL_EXPIRED",
           message: "This approval expired before it was applied.",
           userAction: "Ask Hermes to generate a fresh update, then confirm it again."
+        }
+      }
+    };
+  }
+
+  if (message === HOST_COMPLETION_FAILED_ERROR) {
+    return {
+      status: 409,
+      body: {
+        error: {
+          code: "HOST_COMPLETION_FAILED",
+          message: "The spreadsheet host reported that the write-back did not complete successfully.",
+          userAction: "Review the spreadsheet state, then ask Hermes to prepare a fresh update before retrying."
         }
       }
     };
@@ -1781,6 +1832,7 @@ export function completeWriteback(input: {
   config: GatewayConfig;
 }) {
   const executionLedger = input.executionLedger ?? new ExecutionLedger();
+  assertHostDidNotReportAtomicCompletionFailure(input.result);
   const run = input.traceBus.getRun(input.runId);
   if (!run) {
     throw new Error("Run not found.");
@@ -1914,6 +1966,14 @@ export function createWritebackRouter(input: {
   });
 
   router.post("/complete", (req, res) => {
+    try {
+      assertHostDidNotReportAtomicCompletionFailure(req.body?.result);
+    } catch (error) {
+      const formatted = formatWritebackRouteError(error);
+      res.status(formatted.status).json(formatted.body);
+      return;
+    }
+
     const parsed = CompletionRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json(invalidWritebackRequest(
