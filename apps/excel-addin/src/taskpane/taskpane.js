@@ -1510,10 +1510,21 @@ function getExcelPlanSupportError(preview) {
       "duplicate_values",
       "custom_formula",
       "top_n",
-      "average_compare"
+      "average_compare",
+      "color_scale"
     ]);
     if (!supportedRuleTypes.has(preview.ruleType)) {
-      return "This Excel runtime can't apply that conditional formatting rule exactly. Try text contains, value comparison, duplicate values, custom formula, top/bottom, or above/below average.";
+      return "This Excel runtime can't apply that conditional formatting rule exactly. Try text contains, value comparison, duplicate values, custom formula, top/bottom, above/below average, or color scale.";
+    }
+
+    if (preview.ruleType === "color_scale") {
+      try {
+        buildExcelConditionalColorScaleCriteria(preview);
+      } catch (error) {
+        return error instanceof Error
+          ? error.message
+          : "This Excel runtime can't apply that color scale exactly.";
+      }
     }
 
     if (
@@ -2572,6 +2583,13 @@ function formatConditionalFormatDetails(preview) {
     details.push(`direction ${preview.direction}`);
   }
 
+  if (Array.isArray(preview.points) && preview.points.length > 0) {
+    details.push(`points ${preview.points.map((point) => {
+      const label = point?.value === undefined ? point?.type : `${point?.type}:${point.value}`;
+      return `${label} ${point?.color || ""}`.trim();
+    }).join(", ")}`);
+  }
+
   return details.join(" • ");
 }
 
@@ -3607,6 +3625,60 @@ function mapConditionalFormatComparatorToExcel(comparator) {
   return map[comparator];
 }
 
+function mapConditionalColorScalePointTypeToExcel(pointType) {
+  const pointTypes = Excel?.ConditionalFormatColorCriterionType;
+  switch (pointType) {
+    case "min":
+      return pointTypes?.lowestValue || "lowestValue";
+    case "max":
+      return pointTypes?.highestValue || "highestValue";
+    case "number":
+      return pointTypes?.number || "number";
+    case "percent":
+      return pointTypes?.percent || "percent";
+    case "percentile":
+      return pointTypes?.percentile || "percentile";
+    default:
+      throw new Error(`Excel host does not support exact color_scale point type ${pointType}.`);
+  }
+}
+
+function buildExcelConditionalColorScaleCriterion(point) {
+  if (!point || typeof point !== "object") {
+    throw new Error("Excel host requires valid color_scale points.");
+  }
+
+  const type = mapConditionalColorScalePointTypeToExcel(point.type);
+  const requiresFormula = point.type === "number" || point.type === "percent" || point.type === "percentile";
+
+  if (requiresFormula && typeof point.value !== "number") {
+    throw new Error(`Excel host requires numeric value for color_scale point type ${point.type}.`);
+  }
+
+  return {
+    formula: requiresFormula ? String(point.value) : null,
+    type,
+    color: point.color
+  };
+}
+
+function buildExcelConditionalColorScaleCriteria(plan) {
+  if (!Array.isArray(plan.points) || plan.points.length < 2 || plan.points.length > 3) {
+    throw new Error("Excel host requires 2 or 3 color_scale points.");
+  }
+
+  const criteria = {
+    minimum: buildExcelConditionalColorScaleCriterion(plan.points[0]),
+    maximum: buildExcelConditionalColorScaleCriterion(plan.points[plan.points.length - 1])
+  };
+
+  if (plan.points.length === 3) {
+    criteria.midpoint = buildExcelConditionalColorScaleCriterion(plan.points[1]);
+  }
+
+  return criteria;
+}
+
 function assignConditionalRule(target, values) {
   const rule = target && typeof target === "object" ? target : {};
   Object.assign(rule, values);
@@ -3704,7 +3776,10 @@ function resolveExcelConditionalFormatBinding(plan) {
         property: "aboveAverage"
       };
     case "color_scale":
-      throw new Error("Excel host does not support exact conditional-format mapping for ruleType color_scale.");
+      return {
+        type: conditionalType?.colorScale || "colorScale",
+        property: "colorScale"
+      };
     default:
       throw new Error(`Excel host does not support exact conditional-format mapping for ruleType ${plan.ruleType}.`);
   }
@@ -3753,6 +3828,12 @@ function applyExcelConditionalFormatRule(configuration, plan) {
           ? (Excel?.ConditionalAverageCriterion?.belowAverage || "belowAverage")
           : (Excel?.ConditionalAverageCriterion?.aboveAverage || "aboveAverage")
       });
+      return;
+    case "color_scale":
+      if (!("criteria" in configuration)) {
+        throw new Error("Excel host does not expose colorScale conditional-format criteria.");
+      }
+      configuration.criteria = buildExcelConditionalColorScaleCriteria(plan);
       return;
     default:
       throw new Error(`Excel host does not support exact conditional-format mapping for ruleType ${plan.ruleType}.`);
@@ -4019,6 +4100,7 @@ function getStructuredPreview(response) {
         formula: response.data.formula,
         rank: response.data.rank,
         direction: response.data.direction,
+        points: response.data.points,
         style: response.data.style,
         explanation: response.data.explanation,
         confidence: response.data.confidence,
