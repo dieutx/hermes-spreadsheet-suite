@@ -1102,6 +1102,10 @@ function normalizeDataValidationPlanData(value: unknown): unknown {
     "value2",
     "formula",
     "helpText",
+    "inputTitle",
+    "inputMessage",
+    "errorTitle",
+    "errorMessage",
     "explanation",
     "confidence",
     "requiresConfirmation",
@@ -1115,6 +1119,22 @@ function normalizeDataValidationPlanData(value: unknown): unknown {
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!hasOwn(normalized, "inputTitle") && hasOwn(value, "promptTitle")) {
+    normalized.inputTitle = value.promptTitle;
+  }
+
+  if (!hasOwn(normalized, "inputMessage") && hasOwn(value, "promptMessage")) {
+    normalized.inputMessage = value.promptMessage;
+  }
+
+  if (!hasOwn(normalized, "errorTitle") && hasOwn(value, "errorAlertTitle")) {
+    normalized.errorTitle = value.errorAlertTitle;
+  }
+
+  if (!hasOwn(normalized, "errorMessage") && hasOwn(value, "errorAlertMessage")) {
+    normalized.errorMessage = value.errorAlertMessage;
   }
 
   return normalized;
