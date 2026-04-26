@@ -2859,6 +2859,14 @@
     }
 
     if (kind === "data_validation_plan") {
+      if (preview.errorTitle || preview.errorMessage) {
+        return "Google Sheets cannot apply custom validation error alert text.";
+      }
+
+      if (preview.inputTitle) {
+        return "Google Sheets cannot apply custom validation input titles.";
+      }
+
       if (preview.ruleType === "list" && preview.allowBlank) {
         return "This validation would behave differently in Google Sheets. Turn off blank values or choose a different validation setup.";
       }
@@ -3270,6 +3278,10 @@
           allowBlank: response.data.allowBlank,
           invalidDataBehavior: response.data.invalidDataBehavior,
           helpText: response.data.helpText,
+          inputTitle: response.data.inputTitle,
+          inputMessage: response.data.inputMessage,
+          errorTitle: response.data.errorTitle,
+          errorMessage: response.data.errorMessage,
           replacesExistingValidation: response.data.replacesExistingValidation,
           explanation: response.data.explanation,
           confidence: response.data.confidence,
@@ -3813,6 +3825,12 @@
           ${validationParameters ? `<div class="preview-meta">${escapeHtml(validationParameters)}</div>` : ""}
           ${checkboxValues ? `<div class="preview-meta">${escapeHtml(checkboxValues)}</div>` : ""}
           ${preview.helpText ? `<div class="preview-meta">${escapeHtml(preview.helpText)}</div>` : ""}
+          ${preview.inputTitle || preview.inputMessage
+            ? `<div class="preview-meta">${escapeHtml([preview.inputTitle, preview.inputMessage].filter(Boolean).join(": "))}</div>`
+            : ""}
+          ${preview.errorTitle || preview.errorMessage
+            ? `<div class="preview-meta">${escapeHtml([preview.errorTitle, preview.errorMessage].filter(Boolean).join(": "))}</div>`
+            : ""}
           ${validationSource ? `<div class="preview-meta">${escapeHtml(validationSource)}</div>` : ""}
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           <div class="preview-meta">${escapeHtml(preview.summary)}</div>
