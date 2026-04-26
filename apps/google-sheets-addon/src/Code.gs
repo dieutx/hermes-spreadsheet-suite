@@ -1192,6 +1192,10 @@ function getPivotFilterOperatorMethods_(operator, value) {
       return { primary: 'whenNumberLessThan', requiresNumber: true };
     case 'less_than_or_equal_to':
       return { primary: 'whenNumberLessThanOrEqualTo', requiresNumber: true };
+    case 'between':
+      return { primary: 'whenNumberBetween', requiresNumber: true, requiresSecondNumber: true };
+    case 'not_between':
+      return { primary: 'whenNumberNotBetween', requiresNumber: true, requiresSecondNumber: true };
     default:
       throw new Error('Unsupported pivot filter operator: ' + operator);
   }
@@ -1215,12 +1219,19 @@ function buildPivotFilterCriteria_(filter) {
   const filterValue = methods.requiresNumber
     ? coercePivotFilterNumber_(filter && filter.value, filter && filter.operator)
     : filter && filter.value;
+  const filterValue2 = methods.requiresSecondNumber
+    ? coercePivotFilterNumber_(filter && filter.value2, filter && filter.operator)
+    : null;
 
   if (!builder || typeof builder[methods.primary] !== 'function') {
     throw new Error('Google Sheets host does not support pivot filter criteria builders.');
   }
 
-  builder[methods.primary](filterValue);
+  if (methods.requiresSecondNumber) {
+    builder[methods.primary](filterValue, filterValue2);
+  } else {
+    builder[methods.primary](filterValue);
+  }
   return builder.build();
 }
 
