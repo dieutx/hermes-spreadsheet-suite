@@ -1667,6 +1667,207 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     })).toContain("Google Sheets can format this range as a table-like range, but it cannot create an exact native totals row here.");
   });
 
+  it("preserves contract metadata across Google Sheets structured previews", () => {
+    const sidebar = loadSidebarContext();
+
+    const shared = {
+      explanation: "Preview the planned spreadsheet change.",
+      confidence: 0.86,
+      requiresConfirmation: true
+    };
+    const affectedRanges = ["Sales!A1:C10"];
+    const warnings = [
+      { code: "ocr_confidence", message: "One value may need review.", severity: "low" }
+    ];
+    const cases = [
+      {
+        name: "workbook_structure_update",
+        response: {
+          type: "workbook_structure_update",
+          data: {
+            operation: "create_sheet",
+            sheetName: "Audit",
+            overwriteRisk: "low",
+            ...shared
+          }
+        },
+        expected: {
+          confidence: shared.confidence,
+          requiresConfirmation: true
+        }
+      },
+      {
+        name: "sheet_structure_update",
+        response: {
+          type: "sheet_structure_update",
+          data: {
+            targetSheet: "Sales",
+            operation: "hide_rows",
+            startIndex: 2,
+            count: 3,
+            affectedRanges,
+            overwriteRisk: "low",
+            confirmationLevel: "standard",
+            ...shared
+          }
+        },
+        expected: {
+          confidence: shared.confidence,
+          requiresConfirmation: true,
+          affectedRanges,
+          overwriteRisk: "low"
+        }
+      },
+      {
+        name: "range_sort_plan",
+        response: {
+          type: "range_sort_plan",
+          data: {
+            targetSheet: "Sales",
+            targetRange: "A1:C10",
+            hasHeader: true,
+            keys: [{ columnRef: "Revenue", direction: "desc" }],
+            affectedRanges,
+            ...shared
+          }
+        },
+        expected: {
+          confidence: shared.confidence,
+          requiresConfirmation: true,
+          affectedRanges
+        }
+      },
+      {
+        name: "range_filter_plan",
+        response: {
+          type: "range_filter_plan",
+          data: {
+            targetSheet: "Sales",
+            targetRange: "A1:C10",
+            hasHeader: true,
+            conditions: [{ columnRef: "Status", operator: "equals", value: "Closed Won" }],
+            combiner: "and",
+            clearExistingFilters: true,
+            affectedRanges,
+            ...shared
+          }
+        },
+        expected: {
+          confidence: shared.confidence,
+          requiresConfirmation: true,
+          affectedRanges
+        }
+      },
+      {
+        name: "range_format_update",
+        response: {
+          type: "range_format_update",
+          data: {
+            targetSheet: "Sales",
+            targetRange: "A1:C10",
+            format: { bold: true },
+            overwriteRisk: "low",
+            ...shared
+          }
+        },
+        expected: {
+          confidence: shared.confidence,
+          requiresConfirmation: true
+        }
+      },
+      {
+        name: "data_validation_plan",
+        response: {
+          type: "data_validation_plan",
+          data: {
+            targetSheet: "Sales",
+            targetRange: "B2:B10",
+            ruleType: "list",
+            values: ["Open", "Closed"],
+            showDropdown: false,
+            allowBlank: false,
+            invalidDataBehavior: "reject",
+            affectedRanges,
+            replacesExistingValidation: true,
+            ...shared
+          }
+        },
+        expected: {
+          showDropdown: false,
+          affectedRanges
+        }
+      },
+      {
+        name: "named_range_update",
+        response: {
+          type: "named_range_update",
+          data: {
+            operation: "retarget",
+            scope: "workbook",
+            name: "SalesData",
+            targetSheet: "Sales",
+            targetRange: "A1:C10",
+            affectedRanges,
+            overwriteRisk: "low",
+            ...shared
+          }
+        },
+        expected: {
+          affectedRanges,
+          overwriteRisk: "low"
+        }
+      },
+      {
+        name: "sheet_update",
+        response: {
+          type: "sheet_update",
+          data: {
+            targetSheet: "Sales",
+            targetRange: "A1:B2",
+            operation: "replace_range",
+            values: [["Region", "Revenue"], ["West", 100]],
+            shape: { rows: 2, columns: 2 },
+            overwriteRisk: "medium",
+            ...shared
+          }
+        },
+        expected: {
+          explanation: shared.explanation,
+          confidence: shared.confidence,
+          requiresConfirmation: true
+        }
+      },
+      {
+        name: "sheet_import_plan",
+        response: {
+          type: "sheet_import_plan",
+          data: {
+            sourceAttachmentId: "att_123",
+            targetSheet: "Import",
+            targetRange: "A1:B2",
+            headers: ["Region", "Revenue"],
+            values: [["West", 100]],
+            extractionMode: "table",
+            shape: { rows: 2, columns: 2 },
+            confidence: 0.77,
+            warnings,
+            requiresConfirmation: true
+          }
+        },
+        expected: {
+          sourceAttachmentId: "att_123",
+          confidence: 0.77,
+          warnings,
+          requiresConfirmation: true
+        }
+      }
+    ];
+
+    for (const testCase of cases) {
+      expect(sidebar.getStructuredPreview(testCase.response), testCase.name).toMatchObject(testCase.expected);
+    }
+  });
+
   it("renders a composite preview with dry-run and destructive flags and requires destructive confirmation for destructive child steps", () => {
     const sidebar = loadSidebarContext();
     const confirmMock = vi.fn(() => true);
