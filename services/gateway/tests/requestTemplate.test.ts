@@ -98,7 +98,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("Supported pivot filters use existing pivot fields");
     expect(prompt).toContain("between, or not_between");
     expect(prompt).toContain("chart_plan: limited");
-    expect(prompt).toContain("Series labels must match their source field.");
+    expect(prompt).toContain("Series labels may use explicit custom legend text when provided.");
     expect(prompt).toContain("note_writes: unsupported");
     expect(prompt).toContain("external_data_plan: unsupported");
     expect(prompt).toContain("Do not emit external_data_plan on Excel hosts.");

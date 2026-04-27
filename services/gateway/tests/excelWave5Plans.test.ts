@@ -288,7 +288,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         chartType: "line",
         categoryField: "Month",
         series: [
-          { field: "Revenue", label: "Revenue" },
+          { field: "Revenue", label: "Gross Revenue" },
           { field: "Margin", label: "Margin" }
         ],
         title: "Revenue vs Margin",
@@ -812,6 +812,10 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       columnCount: 1,
       values: [[""]]
     });
+    const chartSeries = [
+      { name: "" },
+      { name: "" }
+    ];
     const chart = {
       title: {
         text: "",
@@ -834,6 +838,9 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
             visible: false
           }
         }
+      },
+      series: {
+        getItemAt: vi.fn((index: number) => chartSeries[index])
       },
       setPosition: vi.fn()
     };
@@ -885,8 +892,8 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         chartType: "line",
         categoryField: "Month",
         series: [
-          { field: "Revenue", label: "Revenue" },
-          { field: "Margin", label: "Margin" }
+          { field: "Revenue", label: "Gross Revenue" },
+          { field: "Margin", label: "Margin %" }
         ],
         title: "Revenue vs Margin",
         legendPosition: "bottom",
@@ -913,8 +920,8 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       chartType: "line",
       categoryField: "Month",
       series: [
-        { field: "Revenue", label: "Revenue" },
-        { field: "Margin", label: "Margin" }
+        { field: "Revenue", label: "Gross Revenue" },
+        { field: "Margin", label: "Margin %" }
       ],
       title: "Revenue vs Margin",
       legendPosition: "bottom",
@@ -935,6 +942,12 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
     expect(chart.axes.categoryAxis.title.text).toBe("Month");
     expect(chart.axes.valueAxis.title.visible).toBe(true);
     expect(chart.axes.valueAxis.title.text).toBe("USD");
+    expect(chart.series.getItemAt).toHaveBeenNthCalledWith(1, 0);
+    expect(chart.series.getItemAt).toHaveBeenNthCalledWith(2, 1);
+    expect(chartSeries).toEqual([
+      { name: "Gross Revenue" },
+      { name: "Margin %" }
+    ]);
   });
 
   it("fails closed when a pie chart requests axis titles in Excel", async () => {
@@ -987,7 +1000,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
     })).rejects.toThrow("Excel host does not support axis titles for pie charts.");
   });
 
-  it("fails closed for chart previews and apply paths when the plan would rename series labels", async () => {
+  it("keeps chart previews confirmable when the plan renames series labels", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {}),
       workbook: {
@@ -1021,20 +1034,62 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       }
     };
 
-    expect(taskpane.isWritePlanResponse(response)).toBe(false);
+    expect(taskpane.isWritePlanResponse(response)).toBe(true);
     expect(taskpane.getRequiresConfirmation(response)).toBe(true);
     const html = taskpane.renderStructuredPreview(response, {
       runId: "run_chart_label_preview_excel_001",
       requestId: "req_chart_label_preview_excel_001"
     });
-    expect(html).toContain("can't rename chart series labels during creation");
+    expect(html).toContain("Will create a line chart on Sales Chart!A1.");
+    expect(html).toContain("Confirm Chart");
+  });
+
+  it("fails closed when a chart series label exceeds Excel's host limit", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn()
+        }
+      }
+    });
+    const longLabel = "A".repeat(256);
+    const response = {
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:B20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartType: "line",
+        categoryField: "Month",
+        series: [
+          { field: "Revenue", label: longLabel }
+        ],
+        title: "Revenue",
+        legendPosition: "bottom",
+        explanation: "Chart monthly revenue.",
+        confidence: 0.93,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:B20", "Sales Chart!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(taskpane.isWritePlanResponse(response)).toBe(false);
+    const html = taskpane.renderStructuredPreview(response, {
+      runId: "run_chart_label_limit_preview_excel_001",
+      requestId: "req_chart_label_limit_preview_excel_001"
+    });
+    expect(html).toContain("series labels to be 255 characters or fewer");
     expect(html).not.toContain("Confirm Chart");
 
     await expect(taskpane.applyWritePlan({
       plan: response.data,
-      requestId: "req_chart_label_apply_excel_001",
-      runId: "run_chart_label_apply_excel_001",
+      requestId: "req_chart_label_limit_apply_excel_001",
+      runId: "run_chart_label_limit_apply_excel_001",
       approvalToken: "token"
-    })).rejects.toThrow("Excel host can't rename chart series labels during creation.");
+    })).rejects.toThrow("Excel host requires chart series labels to be 255 characters or fewer.");
   });
 });
