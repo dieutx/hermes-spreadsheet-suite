@@ -93,6 +93,7 @@ const SELECTION_EXPLANATION_KEYWORD_PATTERN = /\b(explain|describe|summari[sz]e|
 const SELECTION_REFERENCE_PATTERN = /\b(selection|selected|current|this|range|table|data|sheet|formula|sheet nay|range nay|du lieu nay|vung nay)\b/;
 const LOCATION_REFERENCE_PATTERN = /\b(sheet|tab|worksheet|range|cell|selection|table|this|current|here|sheet nay|range nay|cell nay|o nay|vung nay|du lieu nay|hien tai)\b/;
 const IMPLICIT_TARGET_PATTERN = /\b(table|range|this|it|selection|current|here|sheet nay|range nay|du lieu nay|vung nay)\b/;
+const CURRENT_CELL_TARGET_PATTERN = /\b(?:current|active|selected|this)\s+cell\b/;
 const MATERIALIZE_VERB_PATTERN = /\b(write|put|place|insert|save|materiali[sz]e|output|export|ghi|dat|dua|xuat|tao)\b/;
 const MATERIALIZE_TARGET_PATTERN = /\b(new sheet|sheet|tab|worksheet|range|cell|summary sheet|report sheet|sheet moi)\b/;
 const TOOL_FLOW_INTENT_PATTERN = /\b(build|create|make|set up|setup|scaffold|tao|dung|lap)\b/;
@@ -610,6 +611,13 @@ function isLikelyFormulaDebugRequest(
   return false;
 }
 
+function isLikelyCurrentCellFormulaWriteTarget(
+  request: HermesRequest,
+  normalizedMessage: string
+): boolean {
+  return hasFormulaContext(request) && CURRENT_CELL_TARGET_PATTERN.test(normalizedMessage);
+}
+
 function isLikelyExternalDataRequest(
   normalizedMessage: string
 ): boolean {
@@ -645,7 +653,10 @@ function getPreferredResponseType(
   }
   if (!/\bvalidation\b/.test(userMessage) &&
     FORMULA_APPLY_PATTERN.test(userMessage) &&
-    A1_REFERENCE_PATTERN.test(userMessage)) {
+    (
+      A1_REFERENCE_PATTERN.test(userMessage) ||
+      isLikelyCurrentCellFormulaWriteTarget(request, userMessage)
+    )) {
     return "sheet_update";
   }
   if (isLikelyCurrentTableFormulaFillRequest(request, userMessage)) {
@@ -809,7 +820,12 @@ export function buildHermesSpreadsheetRequestPrompt(request: HermesRequest): str
   const preferredResponseType = routingHints.preferredResponseType;
   const reviewerUnavailable = request.reviewer.forceExtractionMode === "unavailable";
   const generatedDataRequest = routingHints.generatedDataRequest;
-  const currentTableFormulaFillRequest = isLikelyCurrentTableFormulaFillRequest(request, normalizeNaturalLanguage(request.userMessage));
+  const normalizedUserMessage = normalizeNaturalLanguage(request.userMessage);
+  const currentTableFormulaFillRequest = isLikelyCurrentTableFormulaFillRequest(request, normalizedUserMessage);
+  const formulaWriteNeedsContext =
+    preferredResponseType === "sheet_update" &&
+    hasFormulaContext(request) &&
+    FORMULA_APPLY_PATTERN.test(normalizedUserMessage);
 
   return [
     "Return JSON only.",
@@ -955,7 +971,7 @@ export function buildHermesSpreadsheetRequestPrompt(request: HermesRequest): str
     preferredResponseType === "formula"
       ? "For formula correction asks that do not explicitly apply a write to a target cell or range, prefer data.intent=\"fix\"."
       : "",
-    preferredResponseType === "formula"
+    preferredResponseType === "formula" || formulaWriteNeedsContext
       ? "When available, inspect context.activeCell.formula, context.selection.formulas, and context.referencedCells formulas before answering."
       : "",
     "If the request cannot be completed, return a valid structured error body instead of prose.",
