@@ -2995,6 +2995,7 @@ function getValidationInputMessage(plan) {
 
 function hasCustomValidationPromptOrAlert(plan) {
   return Boolean(
+    plan.helpText ||
     plan.inputTitle ||
     plan.inputMessage ||
     plan.errorTitle ||
