@@ -282,6 +282,7 @@ For type="range_transfer_plan":
 - data.sourceSheet is required
 - data.sourceRange is required
 - data.targetSheet is required
+- data.targetRange is required and must be the full destination rectangle or A1 anchor that resolves to the full destination rectangle
 - data.operation is required and must be copy, move, or append
 - data.pasteMode is required
 - data.transpose is required
