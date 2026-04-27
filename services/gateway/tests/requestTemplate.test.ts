@@ -127,6 +127,30 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("targetCell");
   });
 
+  it("routes current-cell formula apply prompts toward executable sheet updates", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Fix this formula and apply it to the current cell.",
+      context: {
+        selection: {
+          range: "F6",
+          headers: ["Revenue"],
+          values: [[null]],
+          formulas: [["=SUMIF(B:B,,F:F)"]]
+        },
+        activeCell: {
+          a1Notation: "F6",
+          displayValue: "#N/A",
+          value: "#N/A",
+          formula: "=SUMIF(B:B,,F:F)"
+        }
+      }
+    }));
+
+    expect(prompt).toContain('Prefer type="sheet_update"');
+    expect(prompt).toContain('operation="set_formulas"');
+    expect(prompt).toContain("context.activeCell.formula");
+  });
+
   it("routes advisory formula-debug prompts toward formula responses when the user is not applying a change yet", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "Why is this formula broken?",
