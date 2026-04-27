@@ -715,6 +715,65 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     });
     expect(message.pendingCompletion).toBeUndefined();
   });
+
+  it("does not execute Excel writes when approval responses omit required tokens", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://gateway.test/api/writeback/approve") {
+        return new Response(JSON.stringify({
+          planDigest: "plan-digest",
+          executionId: "exec_missing_token_001"
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    const worksheets = {
+      items: [
+        { name: "Sheet1", position: 0, visibility: "visible" }
+      ],
+      load: vi.fn(),
+      add: vi.fn((name: string) => ({ name, position: 1, visibility: "visible" }))
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    }, {
+      fetchImpl: fetchMock,
+      locationSearch: "?gateway=http%3A%2F%2Fgateway.test"
+    });
+
+    const message = {
+      role: "assistant",
+      requestId: "req_missing_token_001",
+      runId: "run_missing_token_001",
+      response: {
+        type: "workbook_structure_update",
+        data: {
+          operation: "create_sheet",
+          sheetName: "Missing Token",
+          explanation: "Create a new sheet named Missing Token.",
+          confidence: 0.99,
+          requiresConfirmation: true
+        }
+      },
+      content: "Prepared a workbook update to create sheet Missing Token.",
+      statusLine: "",
+      traceIndex: 0,
+      trace: []
+    };
+
+    await taskpane.executeWritePlanMessage(message);
+
+    expect(worksheets.add).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(message.pendingCompletion).toBeUndefined();
+    expect(message.statusLine).toContain("writeback approval response");
+  });
+
   it("keeps polling the run when the trace has already expired", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn()

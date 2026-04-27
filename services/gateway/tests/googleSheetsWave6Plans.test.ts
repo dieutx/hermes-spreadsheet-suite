@@ -3158,7 +3158,8 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
           ok: true,
           json: async () => ({
             approvalToken: "approval-token",
-            planDigest: "plan-digest"
+            planDigest: "plan-digest",
+            executionId: "exec_confirm_sheet_001"
           })
         };
       }
@@ -3296,7 +3297,8 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
           ok: true,
           json: async () => ({
             approvalToken: "approval-token",
-            planDigest: "plan-digest"
+            planDigest: "plan-digest",
+            executionId: "exec_delete_foo_001"
           })
         };
       }
@@ -3489,6 +3491,83 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(hooks.state.messages[0].pendingCompletion).toBeUndefined();
   });
 
+  it("does not execute Google Sheets writes when approval responses omit required tokens", async () => {
+    const sidebar = loadSidebarContext();
+    const hooks = (sidebar as any).__sidebarTestHooks;
+
+    hooks.state.runtimeConfig = {
+      gatewayBaseUrl: "http://gateway.test",
+      clientVersion: "google-sheets-addon-dev",
+      reviewerSafeMode: false,
+      forceExtractionMode: null
+    };
+    hooks.state.messages = [
+      {
+        role: "assistant",
+        runId: "run_missing_token_001",
+        requestId: "req_missing_token_001",
+        response: {
+          type: "workbook_structure_update",
+          data: {
+            operation: "create_sheet",
+            sheetName: "Missing Token",
+            explanation: "Create a new sheet named Missing Token.",
+            confidence: 0.99,
+            requiresConfirmation: true
+          }
+        },
+        content: "Prepared a workbook update to create sheet Missing Token.",
+        statusLine: ""
+      }
+    ];
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://gateway.test/api/writeback/approve") {
+        return {
+          ok: true,
+          json: async () => ({
+            planDigest: "plan-digest",
+            executionId: "exec_missing_token_001"
+          })
+        };
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+    sidebar.fetch = fetchMock;
+
+    let successHandler: ((value: unknown) => unknown) | null = null;
+    let failureHandler: ((value: unknown) => unknown) | null = null;
+    const applyWritePlanSpy = vi.fn(() => {
+      failureHandler?.(new Error("applyWritePlan should not be called"));
+    });
+    sidebar.google.script.run = {
+      withSuccessHandler(handler: (value: unknown) => unknown) {
+        successHandler = handler;
+        return this;
+      },
+      withFailureHandler(handler: (value: unknown) => unknown) {
+        failureHandler = handler;
+        return this;
+      },
+      applyWritePlan: applyWritePlanSpy,
+      getWorkbookSessionKey() {
+        successHandler?.("google_sheets::sheet-123");
+      },
+      getSpreadsheetSnapshot: vi.fn(() => {
+        throw new Error("sendPrompt should not request a fresh snapshot for typed confirmation.");
+      })
+    };
+
+    hooks.elements.prompt.value = 'Confirm create sheet "Missing Token"';
+    await hooks.sendPrompt();
+
+    expect(applyWritePlanSpy).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(hooks.state.messages[0].pendingCompletion).toBeUndefined();
+    expect(hooks.state.messages[0].statusLine).toContain("writeback approval response");
+  });
+
   it("disambiguates typed range confirmations by quoted sheet-range target instead of always executing the newest pending plan", async () => {
     const sidebar = loadSidebarContext();
     const hooks = (sidebar as any).__sidebarTestHooks;
@@ -3555,7 +3634,8 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
           ok: true,
           json: async () => ({
             approvalToken: "approval-token",
-            planDigest: "plan-digest"
+            planDigest: "plan-digest",
+            executionId: "exec_update_sales_001"
           })
         };
       }

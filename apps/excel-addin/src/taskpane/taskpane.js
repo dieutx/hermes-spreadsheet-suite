@@ -4853,6 +4853,23 @@ async function parseJson(response) {
   return response.json();
 }
 
+function assertWritebackApprovalPayload(payload) {
+  if (
+    !payload ||
+    typeof payload.approvalToken !== "string" ||
+    payload.approvalToken.trim().length === 0 ||
+    typeof payload.planDigest !== "string" ||
+    payload.planDigest.trim().length === 0 ||
+    typeof payload.executionId !== "string" ||
+    payload.executionId.trim().length === 0
+  ) {
+    throw new Error(
+      "The Hermes service returned a writeback approval response the client could not use.\n\n" +
+      "Retry the approval, then reload the client if it keeps happening."
+    );
+  }
+}
+
 const gateway = {
   async uploadImage(input) {
     const form = new FormData();
@@ -4898,11 +4915,13 @@ const gateway = {
   },
 
   async approveWrite(input) {
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/writeback/approve`, {
+    const payload = await parseJson(await fetch(`${gatewayBaseUrl}/api/writeback/approve`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)
     }));
+    assertWritebackApprovalPayload(payload);
+    return payload;
   },
 
   async completeWrite(input) {

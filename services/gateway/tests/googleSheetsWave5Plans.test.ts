@@ -1337,7 +1337,8 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
           ok: true,
           json: async () => ({
             approvalToken: "approval-token",
-            planDigest: "plan-digest"
+            planDigest: "plan-digest",
+            executionId: "exec_analysis_report_live_confirm"
           })
         };
       }
