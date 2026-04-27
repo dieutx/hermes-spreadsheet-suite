@@ -586,6 +586,16 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain('Prefer type="pivot_table_plan"');
   });
 
+  it("keeps advisory pivot how-to prompts on the chat path", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Explain how to create a pivot table for this data."
+    }));
+
+    expect(prompt).toContain('Prefer type="chat"');
+    expect(prompt).not.toContain('Prefer type="pivot_table_plan"');
+    expect(prompt).not.toContain("This request explicitly asks for a spreadsheet change.");
+  });
+
   it("uses currentRegion guidance for pivot asks over the current data region", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "tao pivot cho vung data hien tai",
@@ -644,6 +654,16 @@ describe("Hermes spreadsheet request prompt", () => {
     }));
 
     expect(prompt).toContain('Prefer type="chart_plan"');
+  });
+
+  it("keeps advisory chart how-to prompts on the chat path", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Explain how to create a line chart for this data."
+    }));
+
+    expect(prompt).toContain('Prefer type="chat"');
+    expect(prompt).not.toContain('Prefer type="chart_plan"');
+    expect(prompt).not.toContain("This request explicitly asks for a spreadsheet change.");
   });
 
   it("uses currentRegion guidance for chart asks over the current data region", () => {
