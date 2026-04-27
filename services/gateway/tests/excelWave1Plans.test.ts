@@ -539,6 +539,54 @@ describe("Excel wave 1 plan helpers", () => {
     );
   });
 
+  it("fails closed when Excel cannot expose freeze pane operations", async () => {
+    const worksheet = {
+      getRangeByIndexes: vi.fn(() => ({ address: "Sheet1!B2" })),
+      freezePanes: {}
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        operation: "freeze_panes",
+        frozenRows: 1,
+        frozenColumns: 1,
+        explanation: "Freeze the header row and first column.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_freeze_no_api_excel_001",
+      runId: "run_freeze_no_api_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host does not support freezing panes on this sheet.");
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        operation: "unfreeze_panes",
+        frozenRows: 0,
+        frozenColumns: 0,
+        explanation: "Unfreeze panes.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_unfreeze_no_api_excel_001",
+      runId: "run_unfreeze_no_api_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host does not support unfreezing panes on this sheet.");
+  });
+
   it("applies note-only sheet updates through the Excel host without changing cell values", async () => {
     let assignedValues: unknown[][] | null = null;
     let assignedFormulas: unknown[][] | null = null;

@@ -6946,15 +6946,17 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           break;
         case "freeze_panes": {
           const anchor = sheet.getRangeByIndexes(plan.frozenRows, plan.frozenColumns, 1, 1);
-          if (sheet.freezePanes?.freezeAt) {
-            sheet.freezePanes.freezeAt(anchor);
+          if (typeof sheet.freezePanes?.freezeAt !== "function") {
+            throw new Error("Excel host does not support freezing panes on this sheet.");
           }
+          sheet.freezePanes.freezeAt(anchor);
           break;
         }
         case "unfreeze_panes":
-          if (sheet.freezePanes?.unfreeze) {
-            sheet.freezePanes.unfreeze();
+          if (typeof sheet.freezePanes?.unfreeze !== "function") {
+            throw new Error("Excel host does not support unfreezing panes on this sheet.");
           }
+          sheet.freezePanes.unfreeze();
           break;
         case "autofit_rows":
           sheet.getRange(plan.targetRange).format.autofitRows();
