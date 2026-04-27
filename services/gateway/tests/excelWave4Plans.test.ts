@@ -1165,15 +1165,15 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     ]);
   });
 
-  it("fails closed for unsupported normalize_case modes in Excel", async () => {
+  it("applies normalize_case sentence cleanup in Excel", async () => {
     const targetRange = createRangeStub({
       address: "Contacts!A2:A4",
       rowCount: 3,
       columnCount: 1,
       values: [
-        ["Ada Lovelace"],
-        ["Grace Hopper"],
-        ["Alan Turing"]
+        ["aDA LOVELACE"],
+        ["GRACE HOPPER"],
+        [42]
       ]
     });
     const worksheet = {
@@ -1201,12 +1201,81 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       },
-      requestId: "req_cleanup_normalize_case_invalid_excel_001",
-      runId: "run_cleanup_normalize_case_invalid_excel_001",
+      requestId: "req_cleanup_normalize_case_sentence_excel_001",
+      runId: "run_cleanup_normalize_case_sentence_excel_001",
       approvalToken: "token"
-    })).rejects.toThrow(
-      "Excel host does not support exact-safe cleanup semantics for normalize_case mode sentence."
-    );
+    })).resolves.toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "normalize_case",
+      mode: "sentence",
+      targetSheet: "Contacts",
+      targetRange: "A2:A4"
+    });
+
+    expect(targetRange.values).toEqual([
+      ["Ada lovelace"],
+      ["Grace hopper"],
+      [42]
+    ]);
+  });
+
+  it("applies normalize_case sentence cleanup with formula-aware wrappers in Excel", async () => {
+    const targetRange = createRangeStub({
+      address: "Contacts!A2:A4",
+      rowCount: 3,
+      columnCount: 1,
+      values: [
+        ["ADA LOVELACE"],
+        ["GRACE HOPPER"],
+        ["Alan Turing"]
+      ],
+      formulas: [
+        ["=UPPER(A2)"],
+        ["=UPPER(A3)"],
+        [""]
+      ]
+    });
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:A4",
+        operation: "normalize_case",
+        mode: "sentence",
+        explanation: "Normalize formula-driven names into sentence case.",
+        confidence: 0.81,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:A4"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      },
+      requestId: "req_cleanup_normalize_case_sentence_formulas_excel_001",
+      runId: "run_cleanup_normalize_case_sentence_formulas_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "normalize_case",
+      mode: "sentence",
+      targetSheet: "Contacts",
+      targetRange: "A2:A4"
+    });
+
+    expect(targetRange.formulas).toEqual([
+      ["=LET(_hermes_value, UPPER(A2), IF(ISTEXT(_hermes_value), LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text))), _hermes_value))"],
+      ["=LET(_hermes_value, UPPER(A3), IF(ISTEXT(_hermes_value), LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text))), _hermes_value))"],
+      ["Alan turing"]
+    ]);
   });
 
   it("applies normalize_case title cleanup in Excel", async () => {

@@ -1384,7 +1384,7 @@ export const DataCleanupPlanDataSchema = z.discriminatedUnion("operation", [
   strictObject({
     ...dataCleanupPlanSharedFields,
     operation: z.literal("normalize_case"),
-    mode: z.enum(["upper", "lower", "title"])
+    mode: z.enum(["upper", "lower", "title", "sentence"])
   }),
   strictObject({
     ...dataCleanupPlanSharedFields,
