@@ -467,6 +467,88 @@ describe("Google Sheets wave 1 helper compilation", () => {
     expect(remove).not.toHaveBeenCalled();
   });
 
+  it("fails closed instead of partially applying Google Sheets sort plans with unresolved keys", () => {
+    const sort = vi.fn();
+    const targetRange = {
+      getNumColumns() {
+        return 2;
+      },
+      getNumRows() {
+        return 4;
+      },
+      getColumn() {
+        return 1;
+      },
+      getRow() {
+        return 1;
+      },
+      getA1Notation() {
+        return "A1:B4";
+      },
+      getValues() {
+        return [
+          ["Status", "Amount"],
+          ["Open", 10],
+          ["Closed", 12],
+          ["Open", 7]
+        ];
+      },
+      getFormulas() {
+        return [
+          ["", ""],
+          ["", ""],
+          ["", ""],
+          ["", ""]
+        ];
+      },
+      getDisplayValues() {
+        return [
+          ["Status", "Amount"],
+          ["Open", "10"],
+          ["Closed", "12"],
+          ["Open", "7"]
+        ];
+      }
+    };
+    const sheet = {
+      getRange(...args: unknown[]) {
+        if (args.length === 1) {
+          expect(args[0]).toBe("A1:B4");
+          return targetRange;
+        }
+
+        return {
+          sort
+        };
+      }
+    };
+    const spreadsheet = {
+      getSheetByName(sheetName: string) {
+        expect(sheetName).toBe("Sheet1");
+        return sheet;
+      }
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    expect(() => applyWritePlan({
+      executionId: "exec_sort_unresolved_001",
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:B4",
+        hasHeader: true,
+        keys: [
+          { columnRef: "Status", direction: "asc" },
+          { columnRef: "Missing Header", direction: "desc" }
+        ],
+        explanation: "Sort by status and a missing field.",
+        confidence: 0.88,
+        requiresConfirmation: true
+      }
+    })).toThrow("Google Sheets host could not resolve sort key Missing Header inside the target range.");
+
+    expect(sort).not.toHaveBeenCalled();
+  });
+
   it("fails safely for grid-filter semantics that cannot be represented exactly", () => {
     const targetRange = {
       getNumColumns() {

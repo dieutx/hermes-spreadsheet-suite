@@ -4142,11 +4142,30 @@ function resolveRelativeColumnRef_(columnRef, target, hasHeader) {
 }
 
 function buildGoogleSheetsSortSpecs_(plan, target) {
+  const resolvedKeys = plan.keys.map(function(key) {
+    return {
+      columnRef: resolveRelativeColumnRef_(key && key.columnRef, target, plan.hasHeader),
+      direction: key && key.direction,
+      originalColumnRef: key && key.columnRef
+    };
+  });
+  const unresolvedKey = resolvedKeys.find(function(key) {
+    return !key.columnRef;
+  });
+
+  if (unresolvedKey) {
+    throw new Error(
+      'Google Sheets host could not resolve sort key ' +
+      unresolvedKey.originalColumnRef +
+      ' inside the target range.'
+    );
+  }
+
   return buildSortSpec_({
-    keys: plan.keys.map(function(key) {
+    keys: resolvedKeys.map(function(key) {
       return {
-        columnRef: resolveRelativeColumnRef_(key && key.columnRef, target, plan.hasHeader),
-        direction: key && key.direction
+        columnRef: key.columnRef,
+        direction: key.direction
       };
     })
   }).map(function(spec) {
