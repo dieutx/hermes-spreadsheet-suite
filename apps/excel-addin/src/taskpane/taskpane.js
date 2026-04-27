@@ -1501,8 +1501,24 @@ function normalizeFilterPreviewColumnRef(columnRef) {
   return `s:${trimmed.toLocaleLowerCase()}`;
 }
 
-function hasRepeatedFilterPreviewColumns(conditions) {
-  const seen = new Set();
+function isExcelCustomFilterOperator(operator) {
+  return [
+    "equals",
+    "notEquals",
+    "contains",
+    "startsWith",
+    "endsWith",
+    "greaterThan",
+    "greaterThanOrEqual",
+    "lessThan",
+    "lessThanOrEqual",
+    "isEmpty",
+    "isNotEmpty"
+  ].includes(operator);
+}
+
+function hasUnsupportedRepeatedExcelFilterPreviewColumns(conditions) {
+  const groupedConditions = new Map();
 
   for (const condition of conditions || []) {
     const normalizedColumnRef = normalizeFilterPreviewColumnRef(condition?.columnRef);
@@ -1510,11 +1526,25 @@ function hasRepeatedFilterPreviewColumns(conditions) {
       continue;
     }
 
-    if (seen.has(normalizedColumnRef)) {
+    if (!groupedConditions.has(normalizedColumnRef)) {
+      groupedConditions.set(normalizedColumnRef, []);
+    }
+
+    groupedConditions.get(normalizedColumnRef).push(condition);
+  }
+
+  for (const group of groupedConditions.values()) {
+    if (group.length <= 1) {
+      continue;
+    }
+
+    if (group.length !== 2) {
       return true;
     }
 
-    seen.add(normalizedColumnRef);
+    if (!group.every((condition) => isExcelCustomFilterOperator(condition?.operator))) {
+      return true;
+    }
   }
 
   return false;
@@ -1792,7 +1822,7 @@ function getExcelPlanSupportError(preview) {
       return "This Excel runtime can't combine those filter conditions exactly. Use a single AND filter step instead.";
     }
 
-    if (hasRepeatedFilterPreviewColumns(preview.conditions)) {
+    if (hasUnsupportedRepeatedExcelFilterPreviewColumns(preview.conditions)) {
       return "This Excel runtime can't apply multiple conditions to the same filter column in one exact step.";
     }
 
@@ -6981,6 +7011,43 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       }
     }
 
+    function isComposableExcelFilterCriteria(criteria) {
+      return criteria?.filterOn === "custom" &&
+        typeof criteria.criterion1 === "string" &&
+        typeof criteria.criterion2 === "undefined";
+    }
+
+    function getExcelAndFilterOperator() {
+      if (typeof Excel !== "undefined" && Excel.FilterOperator?.and) {
+        return Excel.FilterOperator.and;
+      }
+
+      return "and";
+    }
+
+    function buildExcelFilterCriteriaForColumn(conditions) {
+      if (conditions.length === 1) {
+        return buildFilterCriteria(conditions[0]);
+      }
+
+      if (conditions.length !== 2) {
+        throw new Error("Excel host does not support multiple conditions for the same column.");
+      }
+
+      const firstCriteria = buildFilterCriteria(conditions[0]);
+      const secondCriteria = buildFilterCriteria(conditions[1]);
+      if (!isComposableExcelFilterCriteria(firstCriteria) || !isComposableExcelFilterCriteria(secondCriteria)) {
+        throw new Error("Excel host does not support multiple conditions for the same column.");
+      }
+
+      return {
+        filterOn: "custom",
+        criterion1: firstCriteria.criterion1,
+        criterion2: secondCriteria.criterion1,
+        operator: getExcelAndFilterOperator()
+      };
+    }
+
     if (isRangeSortPlan(plan)) {
       const sheet = worksheets.getItem(plan.targetSheet);
       const target = sheet.getRange(plan.targetRange);
@@ -7036,25 +7103,34 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         ...condition,
         resolvedColumnRef: resolveColumnRef(condition.columnRef, target.values, plan.hasHeader)
       }));
-      const resolvedColumns = new Set();
+      const conditionsByColumn = new Map();
 
       for (const condition of resolvedConditions) {
         const columnKey = String(condition.resolvedColumnRef);
-        if (resolvedColumns.has(columnKey)) {
-          throw new Error("Excel host does not support multiple conditions for the same column.");
+        if (!conditionsByColumn.has(columnKey)) {
+          conditionsByColumn.set(columnKey, {
+            columnRef: condition.resolvedColumnRef,
+            conditions: []
+          });
         }
-        resolvedColumns.add(columnKey);
+
+        conditionsByColumn.get(columnKey).conditions.push(condition);
       }
+
+      const filterCriteriaByColumn = Array.from(conditionsByColumn.values()).map((columnGroup) => ({
+        columnRef: columnGroup.columnRef,
+        criteria: buildExcelFilterCriteriaForColumn(columnGroup.conditions)
+      }));
 
       if (plan.clearExistingFilters && autoFilter.clearCriteria) {
         autoFilter.clearCriteria();
       }
 
-      for (const condition of resolvedConditions) {
+      for (const filter of filterCriteriaByColumn) {
         autoFilter.apply(
           target,
-          condition.resolvedColumnRef,
-          buildFilterCriteria(condition)
+          filter.columnRef,
+          filter.criteria
         );
       }
 
