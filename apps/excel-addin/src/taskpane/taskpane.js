@@ -4853,6 +4853,15 @@ async function parseJson(response) {
   return response.json();
 }
 
+function assertWritebackCompletionAck(payload) {
+  if (!payload || payload.ok !== true) {
+    throw new Error(
+      "The Hermes service returned a writeback completion response the client could not use.\n\n" +
+      "Retry the writeback completion, then reload the client if it keeps happening."
+    );
+  }
+}
+
 const gateway = {
   async uploadImage(input) {
     const form = new FormData();
@@ -4906,11 +4915,13 @@ const gateway = {
   },
 
   async completeWrite(input) {
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/writeback/complete`, {
+    const payload = await parseJson(await fetch(`${gatewayBaseUrl}/api/writeback/complete`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)
     }));
+    assertWritebackCompletionAck(payload);
+    return payload;
   },
 
   async dryRunPlan(input) {

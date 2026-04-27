@@ -784,6 +784,15 @@
     return response.json();
   }
 
+  function assertWritebackCompletionAck(payload) {
+    if (!payload || payload.ok !== true) {
+      throw new Error(
+        "The Hermes service returned a writeback completion response the client could not use.\n\n" +
+        "Retry the writeback completion, then reload the sidebar if it keeps happening."
+      );
+    }
+  }
+
   function buildGatewayUrl(path) {
     const baseUrl = String(getGatewayBaseUrl() || "").replace(/\/+$/, "");
     const normalizedPath = String(path || "").trim();
@@ -1227,11 +1236,12 @@
 
     try {
       if (message.pendingCompletion) {
-        await callGatewayJson("/api/writeback/complete", {
+        const completion = await callGatewayJson("/api/writeback/complete", {
           method: "post",
           headers: { "content-type": "application/json" },
           body: message.pendingCompletion
         });
+        assertWritebackCompletionAck(completion);
         applyWritebackResultToMessage(message, message.pendingCompletion.result);
         renderMessages();
         return true;
@@ -1275,11 +1285,12 @@
         workbookSessionKey
       );
 
-      await callGatewayJson("/api/writeback/complete", {
+      const completion = await callGatewayJson("/api/writeback/complete", {
         method: "post",
         headers: { "content-type": "application/json" },
         body: message.pendingCompletion
       });
+      assertWritebackCompletionAck(completion);
 
       applyWritebackResultToMessage(message, gatewayResult);
     } catch (error) {
