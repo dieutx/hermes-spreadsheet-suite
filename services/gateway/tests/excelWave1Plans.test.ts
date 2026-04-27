@@ -422,7 +422,7 @@ describe("Excel wave 1 plan helpers", () => {
       targetRange: "A1:F25"
     });
     expect(sortApi.apply).toHaveBeenCalledWith(
-      [{ key: 1, ascending: true }],
+      [{ key: 0, ascending: true }],
       false,
       true
     );
@@ -458,8 +458,84 @@ describe("Excel wave 1 plan helpers", () => {
     expect(filterApi.clearCriteria).toHaveBeenCalledTimes(1);
     expect(filterApi.apply).toHaveBeenCalledWith(
       targetRange,
-      1,
+      0,
       { filterOn: "custom", criterion1: "=Open" }
+    );
+  });
+
+  it("maps Excel sort and filter column refs to zero-based offsets within the target range", async () => {
+    const sortApi = { apply: vi.fn() };
+    const filterApi = { apply: vi.fn(), clearCriteria: vi.fn() };
+    const targetRange = {
+      load: vi.fn(),
+      rowCount: 9,
+      columnCount: 2,
+      values: [
+        ["Status", "Amount"],
+        ["Open", 10]
+      ],
+      getSort: () => sortApi
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      autoFilter: filterApi
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:C10",
+        hasHeader: true,
+        keys: [
+          { columnRef: "C", direction: "desc" }
+        ],
+        explanation: "Sort by the Amount column.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      },
+      requestId: "req_sort_offset_001",
+      runId: "run_sort_offset_001",
+      approvalToken: "token"
+    });
+
+    expect(sortApi.apply).toHaveBeenCalledWith(
+      [{ key: 1, ascending: false }],
+      false,
+      true
+    );
+
+    await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:C10",
+        hasHeader: true,
+        conditions: [
+          { columnRef: "Amount", operator: "greaterThan", value: 5 }
+        ],
+        combiner: "and",
+        clearExistingFilters: true,
+        explanation: "Filter by the Amount column.",
+        confidence: 0.89,
+        requiresConfirmation: true
+      },
+      requestId: "req_filter_offset_001",
+      runId: "run_filter_offset_001",
+      approvalToken: "token"
+    });
+
+    expect(filterApi.apply).toHaveBeenCalledWith(
+      targetRange,
+      1,
+      { filterOn: "custom", criterion1: ">5" }
     );
   });
 
@@ -828,7 +904,7 @@ describe("Excel wave 1 plan helpers", () => {
     expect(filterApi.clearCriteria).toHaveBeenCalledTimes(1);
     expect(filterApi.apply).toHaveBeenCalledWith(
       targetRange,
-      2,
+      1,
       {
         filterOn: "custom",
         criterion1: ">10",
