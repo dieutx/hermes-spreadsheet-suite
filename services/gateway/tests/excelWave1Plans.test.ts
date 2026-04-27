@@ -904,7 +904,7 @@ describe("Excel wave 1 plan helpers", () => {
     expect(filterApi.clearCriteria).toHaveBeenCalledTimes(1);
     expect(filterApi.apply).toHaveBeenCalledWith(
       targetRange,
-      2,
+      1,
       {
         filterOn: "custom",
         criterion1: ">10",
