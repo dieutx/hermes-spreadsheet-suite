@@ -704,8 +704,26 @@ describe("Excel wave 1 plan helpers", () => {
         targetRange: "A1:F25",
         hasHeader: true,
         conditions: [
+          { columnRef: "Amount", operator: "greaterThan", value: 10 },
+          { columnRef: "amount", operator: "lessThan", value: 100 }
+        ],
+        combiner: "and",
+        clearExistingFilters: true,
+        explanation: "Keep amounts in range.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    };
+    const unsupportedDuplicateColumnResponse = {
+      type: "range_filter_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:F25",
+        hasHeader: true,
+        conditions: [
           { columnRef: "Status", operator: "equals", value: "Open" },
-          { columnRef: "status", operator: "notEquals", value: "Closed" }
+          { columnRef: "status", operator: "notEquals", value: "Closed" },
+          { columnRef: "STATUS", operator: "contains", value: "Active" }
         ],
         combiner: "and",
         clearExistingFilters: true,
@@ -721,12 +739,21 @@ describe("Excel wave 1 plan helpers", () => {
       requestId: "req_filter_preview_unsupported_excel_combiner"
     })).toContain("can't combine those filter conditions exactly");
 
-    const duplicateHtml = taskpane.renderStructuredPreview(duplicateColumnResponse, {
+    expect(taskpane.isWritePlanResponse(duplicateColumnResponse)).toBe(true);
+
+    const supportedDuplicateHtml = taskpane.renderStructuredPreview(duplicateColumnResponse, {
+      runId: "run_filter_preview_supported_excel_duplicate",
+      requestId: "req_filter_preview_supported_excel_duplicate"
+    });
+
+    expect(supportedDuplicateHtml).toContain("Confirm Filter");
+
+    const duplicateHtml = taskpane.renderStructuredPreview(unsupportedDuplicateColumnResponse, {
       runId: "run_filter_preview_unsupported_excel_duplicate",
       requestId: "req_filter_preview_unsupported_excel_duplicate"
     });
 
-    expect(taskpane.isWritePlanResponse(duplicateColumnResponse)).toBe(false);
+    expect(taskpane.isWritePlanResponse(unsupportedDuplicateColumnResponse)).toBe(false);
     expect(duplicateHtml).toContain("same filter column");
     expect(duplicateHtml).not.toContain("Confirm Filter");
   });
@@ -780,8 +807,47 @@ describe("Excel wave 1 plan helpers", () => {
         targetRange: "A1:F25",
         hasHeader: true,
         conditions: [
+          { columnRef: "Amount", operator: "greaterThan", value: 10 },
+          { columnRef: "Amount", operator: "lessThan", value: 100 }
+        ],
+        combiner: "and",
+        clearExistingFilters: true,
+        explanation: "Keep amounts in range.",
+        confidence: 0.89,
+        requiresConfirmation: true
+      },
+      requestId: "req_filter_repeat_supported_001",
+      runId: "run_filter_repeat_supported_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "range_filter",
+      targetSheet: "Sheet1",
+      targetRange: "A1:F25"
+    });
+
+    expect(filterApi.clearCriteria).toHaveBeenCalledTimes(1);
+    expect(filterApi.apply).toHaveBeenCalledWith(
+      targetRange,
+      2,
+      {
+        filterOn: "custom",
+        criterion1: ">10",
+        criterion2: "<100",
+        operator: "and"
+      }
+    );
+    filterApi.clearCriteria.mockClear();
+    filterApi.apply.mockClear();
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:F25",
+        hasHeader: true,
+        conditions: [
           { columnRef: "Status", operator: "equals", value: "Open" },
-          { columnRef: "Status", operator: "notEquals", value: "Closed" }
+          { columnRef: "Status", operator: "notEquals", value: "Closed" },
+          { columnRef: "Status", operator: "contains", value: "Active" }
         ],
         combiner: "and",
         clearExistingFilters: true,

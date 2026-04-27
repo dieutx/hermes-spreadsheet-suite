@@ -766,7 +766,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- external_data_plan: unsupported. Do not emit external_data_plan on Excel hosts. Return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\" and suggest a simpler alternative such as a preview, a plain formula explanation, or moving the task to Google Sheets.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats.",
         "- data_cleanup_plan: limited. normalize_case only supports upper, lower, and title. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
-        "- range_filter_plan: limited. Use combiner=and only and avoid repeated conditions on the same column in one exact step.",
+        "- range_filter_plan: limited. Use combiner=and only. Repeated conditions on the same column are exact-safe only when exactly two custom criteria can be combined with AND.",
         "- data_validation_plan: limited. Checkbox values must stay on true and false. inputTitle, inputMessage, errorTitle, and errorMessage are supported for non-checkbox validation rules.",
         noteWriteLine
       ];

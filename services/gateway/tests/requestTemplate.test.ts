@@ -102,6 +102,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("note_writes: unsupported");
     expect(prompt).toContain("external_data_plan: unsupported");
     expect(prompt).toContain("Do not emit external_data_plan on Excel hosts.");
+    expect(prompt).toContain("Repeated conditions on the same column are exact-safe only when exactly two custom criteria can be combined with AND.");
   });
 
   it("includes reviewer-safe unavailable error guidance", () => {
