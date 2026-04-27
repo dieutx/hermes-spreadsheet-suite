@@ -2637,6 +2637,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       })
     };
     const spreadsheet = {
+      setNamedRange: vi.fn(),
       getId() {
         return "sheet-123";
       },
@@ -2682,7 +2683,57 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     });
     expect(targetRange.applyRowBanding).toHaveBeenCalledTimes(1);
     expect(targetRange.createFilter).toHaveBeenCalledTimes(1);
+    expect(spreadsheet.setNamedRange).toHaveBeenCalledWith("SalesTable", targetRange);
     expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("does not name Google Sheets table-like ranges when required formatting is unsupported", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6
+    });
+    targetRange.applyRowBanding = undefined;
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("A1:F50");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      setNamedRange: vi.fn(),
+      getSheetByName(name: string) {
+        if (name === "Sales") {
+          return sheet;
+        }
+        return null;
+      }
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(() => code.applyWritePlan({
+      requestId: "req_table_apply_google_unsupported_name_001",
+      runId: "run_table_apply_google_unsupported_name_001",
+      approvalToken: "token",
+      executionId: "exec_table_apply_google_unsupported_name_001",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        showBandedRows: true,
+        explanation: "Format the sales range as a filterable table.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    })).toThrow("Google Sheets host does not support exact table-like row banding.");
+
+    expect(spreadsheet.setNamedRange).not.toHaveBeenCalled();
   });
 
   it("validates Google Sheets local execution snapshot shape before applying it", () => {
