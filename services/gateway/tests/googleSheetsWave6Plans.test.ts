@@ -3489,6 +3489,103 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(hooks.state.messages[0].pendingCompletion).toBeUndefined();
   });
 
+  it("keeps Google Sheets writebacks pending when completion returns malformed success JSON", async () => {
+    const sidebar = loadSidebarContext();
+    const hooks = (sidebar as any).__sidebarTestHooks;
+
+    hooks.state.runtimeConfig = {
+      gatewayBaseUrl: "http://gateway.test",
+      clientVersion: "google-sheets-addon-dev",
+      reviewerSafeMode: false,
+      forceExtractionMode: null
+    };
+    hooks.state.messages = [
+      {
+        role: "assistant",
+        runId: "run_malformed_ack_001",
+        requestId: "req_malformed_ack_001",
+        response: {
+          type: "workbook_structure_update",
+          data: {
+            operation: "create_sheet",
+            sheetName: "Malformed Ack",
+            explanation: "Create a new sheet named Malformed Ack.",
+            confidence: 0.99,
+            requiresConfirmation: true
+          }
+        },
+        content: "Prepared a workbook update to create sheet Malformed Ack.",
+        statusLine: ""
+      }
+    ];
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://gateway.test/api/writeback/approve") {
+        return {
+          ok: true,
+          json: async () => ({
+            approvalToken: "approval-token",
+            planDigest: "plan-digest",
+            executionId: "exec_malformed_ack_001"
+          })
+        };
+      }
+
+      if (url === "http://gateway.test/api/writeback/complete") {
+        return {
+          ok: true,
+          json: async () => ({ ok: false })
+        };
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+    sidebar.fetch = fetchMock;
+
+    let successHandler: ((value: unknown) => unknown) | null = null;
+    const applyWritePlanSpy = vi.fn((payload: Record<string, unknown>) => {
+      successHandler?.({
+        kind: "workbook_structure_update",
+        hostPlatform: "google_sheets",
+        sheetName: payload.plan && (payload.plan as any).sheetName,
+        operation: payload.plan && (payload.plan as any).operation,
+        summary: `Created sheet ${(payload.plan as any).sheetName}.`
+      });
+    });
+    sidebar.google.script.run = {
+      withSuccessHandler(handler: (value: unknown) => unknown) {
+        successHandler = handler;
+        return this;
+      },
+      withFailureHandler() {
+        return this;
+      },
+      applyWritePlan: applyWritePlanSpy,
+      getWorkbookSessionKey() {
+        successHandler?.("google_sheets::sheet-123");
+      },
+      getSpreadsheetSnapshot: vi.fn(() => {
+        throw new Error("sendPrompt should not request a fresh snapshot for typed confirmation.");
+      })
+    };
+
+    hooks.elements.prompt.value = 'Confirm create sheet "Malformed Ack"';
+    await hooks.sendPrompt();
+
+    expect(applyWritePlanSpy).toHaveBeenCalledTimes(1);
+    expect(hooks.state.messages[0].statusLine).toBe(
+      "Applied locally. Retry confirm to finish syncing Hermes history."
+    );
+    expect(hooks.state.messages[0].pendingCompletion).toMatchObject({
+      requestId: "req_malformed_ack_001",
+      runId: "run_malformed_ack_001",
+      workbookSessionKey: "google_sheets::sheet-123",
+      approvalToken: "approval-token",
+      planDigest: "plan-digest"
+    });
+    expect(hooks.state.messages[0].response).toBeTruthy();
+  });
+
   it("disambiguates typed range confirmations by quoted sheet-range target instead of always executing the newest pending plan", async () => {
     const sidebar = loadSidebarContext();
     const hooks = (sidebar as any).__sidebarTestHooks;

@@ -715,6 +715,80 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     });
     expect(message.pendingCompletion).toBeUndefined();
   });
+
+  it("keeps Excel writebacks pending when completion returns malformed success JSON", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "http://gateway.test/api/writeback/approve") {
+        return new Response(JSON.stringify({
+          approvalToken: "approval-token",
+          planDigest: "plan-digest",
+          executionId: "exec_malformed_ack_001"
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+
+      if (url === "http://gateway.test/api/writeback/complete") {
+        return new Response(JSON.stringify({ ok: false }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    const worksheets = {
+      items: [
+        { name: "Sheet1", position: 0, visibility: "visible" }
+      ],
+      load: vi.fn(),
+      add: vi.fn((name: string) => ({ name, position: 1, visibility: "visible" }))
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    }, {
+      fetchImpl: fetchMock,
+      locationSearch: "?gateway=http%3A%2F%2Fgateway.test"
+    });
+
+    const message = {
+      role: "assistant",
+      requestId: "req_malformed_ack_001",
+      runId: "run_malformed_ack_001",
+      response: {
+        type: "workbook_structure_update",
+        data: {
+          operation: "create_sheet",
+          sheetName: "Malformed Ack",
+          explanation: "Create a new sheet named Malformed Ack.",
+          confidence: 0.99,
+          requiresConfirmation: true
+        }
+      },
+      content: "Prepared a workbook update to create sheet Malformed Ack.",
+      statusLine: "",
+      traceIndex: 0,
+      trace: []
+    };
+
+    await taskpane.executeWritePlanMessage(message);
+
+    expect(worksheets.add).toHaveBeenCalledTimes(1);
+    expect(message.statusLine).toBe(
+      "Applied locally. Retry confirm to finish syncing Hermes history."
+    );
+    expect(message.pendingCompletion).toMatchObject({
+      requestId: "req_malformed_ack_001",
+      runId: "run_malformed_ack_001",
+      approvalToken: "approval-token",
+      planDigest: "plan-digest"
+    });
+    expect(message.response).toBeTruthy();
+  });
+
   it("keeps polling the run when the trace has already expired", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn()
