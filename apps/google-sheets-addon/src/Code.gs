@@ -3411,6 +3411,14 @@ function resolveTransferTargetRange_(targetRange, expectedRows, expectedColumns)
   throw new Error('The approved targetRange does not match the transfer shape.');
 }
 
+function resolveFullTransferTargetRange_(targetRange, expectedRows, expectedColumns) {
+  if (targetRange.getNumRows() === expectedRows && targetRange.getNumColumns() === expectedColumns) {
+    return targetRange;
+  }
+
+  throw new Error('The approved targetRange does not match the transfer shape.');
+}
+
 function deriveTransferTargetRangeA1_(plan, targetRange) {
   const planBounds = parseA1RangeReference_(plan.targetRange);
   if (planBounds.rowCount === targetRange.getNumRows() &&
@@ -5074,23 +5082,8 @@ function applyWritePlan(input) {
 
     const sourceRange = sourceSheet.getRange(plan.sourceRange);
     const targetAnchor = targetSheet.getRange(plan.targetRange);
-
-    if (plan.operation === 'append') {
-      const appendTarget = resolveAppendTransferTarget_(targetSheet, targetAnchor, sourceRange, plan);
-      assertNonOverlappingTransfer_(plan, appendTarget.actualTargetRange);
-
-      if (plan.pasteMode === 'values') {
-        appendTarget.writeRange.setValues(appendTarget.insertedMatrix);
-      } else {
-        writeTransferToTarget_(appendTarget.writeRange, sourceRange, plan);
-      }
-
-      SpreadsheetApp.flush();
-      return buildRangeTransferResult_(plan, appendTarget.actualTargetRange);
-    }
-
     const transferShape = getResolvedTransferShape_(sourceRange, plan);
-    const resolvedTargetRange = resolveTransferTargetRange_(
+    const resolvedTargetRange = resolveFullTransferTargetRange_(
       targetAnchor,
       transferShape.rows,
       transferShape.columns

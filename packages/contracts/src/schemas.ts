@@ -1331,6 +1331,20 @@ export const RangeTransferPlanDataSchema = z.discriminatedUnion("operation", [
     ...rangeTransferPlanSharedFields
   })
 ]).superRefine((data, ctx) => {
+  const parsedSourceRange = parseA1Range(data.sourceRange);
+  if (!parsedSourceRange) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "sourceRange must be a valid A1 range.",
+      path: ["sourceRange"]
+    });
+  } else {
+    validateTargetRangeMatchesShape(data.targetRange, {
+      rows: data.transpose ? parsedSourceRange.columns : parsedSourceRange.rows,
+      columns: data.transpose ? parsedSourceRange.rows : parsedSourceRange.columns
+    }, ctx);
+  }
+
   const shouldBeDestructive = data.operation === "move";
   if (data.confirmationLevel !== (shouldBeDestructive ? "destructive" : "standard")) {
     ctx.addIssue({

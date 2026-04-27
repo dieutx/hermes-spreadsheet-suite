@@ -3230,6 +3230,14 @@ function resolveExactMatrixTargetRange(targetRange, expectedRows, expectedColumn
   throw new Error(`The approved targetRange does not match the proposed ${shapeLabel}.`);
 }
 
+function resolveFullMatrixTargetRange(targetRange, expectedRows, expectedColumns, shapeLabel) {
+  if (targetRange.rowCount === expectedRows && targetRange.columnCount === expectedColumns) {
+    return targetRange;
+  }
+
+  throw new Error(`The approved targetRange does not match the ${shapeLabel}.`);
+}
+
 function normalizeTransferMatrix(matrix, plan) {
   const base = cloneMatrix(matrix);
   return plan.transpose ? transposeMatrix(base) : base;
@@ -7315,151 +7323,11 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       await context.sync();
 
       const resolvedShape = getResolvedTransferShape(sourceRange, plan);
-
-      if (plan.operation === "append") {
-        if (targetRange.columnCount !== resolvedShape.columns) {
-          throw new Error("Excel host cannot append when the approved target range width does not match the transfer width.");
-        }
-
-        const occupancyMatrix = getRangeOccupancyMatrix(targetRange.values, targetRange.formulas);
-        const existingMatrix = cloneMatrix(targetRange.values);
-        const insertedMatrix = plan.pasteMode === "formulas"
-          ? normalizeFormulaTransferMatrix(sourceRange.formulas, plan)
-          : plan.pasteMode === "values"
-            ? normalizeTransferMatrix(sourceRange.values, plan)
-            : null;
-        const insertedRowCount = insertedMatrix?.length || resolvedShape.rows;
-        const anchorOnlyRange =
-          targetRange.rowCount < insertedRowCount &&
-          occupancyMatrix.every((row) => row.every((isOccupied) => !isOccupied));
-
-        if (anchorOnlyRange) {
-          if (typeof targetRange.getResizedRange !== "function") {
-            throw new Error("Excel host cannot expand the approved append anchor exactly.");
-          }
-
-          const expandedTargetRange = targetRange.getResizedRange(
-            insertedRowCount - targetRange.rowCount,
-            0
-          );
-          expandedTargetRange.load?.(["rowCount", "columnCount"]);
-          await context.sync();
-
-          if (expandedTargetRange.rowCount !== insertedRowCount ||
-            expandedTargetRange.columnCount !== resolvedShape.columns) {
-            throw new Error("Excel host cannot expand the approved append anchor exactly.");
-          }
-
-          writeTransferValues(expandedTargetRange, sourceRange, plan);
-          await context.sync();
-          const actualTargetRange = getActualAppendTargetRange(
-            expandedTargetRange.address || plan.targetRange,
-            0,
-            insertedRowCount,
-            resolvedShape.columns
-          );
-          return {
-            kind: "range_transfer_update",
-            hostPlatform: platform,
-            operation: "range_transfer_update",
-            sourceSheet: plan.sourceSheet,
-            sourceRange: plan.sourceRange,
-            targetSheet: plan.targetSheet,
-            targetRange: actualTargetRange,
-            transferOperation: plan.operation,
-            pasteMode: plan.pasteMode,
-            transpose: plan.transpose,
-            summary: getRangeTransferStatusSummary({
-              ...plan,
-              targetRange: actualTargetRange
-            })
-          };
-        }
-
-        let firstEmptyRow = existingMatrix.length;
-        let seenGap = false;
-
-        for (let rowIndex = 0; rowIndex < existingMatrix.length; rowIndex += 1) {
-          const isEmptyRow = occupancyMatrix[rowIndex]?.every((isOccupied) => !isOccupied);
-          if (isEmptyRow) {
-            if (!seenGap) {
-              firstEmptyRow = rowIndex;
-              seenGap = true;
-            }
-            continue;
-          }
-
-          if (seenGap) {
-            throw new Error("Excel host cannot append exactly when the approved target range contains internal gaps.");
-          }
-        }
-
-        if (firstEmptyRow + insertedRowCount > targetRange.rowCount) {
-          throw new Error("Excel host cannot append exactly within the approved target range.");
-        }
-
-        const actualTargetRange = getActualAppendTargetRange(
-          targetRange.address || plan.targetRange,
-          firstEmptyRow,
-          insertedRowCount,
-          resolvedShape.columns
-        );
-
-        if (plan.pasteMode === "formulas" || plan.pasteMode === "formats") {
-          const appendWriteRange = targetWorksheet.getRange(actualTargetRange);
-          writeTransferValues(appendWriteRange, sourceRange, plan);
-          await context.sync();
-          return {
-            kind: "range_transfer_update",
-            hostPlatform: platform,
-            operation: "range_transfer_update",
-            sourceSheet: plan.sourceSheet,
-            sourceRange: plan.sourceRange,
-            targetSheet: plan.targetSheet,
-            targetRange: actualTargetRange,
-            transferOperation: plan.operation,
-            pasteMode: plan.pasteMode,
-            transpose: plan.transpose,
-            summary: getRangeTransferStatusSummary({
-              ...plan,
-              targetRange: actualTargetRange
-            })
-          };
-        }
-
-        const nextMatrix = cloneMatrix(existingMatrix);
-        for (let rowOffset = 0; rowOffset < insertedMatrix.length; rowOffset += 1) {
-          nextMatrix[firstEmptyRow + rowOffset] = Array.from(
-            { length: targetRange.columnCount },
-            (_, columnIndex) => insertedMatrix[rowOffset][columnIndex] ?? ""
-          );
-        }
-
-        targetRange.values = nextMatrix;
-
-        await context.sync();
-        return {
-          kind: "range_transfer_update",
-          hostPlatform: platform,
-          operation: "range_transfer_update",
-          sourceSheet: plan.sourceSheet,
-          sourceRange: plan.sourceRange,
-          targetSheet: plan.targetSheet,
-          targetRange: actualTargetRange,
-          transferOperation: plan.operation,
-          pasteMode: plan.pasteMode,
-          transpose: plan.transpose,
-          summary: getRangeTransferStatusSummary({
-            ...plan,
-            targetRange: actualTargetRange
-          })
-        };
-      }
-
-      const resolvedTargetRange = resolveExactMatrixTargetRange(
+      const resolvedTargetRange = resolveFullMatrixTargetRange(
         targetRange,
         resolvedShape.rows,
-        resolvedShape.columns
+        resolvedShape.columns,
+        "transfer shape"
       );
       const actualTargetRange = buildA1RangeFromBounds(
         deriveTransferTargetBounds(plan, resolvedTargetRange)
