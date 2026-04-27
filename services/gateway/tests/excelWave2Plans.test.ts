@@ -818,6 +818,55 @@ describe("Excel wave 2 plan helpers", () => {
     expect(workbookNames.add).not.toHaveBeenCalled();
   });
 
+  it("fails closed when retargeting an Excel named range resolved as a null object", async () => {
+    const missingNamedRange = {
+      isNullObject: true,
+      load: vi.fn()
+    };
+    const workbookNames = {
+      getItemOrNullObject: vi.fn(() => missingNamedRange)
+    };
+    const targetRange = {
+      address: "Sheet1!B2:D20"
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      names: {
+        getItemOrNullObject: vi.fn()
+      }
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        },
+        names: workbookNames
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        operation: "retarget",
+        scope: "workbook",
+        name: "MissingRange",
+        targetSheet: "Sheet1",
+        targetRange: "B2:D20",
+        explanation: "Move the workbook-scoped name.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      },
+      requestId: "req_named_range_retarget_missing_001",
+      runId: "run_named_range_retarget_missing_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Named range not found: MissingRange");
+
+    expect(workbookNames.getItemOrNullObject).toHaveBeenCalledWith("MissingRange");
+    expect(missingNamedRange.load).toHaveBeenCalledWith("name");
+    expect("reference" in missingNamedRange).toBe(false);
+  });
+
   it("uses sheetName to resolve sheet-scoped named range renames when targetSheet is absent", async () => {
     const sheetNamedRange = {
       reference: "Sheet Scope!A1:A2",
