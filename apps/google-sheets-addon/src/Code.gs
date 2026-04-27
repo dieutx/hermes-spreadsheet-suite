@@ -1849,6 +1849,25 @@ function validateGoogleSheetsTablePlanSupport_(plan) {
   }
 }
 
+function preflightGoogleSheetsTablePlanExecution_(spreadsheet, targetRange, plan) {
+  if (typeof plan.name === 'string' && plan.name.trim() &&
+    typeof spreadsheet.setNamedRange !== 'function') {
+    throw new Error('Google Sheets host does not support exact table-like range naming.');
+  }
+
+  if (plan.showBandedRows !== false && typeof targetRange.applyRowBanding !== 'function') {
+    throw new Error('Google Sheets host does not support exact table-like row banding.');
+  }
+
+  if (plan.showBandedColumns === true && typeof targetRange.applyColumnBanding !== 'function') {
+    throw new Error('Google Sheets host does not support exact table-like column banding.');
+  }
+
+  if (plan.showFilterButton !== false && typeof targetRange.createFilter !== 'function') {
+    throw new Error('Google Sheets host does not support exact table-like filter buttons.');
+  }
+}
+
 function applyTablePlan_(spreadsheet, plan) {
   validateGoogleSheetsTablePlanSupport_(plan);
   const sheet = spreadsheet.getSheetByName(plan.targetSheet);
@@ -1858,6 +1877,11 @@ function applyTablePlan_(spreadsheet, plan) {
   }
 
   const targetRange = sheet.getRange(plan.targetRange);
+  preflightGoogleSheetsTablePlanExecution_(spreadsheet, targetRange, plan);
+
+  if (typeof plan.name === 'string' && plan.name.trim()) {
+    spreadsheet.setNamedRange(plan.name, targetRange);
+  }
 
   if (plan.showBandedRows === true) {
     if (typeof targetRange.applyRowBanding !== 'function') {
@@ -1867,9 +1891,6 @@ function applyTablePlan_(spreadsheet, plan) {
   }
 
   if (plan.showBandedColumns === true) {
-    if (typeof targetRange.applyColumnBanding !== 'function') {
-      throw new Error('Google Sheets host does not support exact table-like column banding.');
-    }
     targetRange.applyColumnBanding();
   }
 
