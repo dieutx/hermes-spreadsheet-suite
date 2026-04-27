@@ -2685,6 +2685,68 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("leaves Google Sheets table-like optional formatting off when flags are omitted", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6
+    });
+    targetRange.applyRowBanding = vi.fn();
+    targetRange.applyColumnBanding = vi.fn();
+    targetRange.createFilter = vi.fn();
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("A1:F50");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getId() {
+        return "sheet-123";
+      },
+      getSheetByName(name: string) {
+        if (name === "Sales") {
+          return sheet;
+        }
+        return null;
+      }
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyWritePlan({
+      requestId: "req_table_apply_google_002",
+      runId: "run_table_apply_google_002",
+      approvalToken: "token",
+      executionId: "exec_table_apply_google_002",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        explanation: "Create a table-like range without additional formatting.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    })).toMatchObject({
+      kind: "table_update",
+      operation: "table_update",
+      hostPlatform: "google_sheets",
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      name: "SalesTable",
+      hasHeaders: true
+    });
+    expect(targetRange.applyRowBanding).not.toHaveBeenCalled();
+    expect(targetRange.applyColumnBanding).not.toHaveBeenCalled();
+    expect(targetRange.createFilter).not.toHaveBeenCalled();
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("validates Google Sheets local execution snapshot shape before applying it", () => {
     const targetRange = createRangeStub({
       a1Notation: "A1",

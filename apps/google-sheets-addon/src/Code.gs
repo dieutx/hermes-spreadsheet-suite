@@ -1848,7 +1848,7 @@ function applyTablePlan_(spreadsheet, plan) {
 
   const targetRange = sheet.getRange(plan.targetRange);
 
-  if (plan.showBandedRows !== false) {
+  if (plan.showBandedRows === true) {
     if (typeof targetRange.applyRowBanding !== 'function') {
       throw new Error('Google Sheets host does not support exact table-like row banding.');
     }
@@ -1862,7 +1862,7 @@ function applyTablePlan_(spreadsheet, plan) {
     targetRange.applyColumnBanding();
   }
 
-  if (plan.showFilterButton !== false) {
+  if (plan.showFilterButton === true) {
     if (typeof targetRange.createFilter !== 'function') {
       throw new Error('Google Sheets host does not support exact table-like filter buttons.');
     }
