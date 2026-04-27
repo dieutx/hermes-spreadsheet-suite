@@ -242,7 +242,7 @@ describe("Excel write plan helpers", () => {
     expect(mapVerticalAlignmentToExcel("middle")).toBe("Center");
     expect(mapVerticalAlignmentToExcel("bottom")).toBe("Bottom");
     expect(mapWrapStrategyToExcel("wrap")).toBe(true);
-    expect(mapWrapStrategyToExcel("clip")).toBe(false);
+    expect(mapWrapStrategyToExcel("clip")).toBeUndefined();
     expect(mapWrapStrategyToExcel("overflow")).toBe(false);
   });
 });

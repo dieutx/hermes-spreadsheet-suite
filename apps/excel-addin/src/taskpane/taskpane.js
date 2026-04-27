@@ -1094,6 +1094,7 @@ function isExcelPreviewSupportCheckedWritePlanType(responseType) {
     responseType === "chart_plan" ||
     responseType === "table_plan" ||
     responseType === "external_data_plan" ||
+    responseType === "range_format_update" ||
     responseType === "conditional_format_plan" ||
     responseType === "range_filter_plan" ||
     responseType === "data_validation_plan" ||
@@ -1726,6 +1727,10 @@ function getExcelPlanSupportError(preview) {
     return "This Excel runtime can't create first-class external data imports yet. Use Google Sheets for GOOGLEFINANCE or web-table imports.";
   }
 
+  if (kind === "range_format_update") {
+    return getExcelRangeFormatSupportError(preview.format, "This Excel runtime");
+  }
+
   if (kind === "conditional_format_plan") {
     const unsupportedStyleFields = getUnsupportedConditionalFormatStyleFields(preview.style);
     if (unsupportedStyleFields.length > 0) {
@@ -2099,6 +2104,13 @@ function sanitizeHostExecutionError(error, fallbackMessage = "Write-back failed.
     return formatUserFacingErrorText(
       "This cleanup action cannot be applied safely on the current range.",
       "Try a narrower range or ask Hermes for a simpler cleanup step."
+    );
+  }
+
+  if (/clip overflowing text exactly/i.test(message)) {
+    return formatUserFacingErrorText(
+      "This formatting setup cannot be represented safely in Excel.",
+      "Use wrap or overflow text behavior instead, then retry."
     );
   }
 
@@ -2971,6 +2983,18 @@ function hasUnsupportedExcelCheckboxValues(plan) {
     (plan.checkedValue !== undefined && plan.checkedValue !== true) ||
     (plan.uncheckedValue !== undefined && plan.uncheckedValue !== false)
   );
+}
+
+function getExcelRangeFormatSupportError(format, hostLabel = "Excel host") {
+  if (format?.wrapStrategy === "clip") {
+    if (hostLabel === "This Excel runtime") {
+      return "This Excel runtime can't clip overflowing text exactly.";
+    }
+
+    return `${hostLabel} cannot clip overflowing text exactly.`;
+  }
+
+  return "";
 }
 
 function applyExcelCheckboxValidation(target, plan) {
@@ -5387,6 +5411,7 @@ function renderStructuredPreview(response, message) {
 
   if (preview.kind === "range_format_update") {
     const formatFields = formatRangeFormatFields(preview.format);
+    const supportError = getExcelPlanSupportError(preview);
 
     return `
       <div class="preview">
@@ -5396,7 +5421,8 @@ function renderStructuredPreview(response, message) {
           ${preview.overwriteRisk ? ` • overwrite ${escapeHtml(preview.overwriteRisk)}` : ""}
         </div>
         <div>${escapeHtml(preview.explanation)}</div>
-        ${getRequiresConfirmation(response) ? `
+        ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
+        ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
             <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
               Confirm Format Update
@@ -7431,6 +7457,11 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
     const beforeFormulas = cloneMatrix(target.formulas);
 
     if (isRangeFormatPlan(plan)) {
+      const rangeFormatSupportError = getExcelRangeFormatSupportError(plan.format);
+      if (rangeFormatSupportError) {
+        throw new Error(rangeFormatSupportError);
+      }
+
       if (plan.format.backgroundColor) {
         target.format.fill.color = plan.format.backgroundColor;
       }

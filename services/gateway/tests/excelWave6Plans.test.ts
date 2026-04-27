@@ -1400,6 +1400,19 @@ describe("Excel wave 6 composite plans and execution controls", () => {
         requiresConfirmation: true
       }
     };
+    const unsupportedRangeFormat = {
+      type: "range_format_update",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:C10",
+        format: {
+          wrapStrategy: "clip"
+        },
+        explanation: "Clip overflowing text in the sales table.",
+        confidence: 0.5,
+        requiresConfirmation: true
+      }
+    };
 
     expect(taskpane.isWritePlanResponse(unsupportedValidation)).toBe(false);
     expect(taskpane.renderStructuredPreview(unsupportedValidation, {
@@ -1420,6 +1433,62 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     });
     expect(cleanupHtml).toContain("This Excel runtime only supports exact year-first date text patterns");
     expect(cleanupHtml).not.toContain("Confirm Cleanup");
+
+    expect(taskpane.isWritePlanResponse(unsupportedRangeFormat)).toBe(false);
+    const rangeFormatHtml = taskpane.renderStructuredPreview(unsupportedRangeFormat, {
+      runId: "run_range_format_clip_excel_001",
+      requestId: "req_range_format_clip_excel_001"
+    });
+    expect(rangeFormatHtml).toContain("This Excel runtime can't clip overflowing text exactly");
+    expect(rangeFormatHtml).not.toContain("Confirm Format Update");
+  });
+
+  it("fails closed for Excel range format clip wrapping", async () => {
+    const wrapTextSet = vi.fn();
+    const targetFormat = {};
+    Object.defineProperty(targetFormat, "wrapText", {
+      configurable: true,
+      set(value) {
+        wrapTextSet(value);
+      }
+    });
+    const targetRange = {
+      rowCount: 10,
+      columnCount: 3,
+      values: [["Region", "Revenue", "Notes"]],
+      formulas: [["", "", ""]],
+      load: vi.fn(),
+      format: targetFormat
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "A1:C10",
+        format: {
+          wrapStrategy: "clip"
+        },
+        explanation: "Clip overflowing text in the sales table.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      },
+      requestId: "req_range_format_clip_apply_excel_001",
+      runId: "run_range_format_clip_apply_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host cannot clip overflowing text exactly.");
+
+    expect(wrapTextSet).not.toHaveBeenCalled();
   });
 
   it("renders and applies native Excel table plans", async () => {
