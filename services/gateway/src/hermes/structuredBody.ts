@@ -855,11 +855,16 @@ function normalizeRangeFormatValue(value: unknown): unknown {
     "numberFormat",
     "backgroundColor",
     "textColor",
+    "fontFamily",
+    "fontSize",
     "bold",
     "italic",
+    "underline",
+    "strikethrough",
     "horizontalAlignment",
     "verticalAlignment",
     "wrapStrategy",
+    "border",
     "columnWidth",
     "rowHeight"
   ]);
