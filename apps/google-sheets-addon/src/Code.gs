@@ -4977,6 +4977,11 @@ function applyWritePlan(input) {
           throw new Error('Named range not found: ' + plan.name);
         }
 
+        const existingTargetName = findNamedRange_(spreadsheet, plan.newName);
+        if (existingTargetName && existingTargetName !== namedRange) {
+          throw new Error('Named range already exists: ' + plan.newName);
+        }
+
         if (typeof namedRange.setName !== 'function') {
           throw new Error('Google Sheets host does not support renaming named ranges.');
         }

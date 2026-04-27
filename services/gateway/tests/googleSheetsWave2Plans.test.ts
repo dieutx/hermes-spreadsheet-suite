@@ -847,6 +847,36 @@ describe("Google Sheets wave 2 plans", () => {
     expect(sheet.getRange).not.toHaveBeenCalled();
   });
 
+  it("fails closed when renaming a Google Sheets named range to an existing name", () => {
+    const oldNamedRange = {
+      getName: vi.fn(() => "SalesData"),
+      setName: vi.fn()
+    };
+    const existingTargetName = {
+      getName: vi.fn(() => "ArchiveData")
+    };
+    const spreadsheet = {
+      getNamedRanges() {
+        return [oldNamedRange, existingTargetName];
+      }
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    expect(() => applyWritePlan({
+      plan: {
+        operation: "rename",
+        scope: "workbook",
+        name: "SalesData",
+        newName: "ArchiveData",
+        explanation: "Rename the workbook name.",
+        confidence: 0.92,
+        requiresConfirmation: true
+      }
+    })).toThrow("Named range already exists: ArchiveData");
+
+    expect(oldNamedRange.setName).not.toHaveBeenCalled();
+  });
+
   it("fails closed for unsupported Google Sheets named range scope", () => {
     const spreadsheet = {
       getSheetByName: vi.fn()
