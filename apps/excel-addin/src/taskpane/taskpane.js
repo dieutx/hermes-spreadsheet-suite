@@ -6,7 +6,8 @@ import {
   normalizeExcelFormulaText,
   normalizeExcelHeaderText,
   normalizeExcelCellValue,
-  normalizeExcelMatrixValues
+  normalizeExcelMatrixValues,
+  truncateContextText
 } from "./cellValues.js?v=20260423w";
 import { getPromptReferencedA1Notations } from "./referencedCells.js?v=20260423w";
 import { rangeHasExistingContent } from "./rangeSafety.js?v=20260423w";
@@ -590,6 +591,18 @@ function getExcelNoteCollection(workbook, sheet) {
   };
 }
 
+function getExcelContextNoteCollection(workbook, sheet) {
+  const collection = sheet?.notes || workbook?.notes;
+  if (!collection || typeof collection.getItemOrNullObject !== "function") {
+    return null;
+  }
+
+  return {
+    collection,
+    useWorksheetRelativeAddress: Boolean(sheet?.notes)
+  };
+}
+
 function getExcelNoteAddress(cell, noteCollection) {
   const rawAddress = typeof cell?.address === "string" ? cell.address.trim() : "";
   if (!rawAddress) {
@@ -603,6 +616,32 @@ function getExcelNoteAddress(cell, noteCollection) {
   return rawAddress
     .slice(rawAddress.lastIndexOf("!") + 1)
     .replace(/\$/g, "");
+}
+
+function queueExcelContextNoteRead(noteCollection, cell) {
+  if (!noteCollection || !cell) {
+    return null;
+  }
+
+  try {
+    const address = getExcelNoteAddress(cell, noteCollection);
+    const note = noteCollection.collection.getItemOrNullObject(address);
+    if (typeof note?.load === "function") {
+      note.load("content");
+    }
+    return note || null;
+  } catch {
+    return null;
+  }
+}
+
+function readExcelContextNote(note) {
+  if (!note || note.isNullObject) {
+    return undefined;
+  }
+
+  const content = truncateContextText(normalizeExcelNoteContent(note.content));
+  return content.length > 0 ? content : undefined;
 }
 
 async function prepareExcelNoteTargets(context, noteCollection, target, rowCount, columnCount) {
@@ -6396,16 +6435,40 @@ async function getSpreadsheetSnapshot(prompt) {
       await context.sync();
     }
 
-    const referencedCells = referencedCellRanges.map((cell) => {
+    const noteCollection = getExcelContextNoteCollection(context.workbook, sheet);
+    let activeCellNote;
+    let referencedCellNotes = [];
+    if (noteCollection) {
+      const activeCellNoteItem = queueExcelContextNoteRead(noteCollection, activeCell);
+      const referencedCellNoteItems = referencedCellRanges.map((cell) =>
+        queueExcelContextNoteRead(noteCollection, cell)
+      );
+
+      if (activeCellNoteItem || referencedCellNoteItems.some(Boolean)) {
+        await context.sync();
+      }
+
+      activeCellNote = readExcelContextNote(activeCellNoteItem);
+      referencedCellNotes = referencedCellNoteItems.map(readExcelContextNote);
+    }
+
+    const referencedCells = referencedCellRanges.map((cell, index) => {
       const cellValue = normalizeExcelCellValue(cell.values?.[0]?.[0]);
       const cellFormula = cell.formulas?.[0]?.[0];
+      const note = referencedCellNotes[index];
 
-      return {
+      const cellContext = {
         a1Notation: normalizeA1(cell.address),
         displayValue: cellValue,
         value: cellValue,
         formula: normalizeExcelFormulaText(cellFormula) || undefined
       };
+
+      if (note) {
+        cellContext.note = note;
+      }
+
+      return cellContext;
     });
 
     const selectionHeaderValues = includeSelectionMatrix
@@ -6436,6 +6499,17 @@ async function getSpreadsheetSnapshot(prompt) {
       currentRegionContext.formulas = normalizeFormulaMatrix(currentRegion.formulas);
     }
 
+    const activeCellContext = {
+      a1Notation: activeCellA1,
+      displayValue: firstCellValue,
+      value: firstCellValue,
+      formula: normalizeExcelFormulaText(firstCellFormula) || undefined
+    };
+
+    if (activeCellNote) {
+      activeCellContext.note = activeCellNote;
+    }
+
     return {
       source: {
         channel: platform,
@@ -6455,12 +6529,7 @@ async function getSpreadsheetSnapshot(prompt) {
         selection: selectionContext,
         currentRegion: currentRegionContext,
         ...buildImplicitRegionTargets(currentRegionRange),
-        activeCell: {
-          a1Notation: activeCellA1,
-          displayValue: firstCellValue,
-          value: firstCellValue,
-          formula: normalizeExcelFormulaText(firstCellFormula) || undefined
-        },
+        activeCell: activeCellContext,
         referencedCells: referencedCells.length > 0 ? referencedCells : undefined
       }
     };

@@ -1144,6 +1144,86 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(snapshot.context.activeCell?.formula?.endsWith("…")).toBe(true);
   });
 
+  it("includes Excel active and referenced cell notes in workbook context", async () => {
+    const selectionRange = {
+      address: "Sheet1!A1:B2",
+      values: [
+        ["Status", "Revenue"],
+        ["Open", 123]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ],
+      load: vi.fn()
+    };
+    const currentRegion = {
+      address: "Sheet1!A1:B2",
+      values: selectionRange.values,
+      formulas: selectionRange.formulas,
+      load: vi.fn()
+    };
+    const activeCell = {
+      address: "Sheet1!A2",
+      values: [["Open"]],
+      formulas: [[""]],
+      load: vi.fn(),
+      getSurroundingRegion: vi.fn(() => currentRegion)
+    };
+    const referencedCell = {
+      address: "Sheet1!H11",
+      values: [["Blocked"]],
+      formulas: [[""]],
+      load: vi.fn()
+    };
+    const notes = {
+      getItemOrNullObject: vi.fn((address: string) => ({
+        isNullObject: false,
+        content: address === "A2" ? "Active note" : "Referenced note",
+        load: vi.fn()
+      }))
+    };
+    const sheet = {
+      name: "Sheet1",
+      notes,
+      load: vi.fn(),
+      getRange: vi.fn((address: string) => {
+        if (address === "H11") {
+          return referencedCell;
+        }
+        return selectionRange;
+      })
+    };
+
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        getSelectedRange() {
+          return selectionRange;
+        },
+        getActiveCell() {
+          return activeCell;
+        },
+        worksheets: {
+          getActiveWorksheet() {
+            return sheet;
+          }
+        }
+      }
+    });
+
+    const snapshot = await taskpane.getSpreadsheetSnapshot("Explain H11 relative to the active cell");
+
+    expect(snapshot.context.activeCell?.note).toBe("Active note");
+    expect(snapshot.context.referencedCells?.[0]).toMatchObject({
+      a1Notation: "H11",
+      displayValue: "Blocked",
+      note: "Referenced note"
+    });
+    expect(notes.getItemOrNullObject).toHaveBeenCalledWith("A2");
+    expect(notes.getItemOrNullObject).toHaveBeenCalledWith("H11");
+  });
+
   it("keeps following the bottom after delayed layout growth when pinned", async () => {
     vi.useFakeTimers();
     const taskpane = await loadTaskpaneModule({
