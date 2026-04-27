@@ -2708,6 +2708,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       getId() {
         return "sheet-123";
       },
+      setNamedRange: vi.fn(),
       getSheetByName(name: string) {
         if (name === "Sales") {
           return sheet;
@@ -2746,6 +2747,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(targetRange.applyRowBanding).not.toHaveBeenCalled();
     expect(targetRange.applyColumnBanding).not.toHaveBeenCalled();
     expect(targetRange.createFilter).not.toHaveBeenCalled();
+    expect(spreadsheet.setNamedRange).toHaveBeenCalledWith("SalesTable", targetRange);
     expect(code.flush).toHaveBeenCalled();
   });
 
