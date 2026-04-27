@@ -3012,7 +3012,30 @@ async function assertExcelNamedRangeCreateDoesNotCollide(context, collection, na
   }
 }
 
-function applyExcelNamedRangeUpdate(workbook, worksheet, plan, targetRange) {
+async function resolveExcelNamedRangeForUpdate(context, collection, name) {
+  if (typeof collection.getItem === "function") {
+    return collection.getItem(name);
+  }
+
+  if (typeof collection.getItemOrNullObject !== "function") {
+    return undefined;
+  }
+
+  const namedRange = collection.getItemOrNullObject(name);
+  if (!namedRange) {
+    return undefined;
+  }
+
+  if (typeof namedRange.load === "function") {
+    namedRange.load("name");
+  }
+
+  await context.sync();
+
+  return namedRange.isNullObject === true ? undefined : namedRange;
+}
+
+async function applyExcelNamedRangeUpdate(context, workbook, worksheet, plan, targetRange) {
   const collection = plan.scope === "sheet"
     ? worksheet.names
     : workbook.names;
@@ -3037,7 +3060,7 @@ function applyExcelNamedRangeUpdate(workbook, worksheet, plan, targetRange) {
       collection.add(plan.name, targetRange);
       return;
     case "retarget": {
-      const namedRange = collection.getItem?.(plan.name) || collection.getItemOrNullObject?.(plan.name);
+      const namedRange = await resolveExcelNamedRangeForUpdate(context, collection, plan.name);
       if (!namedRange) {
         throw new Error(`Named range not found: ${plan.name}`);
       }
@@ -3045,7 +3068,7 @@ function applyExcelNamedRangeUpdate(workbook, worksheet, plan, targetRange) {
       return;
     }
     case "rename": {
-      const namedRange = collection.getItem?.(plan.name) || collection.getItemOrNullObject?.(plan.name);
+      const namedRange = await resolveExcelNamedRangeForUpdate(context, collection, plan.name);
       if (!namedRange) {
         throw new Error(`Named range not found: ${plan.name}`);
       }
@@ -3056,7 +3079,7 @@ function applyExcelNamedRangeUpdate(workbook, worksheet, plan, targetRange) {
       return;
     }
     case "delete": {
-      const namedRange = collection.getItem?.(plan.name) || collection.getItemOrNullObject?.(plan.name);
+      const namedRange = await resolveExcelNamedRangeForUpdate(context, collection, plan.name);
       if (!namedRange) {
         throw new Error(`Named range not found: ${plan.name}`);
       }
@@ -7128,7 +7151,8 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         await assertExcelNamedRangeCreateDoesNotCollide(context, namedRangeCollection, plan.name);
       }
       const target = plan.targetRange && worksheet ? worksheet.getRange(plan.targetRange) : undefined;
-      applyExcelNamedRangeUpdate(
+      await applyExcelNamedRangeUpdate(
+        context,
         context.workbook,
         worksheet || { names: undefined },
         plan,
