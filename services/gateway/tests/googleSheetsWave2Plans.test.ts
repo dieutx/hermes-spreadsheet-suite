@@ -847,6 +847,30 @@ describe("Google Sheets wave 2 plans", () => {
     expect(sheet.getRange).not.toHaveBeenCalled();
   });
 
+  it("fails closed when deleting a Google Sheets named range that does not exist", () => {
+    const removeNamedRange = vi.fn();
+    const spreadsheet = {
+      getNamedRanges() {
+        return [];
+      },
+      removeNamedRange
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    expect(() => applyWritePlan({
+      plan: {
+        operation: "delete",
+        scope: "workbook",
+        name: "MissingRange",
+        explanation: "Delete a workbook name.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    })).toThrow("Named range not found: MissingRange");
+
+    expect(removeNamedRange).not.toHaveBeenCalled();
+  });
+
   it("fails closed for unsupported Google Sheets named range scope", () => {
     const spreadsheet = {
       getSheetByName: vi.fn()
