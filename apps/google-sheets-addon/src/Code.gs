@@ -5053,6 +5053,10 @@ function applyWritePlan(input) {
           throw new Error('Google Sheets host does not support deleting named ranges.');
         }
 
+        if (!findNamedRange_(spreadsheet, plan.name)) {
+          throw new Error('Named range not found: ' + plan.name);
+        }
+
         spreadsheet.removeNamedRange(plan.name);
         SpreadsheetApp.flush();
         return {
