@@ -1808,6 +1808,10 @@ function getExcelPlanSupportError(preview) {
       return "This Excel runtime only supports checkbox values as true and false.";
     }
 
+    if (preview.ruleType === "checkbox" && preview.allowBlank === true) {
+      return "This Excel runtime can't preserve allowBlank=true checkbox semantics.";
+    }
+
     if (preview.ruleType === "checkbox" && hasCustomValidationPromptOrAlert(preview)) {
       return "This Excel runtime can't apply custom validation prompt or error text to checkbox controls.";
     }
@@ -2973,9 +2977,22 @@ function hasUnsupportedExcelCheckboxValues(plan) {
   );
 }
 
+function getUnsupportedExcelCheckboxSemanticsMessage(plan) {
+  if (plan.allowBlank === true) {
+    return "Excel checkbox controls cannot represent allowBlank=true checkbox semantics.";
+  }
+
+  return "";
+}
+
 function applyExcelCheckboxValidation(target, plan) {
   if (hasUnsupportedExcelCheckboxValues(plan)) {
     throw new Error("Excel checkbox controls only support boolean true/false values.");
+  }
+
+  const semanticsError = getUnsupportedExcelCheckboxSemanticsMessage(plan);
+  if (semanticsError) {
+    throw new Error(semanticsError);
   }
 
   if (!Object.prototype.hasOwnProperty.call(target, "control")) {

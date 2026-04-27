@@ -281,6 +281,28 @@ describe("Excel wave 2 plan helpers", () => {
     expect(checkboxHtml).toContain("checked true");
     expect(checkboxHtml).toContain("unchecked false");
 
+    const checkboxAllowBlankHtml = taskpane.renderStructuredPreview({
+      type: "data_validation_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "D2:D20",
+        ruleType: "checkbox",
+        checkedValue: true,
+        uncheckedValue: false,
+        allowBlank: true,
+        invalidDataBehavior: "reject",
+        explanation: "Use checkboxes while preserving blank cells.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    }, {
+      runId: "run_validation_checkbox_allow_blank",
+      requestId: "req_validation_checkbox_allow_blank"
+    });
+
+    expect(checkboxAllowBlankHtml).toContain("can't preserve allowBlank=true checkbox semantics");
+    expect(checkboxAllowBlankHtml).not.toContain("data-confirm-run=\"run_validation_checkbox_allow_blank\"");
+
     expect(taskpane.getResponseBodyText({
       type: "named_range_update",
       data: {
@@ -592,6 +614,60 @@ describe("Excel wave 2 plan helpers", () => {
     expect(control.set).toHaveBeenCalledWith({
       type: "Checkbox"
     });
+  });
+
+  it("fails closed for Excel checkbox plans that allow blanks", async () => {
+    const control = { set: vi.fn() };
+    const targetRange = {
+      load: vi.fn(),
+      address: "Sheet1!D2:D20",
+      rowCount: 19,
+      columnCount: 1
+    };
+    Object.defineProperty(targetRange, "control", {
+      configurable: true,
+      set(value) {
+        control.set(value);
+      }
+    });
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      names: {
+        add: vi.fn()
+      }
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        },
+        names: {
+          add: vi.fn()
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "D2:D20",
+        ruleType: "checkbox",
+        checkedValue: true,
+        uncheckedValue: false,
+        allowBlank: true,
+        invalidDataBehavior: "reject",
+        explanation: "Use checkboxes while preserving blank cells.",
+        confidence: 0.94,
+        requiresConfirmation: true
+      },
+      requestId: "req_validation_checkbox_allow_blank_001",
+      runId: "run_validation_checkbox_allow_blank_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel checkbox controls cannot represent allowBlank=true checkbox semantics.");
+
+    expect(control.set).not.toHaveBeenCalled();
   });
 
   it("retargets a sheet-scoped named range in Excel", async () => {
