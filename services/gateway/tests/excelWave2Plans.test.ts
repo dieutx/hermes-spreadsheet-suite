@@ -555,6 +555,143 @@ describe("Excel wave 2 plan helpers", () => {
     });
   });
 
+  it("passes inline Excel list validation values as an exact source string", async () => {
+    const validationRule = { set: vi.fn() };
+    const ignoreBlanks = { set: vi.fn() };
+    const dataValidation = {};
+    Object.defineProperty(dataValidation, "rule", {
+      configurable: true,
+      set(rule) {
+        validationRule.set(rule);
+      }
+    });
+    Object.defineProperty(dataValidation, "ignoreBlanks", {
+      configurable: true,
+      set(value) {
+        ignoreBlanks.set(value);
+      }
+    });
+    Object.defineProperty(dataValidation, "prompt", {
+      configurable: true,
+      set() {}
+    });
+    Object.defineProperty(dataValidation, "errorAlert", {
+      configurable: true,
+      set() {}
+    });
+    const targetRange = {
+      load: vi.fn(),
+      address: "Sheet1!B2:B20",
+      rowCount: 19,
+      columnCount: 1,
+      dataValidation
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      names: {
+        add: vi.fn()
+      }
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        },
+        names: {
+          add: vi.fn()
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "list",
+        values: ["Open", "Closed"],
+        showDropdown: true,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        explanation: "Restrict values to approved statuses.",
+        confidence: 0.96,
+        requiresConfirmation: true
+      },
+      requestId: "req_validation_inline_list_001",
+      runId: "run_validation_inline_list_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "data_validation_update",
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20"
+    });
+
+    expect(validationRule.set).toHaveBeenCalledWith({
+      list: {
+        source: "Open,Closed",
+        inCellDropDown: true
+      }
+    });
+    expect(ignoreBlanks.set).toHaveBeenCalledWith(false);
+  });
+
+  it("fails closed for inline Excel list validation values containing commas", async () => {
+    const validationRule = { set: vi.fn() };
+    const dataValidation = {};
+    Object.defineProperty(dataValidation, "rule", {
+      configurable: true,
+      set(rule) {
+        validationRule.set(rule);
+      }
+    });
+    const targetRange = {
+      load: vi.fn(),
+      address: "Sheet1!B2:B20",
+      rowCount: 19,
+      columnCount: 1,
+      dataValidation
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      names: {
+        add: vi.fn()
+      }
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        },
+        names: {
+          add: vi.fn()
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "list",
+        values: ["North, East", "West"],
+        showDropdown: true,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        explanation: "Restrict values to approved regions.",
+        confidence: 0.96,
+        requiresConfirmation: true
+      },
+      requestId: "req_validation_inline_list_comma_001",
+      runId: "run_validation_inline_list_comma_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel inline list validation values cannot contain commas exactly.");
+
+    expect(validationRule.set).not.toHaveBeenCalled();
+  });
+
   it("applies a checkbox validation rule in Excel via cell control", async () => {
     const control = { set: vi.fn() };
     const targetRange = {

@@ -2925,6 +2925,27 @@ function mapDataValidationComparatorToExcel(comparator) {
   return mapped;
 }
 
+function getExcelListValidationSource(plan) {
+  if (plan.namedRangeName) {
+    return plan.namedRangeName;
+  }
+
+  if (plan.sourceRange) {
+    return plan.sourceRange;
+  }
+
+  if (Array.isArray(plan.values)) {
+    const hasCommaValue = plan.values.some((value) => String(value).includes(","));
+    if (hasCommaValue) {
+      throw new Error("Excel inline list validation values cannot contain commas exactly.");
+    }
+
+    return plan.values.join(",");
+  }
+
+  throw new Error("List validation requires values, sourceRange, or namedRangeName.");
+}
+
 function buildExcelValidationRule(plan) {
   const operator = "comparator" in plan
     ? mapDataValidationComparatorToExcel(plan.comparator)
@@ -2972,7 +2993,7 @@ function buildExcelValidationRule(plan) {
     case "list":
       return {
         list: {
-          source: plan.namedRangeName || plan.sourceRange || plan.values || [],
+          source: getExcelListValidationSource(plan),
           inCellDropDown: typeof plan.showDropdown === "boolean" ? plan.showDropdown : undefined
         }
       };
