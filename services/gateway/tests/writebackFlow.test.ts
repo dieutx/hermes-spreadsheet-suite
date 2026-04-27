@@ -3842,7 +3842,7 @@ describe("writeback confirmation flow", () => {
     expect(replayCompletion.body).toEqual({ ok: true });
   });
 
-  it("reuses the same approval token for a repeated pre-completion approval in the same workbook session", () => {
+  it("rejects completion from a different host platform after repeated same-session approval", () => {
     const traceBus = new TraceBus();
     const executionLedger = new ExecutionLedger();
     const plan = {
@@ -3919,13 +3919,18 @@ describe("writeback confirmation flow", () => {
         }
       });
 
-      expect(completionWithReusedToken.status).toBe(200);
+      expectRouteError(
+        completionWithReusedToken,
+        409,
+        "INVALID_APPROVAL",
+        "This approval is no longer valid for the current update."
+      );
 
       expect(traceBus.getRun("run_conditional_format_superseded_token")?.writeback).toMatchObject({
         approvalToken: secondApprovedBody.approvalToken,
         approvedPlanDigest: secondApprovedBody.planDigest
       });
-      expect(traceBus.getRun("run_conditional_format_superseded_token")?.writeback?.completedAt).toBeDefined();
+      expect(traceBus.getRun("run_conditional_format_superseded_token")?.writeback?.completedAt).toBeUndefined();
       expect(executionLedger.listHistory("google_sheets::sheet-123").entries).toHaveLength(1);
     } finally {
       vi.useRealTimers();
