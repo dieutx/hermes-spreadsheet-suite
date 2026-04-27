@@ -749,7 +749,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- table_plan: limited. Format an existing range as a table-like range using row banding and optional filter buttons. Do not emit styleName or showTotalsRow=true on Google Sheets because those are not exact native table features.",
         "- external_data_plan: limited. Require a single-cell target anchor. Supported sourceType/provider pairs: market_data/googlefinance and web_table_import/importhtml, importxml, or importdata. Formula text must match the provider exactly. Web imports only support public fetchable sources and must not assume authenticated or JavaScript-rendered pages.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats. Do not plan overlapping move or append destinations on the same sheet.",
-        "- data_cleanup_plan: limited. normalize_case only supports upper, lower, and title. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
+        "- data_cleanup_plan: limited. normalize_case only supports upper, lower, title, and sentence. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
         "- range_filter_plan: limited. Do not combine multiple OR conditions in one exact step. topN filters and repeated conditions on the same column are unsupported.",
         "- named_range_update: limited. Only workbook-scoped named ranges are exact-safe.",
         "- data_validation_plan: limited. inputMessage maps to Google Sheets validation help text. inputTitle, errorTitle, and errorMessage are unsupported on Google Sheets.",
@@ -765,7 +765,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- table_plan: limited. Create a native Excel table over an existing range. Supported options: name, styleName, hasHeaders, showBandedRows, showBandedColumns, showFilterButton, and showTotalsRow.",
         "- external_data_plan: unsupported. Do not emit external_data_plan on Excel hosts. Return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\" and suggest a simpler alternative such as a preview, a plain formula explanation, or moving the task to Google Sheets.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats.",
-        "- data_cleanup_plan: limited. normalize_case only supports upper, lower, and title. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
+        "- data_cleanup_plan: limited. normalize_case only supports upper, lower, title, and sentence. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
         "- range_filter_plan: limited. Use combiner=and only. Repeated conditions on the same column are exact-safe only when exactly two custom criteria can be combined with AND.",
         "- data_validation_plan: limited. Checkbox values must stay on true and false. inputTitle, inputMessage, errorTitle, and errorMessage are supported for non-checkbox validation rules.",
         noteWriteLine

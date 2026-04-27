@@ -1324,6 +1324,113 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
+  it("applies normalize_case sentence cleanup in Google Sheets", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A2:A4",
+      row: 2,
+      column: 1,
+      numRows: 3,
+      numColumns: 1,
+      values: [
+        ["aDA LOVELACE"],
+        ["GRACE HOPPER"],
+        [42]
+      ]
+    });
+    const sheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn(() => sheet)
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:A4",
+        operation: "normalize_case",
+        mode: "sentence",
+        explanation: "Normalize contact names into sentence case.",
+        confidence: 0.86,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:A4"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "normalize_case",
+      mode: "sentence",
+      targetSheet: "Contacts",
+      targetRange: "A2:A4"
+    });
+    expect(targetRange.values).toEqual([
+      ["Ada lovelace"],
+      ["Grace hopper"],
+      [42]
+    ]);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies normalize_case sentence cleanup with formula-aware wrappers in Google Sheets", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A2:A4",
+      row: 2,
+      column: 1,
+      numRows: 3,
+      numColumns: 1,
+      values: [
+        ["ADA LOVELACE"],
+        ["GRACE HOPPER"],
+        ["Alan Turing"]
+      ],
+      formulas: [
+        ["=UPPER(A2)"],
+        ["=UPPER(A3)"],
+        [""]
+      ]
+    });
+    const sheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn(() => sheet)
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:A4",
+        operation: "normalize_case",
+        mode: "sentence",
+        explanation: "Normalize formula-driven contact names into sentence case.",
+        confidence: 0.86,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:A4"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "normalize_case",
+      mode: "sentence",
+      targetSheet: "Contacts",
+      targetRange: "A2:A4"
+    });
+    expect(targetRange.setValues).toHaveBeenCalledWith([
+      ["=LET(_hermes_value, UPPER(A2), IF(ISTEXT(_hermes_value), LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text))), _hermes_value))"],
+      ["=LET(_hermes_value, UPPER(A3), IF(ISTEXT(_hermes_value), LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text))), _hermes_value))"],
+      ["Alan turing"]
+    ]);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
   it("fails closed for non-formula-aware cleanup plans when the target range contains formulas in Google Sheets", () => {
     const targetRange = createRangeStub({
       a1Notation: "A2:A4",

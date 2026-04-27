@@ -2956,11 +2956,16 @@
         case "fill_down":
           return "";
         case "normalize_case":
-          if (preview.mode === "upper" || preview.mode === "lower" || preview.mode === "title") {
+          if (
+            preview.mode === "upper" ||
+            preview.mode === "lower" ||
+            preview.mode === "title" ||
+            preview.mode === "sentence"
+          ) {
             return "";
           }
 
-          return `This Google Sheets flow only supports normalize_case with upper, lower, or title, not ${preview.mode}.`;
+          return `This Google Sheets flow only supports normalize_case with upper, lower, title, or sentence, not ${preview.mode}.`;
         case "standardize_format":
           return getStandardizeFormatSupportError(
             preview.formatType,
