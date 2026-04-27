@@ -356,7 +356,6 @@ export function mapWrapStrategyToExcel(strategy) {
   switch (strategy) {
     case "wrap":
       return true;
-    case "clip":
     case "overflow":
       return false;
     default:
