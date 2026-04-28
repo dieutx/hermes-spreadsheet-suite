@@ -434,7 +434,8 @@ const ChartWritebackResultSchema = z.intersection(
     kind: z.literal("chart_update"),
     operation: z.literal("chart_update"),
     hostPlatform: HostPlatformSchema,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    undoReady: z.boolean().optional()
   }),
   z.preprocess(stripCompletionEnvelopeInput, ChartPlanDataSchema)
 );
@@ -1382,6 +1383,10 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return false;
   }
 
+  if (ChartPlanDataSchema.safeParse(plan).success) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1409,6 +1414,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
   switch (result.kind) {
     case "range_write":
     case "range_sort":
+    case "chart_update":
     case "data_cleanup_update":
     case "analysis_report_update":
       return result.undoReady === true;
