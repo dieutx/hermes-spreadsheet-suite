@@ -3663,7 +3663,7 @@ function applyFormulaAwareFillDownCleanup(target, plan, inputValues, inputFormul
 function buildFormulaPreservingRow(row, rowIndex, formulas, targetColumnCount) {
   return Array.from({ length: targetColumnCount }, (_, columnIndex) => {
     const formula = getFormulaCellText(formulas, rowIndex, columnIndex);
-    return formula || row?.[columnIndex] || "";
+    return formula || (row?.[columnIndex] ?? "");
   });
 }
 
@@ -3726,6 +3726,41 @@ function buildFormulaAwareRemoveDuplicateRowsMatrix(plan, inputValues, inputForm
   return fillTrailingBlankRows(retainedRows, targetColumnCount, values.length);
 }
 
+function quoteSpreadsheetFormulaString(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function buildFormulaAwareSplitPartFormula(sourceFormula, delimiter, partIndex) {
+  const expression = sourceFormula.slice(1);
+  const quotedDelimiter = quoteSpreadsheetFormulaString(delimiter);
+  return `=LET(_hermes_value, ${expression}, IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ${quotedDelimiter}), 1, ${partIndex}), ""))`;
+}
+
+function buildFormulaAwareSplitColumnMatrix(plan, inputValues, inputFormulas) {
+  const values = cloneMatrix(inputValues);
+  const formulas = cloneMatrix(inputFormulas);
+  const targetColumnCount = values[0]?.length || formulas[0]?.length || 0;
+  const { source, targetStart } = getCleanupColumnOffsets(plan);
+  const targetCapacity = targetColumnCount - targetStart;
+
+  return values.map((row, rowIndex) => {
+    const nextRow = buildFormulaPreservingRow(row, rowIndex, formulas, targetColumnCount);
+    const sourceFormula = getFormulaCellText(formulas, rowIndex, source);
+    const currentParts = String(row?.[source] ?? "").split(plan.delimiter);
+    if (currentParts.length > targetCapacity) {
+      throw new Error("Excel host cannot split this column exactly within the approved target range.");
+    }
+
+    for (let offset = 0; offset < targetCapacity; offset += 1) {
+      nextRow[targetStart + offset] = sourceFormula
+        ? buildFormulaAwareSplitPartFormula(sourceFormula, plan.delimiter, offset + 1)
+        : currentParts[offset] ?? "";
+    }
+
+    return nextRow;
+  });
+}
+
 function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
   const values = cloneMatrix(inputValues);
   const formulas = cloneMatrix(inputFormulas);
@@ -3749,6 +3784,13 @@ function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
     return {
       kind: "formulas",
       matrix: buildFormulaAwareRemoveDuplicateRowsMatrix(plan, values, formulas)
+    };
+  }
+
+  if (plan.operation === "split_column") {
+    return {
+      kind: "formulas",
+      matrix: buildFormulaAwareSplitColumnMatrix(plan, values, formulas)
     };
   }
 

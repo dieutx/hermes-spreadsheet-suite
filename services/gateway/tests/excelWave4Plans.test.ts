@@ -1571,6 +1571,74 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     ]);
   });
 
+  it("applies split_column cleanup across formula-containing ranges in Excel", async () => {
+    const targetRange = createRangeStub({
+      address: "Contacts!A2:C4",
+      rowCount: 3,
+      columnCount: 3,
+      values: [
+        ["Ada,Lovelace", "", ""],
+        ["Grace,Hopper", "", ""],
+        ["Single", "", ""]
+      ],
+      formulas: [
+        ["=A1", "", ""],
+        ["", "", ""],
+        ["=A3", "", ""]
+      ]
+    });
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:C4",
+        operation: "split_column",
+        sourceColumn: "A",
+        targetStartColumn: "B",
+        delimiter: ",",
+        explanation: "Split formula-driven names into separate columns.",
+        confidence: 0.81,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:C4"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_cleanup_split_column_formulas_excel_001",
+      runId: "run_cleanup_split_column_formulas_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "split_column",
+      targetSheet: "Contacts",
+      targetRange: "A2:C4"
+    });
+
+    expect(targetRange.formulas).toEqual([
+      [
+        "=A1",
+        '=LET(_hermes_value, A1, IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ","), 1, 1), ""))',
+        '=LET(_hermes_value, A1, IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ","), 1, 2), ""))'
+      ],
+      ["Grace,Hopper", "Grace", "Hopper"],
+      [
+        "=A3",
+        '=LET(_hermes_value, A3, IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ","), 1, 1), ""))',
+        '=LET(_hermes_value, A3, IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ","), 1, 2), ""))'
+      ]
+    ]);
+  });
+
   it("applies normalize_case title cleanup in Excel", async () => {
     const targetRange = createRangeStub({
       address: "Contacts!A2:A4",
