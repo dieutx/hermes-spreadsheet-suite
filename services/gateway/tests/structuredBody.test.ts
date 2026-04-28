@@ -428,6 +428,41 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes pivot rows columns and values aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "pivot_table_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        targetSheet: "Pivot",
+        targetRange: "A1",
+        rows: ["Region"],
+        columns: ["Quarter"],
+        values: ["Revenue", "Deals"],
+        aggregation: "sum",
+        explanation: "Build a sales pivot.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Pivot!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "pivot_table_plan",
+      data: {
+        rowGroups: ["Region"],
+        columnGroups: ["Quarter"],
+        valueAggregations: [
+          { field: "Revenue", aggregation: "sum" },
+          { field: "Deals", aggregation: "sum" }
+        ]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes data validation prompt and error-message aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "data_validation_plan",
