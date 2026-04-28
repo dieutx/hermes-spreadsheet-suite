@@ -3821,6 +3821,53 @@ function wrapFormulaWithCleanupTransform_(formula, formulaAwareTransform) {
     transformedExpression + ', _hermes_value))';
 }
 
+function getFormulaCellText_(formulas, rowIndex, columnIndex) {
+  const formulaValue = formulas && formulas[rowIndex] ? formulas[rowIndex][columnIndex] : '';
+  return typeof formulaValue === 'string' && formulaValue.trim().startsWith('=')
+    ? formulaValue
+    : '';
+}
+
+function buildFormulaPreservingRow_(row, rowIndex, formulas, targetColumnCount) {
+  return Array.from({ length: targetColumnCount }, function(_value, columnIndex) {
+    const formula = getFormulaCellText_(formulas, rowIndex, columnIndex);
+    return formula || (row ? row[columnIndex] : '') || '';
+  });
+}
+
+function getFormulaAwareRowDigest_(row, rowIndex, formulas, columnOffsets) {
+  return JSON.stringify(columnOffsets.map(function(columnIndex) {
+    const formula = getFormulaCellText_(formulas, rowIndex, columnIndex);
+    return formula || (row ? row[columnIndex] : '') || '';
+  }));
+}
+
+function buildFormulaAwareRemoveDuplicateRowsMatrix_(plan, inputValues, inputFormulas) {
+  const values = cloneMatrix_(inputValues);
+  const formulas = cloneMatrix_(inputFormulas);
+  const targetColumnCount = values[0] ? values[0].length : (formulas[0] ? formulas[0].length : 0);
+  const explicitOffsets = getCleanupColumnOffsets_(plan);
+  const columnOffsets = explicitOffsets.length > 0
+    ? explicitOffsets
+    : Array.from({ length: targetColumnCount }, function(_value, index) {
+      return index;
+    });
+  const retainedRows = [];
+  const seen = {};
+
+  values.forEach(function(row, rowIndex) {
+    const digest = getFormulaAwareRowDigest_(row, rowIndex, formulas, columnOffsets);
+    if (seen[digest]) {
+      return;
+    }
+
+    seen[digest] = true;
+    retainedRows.push(buildFormulaPreservingRow_(row, rowIndex, formulas, targetColumnCount));
+  });
+
+  return fillTrailingBlankRows_(retainedRows, targetColumnCount, values.length);
+}
+
 function buildCleanupWriteMatrix_(plan, inputValues, inputFormulas, hostLabel) {
   const values = cloneMatrix_(inputValues);
   const formulas = cloneMatrix_(inputFormulas);
@@ -3828,6 +3875,10 @@ function buildCleanupWriteMatrix_(plan, inputValues, inputFormulas, hostLabel) {
 
   if (!hasAnyRealFormula_(formulas)) {
     return applyCleanupTransform_(plan, values, hostLabel);
+  }
+
+  if (plan.operation === 'remove_duplicate_rows') {
+    return buildFormulaAwareRemoveDuplicateRowsMatrix_(plan, values, formulas);
   }
 
   if (!formulaAwareTransform) {
