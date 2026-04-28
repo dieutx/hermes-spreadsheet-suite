@@ -360,7 +360,8 @@ const DataValidationWritebackResultSchema = z.intersection(
 const ConditionalFormatWritebackResultSchema = z.object({
   kind: z.literal("conditional_format_update"),
   hostPlatform: HostPlatformSchema,
-  summary: CompletionSummarySchema
+  summary: CompletionSummarySchema,
+  undoReady: z.boolean().optional()
 }).and(
   z.preprocess(stripCompletionEnvelopeInput, ConditionalFormatPlanDataSchema)
 );
@@ -1382,6 +1383,10 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return false;
   }
 
+  if (ConditionalFormatPlanDataSchema.safeParse(plan).success) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1409,6 +1414,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
   switch (result.kind) {
     case "range_write":
     case "range_sort":
+    case "conditional_format_update":
     case "data_cleanup_update":
     case "analysis_report_update":
       return result.undoReady === true;
