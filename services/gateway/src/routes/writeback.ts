@@ -352,7 +352,8 @@ const DataValidationWritebackResultSchema = z.intersection(
   z.object({
     kind: z.literal("data_validation_update"),
     hostPlatform: HostPlatformSchema,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    undoReady: z.boolean().optional()
   }),
   z.preprocess(stripCompletionEnvelopeInput, DataValidationPlanDataSchema)
 );
@@ -1400,6 +1401,7 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
         plan.operation === "fill_down" ||
         plan.operation === "standardize_format"
       )) ||
+      ("invalidDataBehavior" in plan && typeof plan.invalidDataBehavior === "string") ||
       ("keys" in plan && Array.isArray(plan.keys))
     )
   );
@@ -1409,6 +1411,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
   switch (result.kind) {
     case "range_write":
     case "range_sort":
+    case "data_validation_update":
     case "data_cleanup_update":
     case "analysis_report_update":
       return result.undoReady === true;
