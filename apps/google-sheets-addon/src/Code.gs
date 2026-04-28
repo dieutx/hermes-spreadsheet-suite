@@ -3821,6 +3821,61 @@ function wrapFormulaWithCleanupTransform_(formula, formulaAwareTransform) {
     transformedExpression + ', _hermes_value))';
 }
 
+function getFormulaCellText_(formulas, rowIndex, columnIndex) {
+  const formulaValue = formulas &&
+    formulas[rowIndex] &&
+    typeof formulas[rowIndex][columnIndex] === 'string'
+    ? formulas[rowIndex][columnIndex].trim()
+    : '';
+  return formulaValue && formulaValue.startsWith('=') ? formulaValue : '';
+}
+
+function quoteSpreadsheetFormulaString_(value) {
+  return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"';
+}
+
+function buildFormulaPreservingCleanupRow_(row, rowIndex, formulas, targetColumnCount) {
+  return Array.from({ length: targetColumnCount }, function(_value, columnIndex) {
+    const formula = getFormulaCellText_(formulas, rowIndex, columnIndex);
+    return formula || (row && row[columnIndex] !== undefined ? row[columnIndex] : '');
+  });
+}
+
+function buildFormulaAwareSplitPartFormula_(sourceFormula, delimiter, partIndex) {
+  const expression = sourceFormula.slice(1);
+  const quotedDelimiter = quoteSpreadsheetFormulaString_(delimiter);
+  return '=LET(_hermes_value, ' + expression +
+    ', IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ' +
+    quotedDelimiter + '), 1, ' + partIndex + '), ""))';
+}
+
+function buildFormulaAwareSplitColumnMatrix_(plan, inputValues, inputFormulas) {
+  const values = cloneMatrix_(inputValues);
+  const formulas = cloneMatrix_(inputFormulas);
+  const targetColumnCount = (values[0] ? values[0].length : 0) ||
+    (formulas[0] ? formulas[0].length : 0);
+  const offsets = getCleanupColumnOffsets_(plan);
+  const targetCapacity = targetColumnCount - offsets.targetStart;
+
+  return values.map(function(row, rowIndex) {
+    const nextRow = buildFormulaPreservingCleanupRow_(row, rowIndex, formulas, targetColumnCount);
+    const sourceFormula = getFormulaCellText_(formulas, rowIndex, offsets.source);
+    const currentParts = String(row && row[offsets.source] != null ? row[offsets.source] : '').split(plan.delimiter);
+
+    if (currentParts.length > targetCapacity) {
+      throw new Error('Google Sheets host cannot split this column exactly within the approved target range.');
+    }
+
+    for (let offset = 0; offset < targetCapacity; offset += 1) {
+      nextRow[offsets.targetStart + offset] = sourceFormula
+        ? buildFormulaAwareSplitPartFormula_(sourceFormula, plan.delimiter, offset + 1)
+        : currentParts[offset] !== undefined ? currentParts[offset] : '';
+    }
+
+    return nextRow;
+  });
+}
+
 function buildCleanupWriteMatrix_(plan, inputValues, inputFormulas, hostLabel) {
   const values = cloneMatrix_(inputValues);
   const formulas = cloneMatrix_(inputFormulas);
@@ -3828,6 +3883,10 @@ function buildCleanupWriteMatrix_(plan, inputValues, inputFormulas, hostLabel) {
 
   if (!hasAnyRealFormula_(formulas)) {
     return applyCleanupTransform_(plan, values, hostLabel);
+  }
+
+  if (plan.operation === 'split_column') {
+    return buildFormulaAwareSplitColumnMatrix_(plan, values, formulas);
   }
 
   if (!formulaAwareTransform) {

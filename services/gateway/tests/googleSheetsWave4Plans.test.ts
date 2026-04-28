@@ -1402,6 +1402,71 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
+  it("applies split_column cleanup across formula-containing ranges in Google Sheets", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A2:C4",
+      row: 2,
+      column: 1,
+      numRows: 3,
+      numColumns: 3,
+      values: [
+        ["Ada,Lovelace", "", ""],
+        ["Grace,Hopper", "", ""],
+        ["Single", "", ""]
+      ],
+      formulas: [
+        ["=A1", "", ""],
+        ["", "", ""],
+        ["=A3", "", ""]
+      ]
+    });
+    const sheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn(() => sheet)
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:C4",
+        operation: "split_column",
+        sourceColumn: "A",
+        targetStartColumn: "B",
+        delimiter: ",",
+        explanation: "Split formula-driven names into separate columns.",
+        confidence: 0.84,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:C4"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "split_column",
+      targetSheet: "Contacts",
+      targetRange: "A2:C4"
+    });
+    expect(targetRange.setValues).toHaveBeenCalledWith([
+      [
+        "=A1",
+        '=LET(_hermes_value, A1, IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ","), 1, 1), ""))',
+        '=LET(_hermes_value, A1, IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ","), 1, 2), ""))'
+      ],
+      ["Grace,Hopper", "Grace", "Hopper"],
+      [
+        "=A3",
+        '=LET(_hermes_value, A3, IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ","), 1, 1), ""))',
+        '=LET(_hermes_value, A3, IFERROR(INDEX(SPLIT(TO_TEXT(_hermes_value), ","), 1, 2), ""))'
+      ]
+    ]);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
   it("fails closed for non-formula-aware cleanup plans when the target range contains formulas in Google Sheets", () => {
     const targetRange = createRangeStub({
       a1Notation: "A2:A4",
