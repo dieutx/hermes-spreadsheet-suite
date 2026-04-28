@@ -5140,6 +5140,9 @@ function applyWritePlan(input) {
     const actualTargetRange = deriveTransferTargetRangeA1_(plan, resolvedTargetRange);
 
     assertNonOverlappingTransfer_(plan, actualTargetRange);
+    const canSnapshotCopyTransfer = plan.operation === 'copy' && plan.pasteMode !== 'formats';
+    const beforeValues = canSnapshotCopyTransfer ? resolvedTargetRange.getValues() : null;
+    const beforeFormulas = canSnapshotCopyTransfer ? resolvedTargetRange.getFormulas() : null;
     writeTransferToTarget_(resolvedTargetRange, sourceRange, plan);
 
     if (plan.operation === 'move') {
@@ -5147,7 +5150,18 @@ function applyWritePlan(input) {
     }
 
     SpreadsheetApp.flush();
-    return buildRangeTransferResult_(plan, actualTargetRange);
+    const result = buildRangeTransferResult_(plan, actualTargetRange);
+    return canSnapshotCopyTransfer
+      ? attachLocalExecutionSnapshot_(result, createLocalExecutionSnapshot_({
+        executionId: input.executionId,
+        targetSheet: plan.targetSheet,
+        targetRange: actualTargetRange,
+        beforeValues: beforeValues,
+        beforeFormulas: beforeFormulas,
+        afterValues: resolvedTargetRange.getValues(),
+        afterFormulas: resolvedTargetRange.getFormulas()
+      }))
+      : result;
   }
 
   const sheet = spreadsheet.getSheetByName(plan.targetSheet);

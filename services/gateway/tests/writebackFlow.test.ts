@@ -5360,6 +5360,83 @@ describe("writeback confirmation flow", () => {
     });
   });
 
+  it("records copy range transfer history as undo-eligible when the host provides a snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Report",
+      targetRange: "D5:E6",
+      operation: "copy" as const,
+      pasteMode: "values" as const,
+      transpose: false,
+      explanation: "Copy cleaned rows into the report sheet.",
+      confidence: 0.96,
+      requiresConfirmation: true as const,
+      affectedRanges: ["RawData!A2:B3", "Report!D5:E6"],
+      overwriteRisk: "low" as const,
+      confirmationLevel: "standard" as const
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_range_transfer_undo_ready",
+      requestId: "req_range_transfer_undo_ready",
+      type: "range_transfer_plan",
+      traceEvent: "range_transfer_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_range_transfer_undo_ready",
+        runId: "run_range_transfer_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_range_transfer_undo_ready",
+        runId: "run_range_transfer_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "range_transfer_update",
+          operation: "range_transfer_update",
+          hostPlatform: "excel_windows",
+          sourceSheet: "RawData",
+          sourceRange: "A2:B3",
+          targetSheet: "Report",
+          targetRange: "D5:E6",
+          transferOperation: "copy",
+          pasteMode: "values",
+          transpose: false,
+          undoReady: true,
+          summary: "Copied RawData!A2:B3 to Report!D5:E6."
+        }
+      }
+    });
+    expect(completion.status).toBe(200);
+
+    expect(
+      executionLedger.listHistory("excel_windows::workbook-123").entries[0]
+    ).toMatchObject({
+      planType: "range_transfer_plan",
+      reversible: true,
+      undoEligible: true
+    });
+  });
+
   it("rejects range transfer approvals whose targetRange is only an anchor", () => {
     const traceBus = new TraceBus();
     const plan = {

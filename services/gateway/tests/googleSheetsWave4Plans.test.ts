@@ -657,10 +657,11 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         affectedRanges: ["RawData!A2:B3", "Archive!D5:E6"],
         overwriteRisk: "low",
         confirmationLevel: "standard"
-      }
+      },
+      executionId: "exec_range_transfer_copy_undo_sheets_001"
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       kind: "range_transfer_update",
       operation: "range_transfer_update",
       hostPlatform: "google_sheets",
@@ -672,6 +673,19 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       pasteMode: "values",
       transpose: false,
       summary: "Copied RawData!A2:B3 to Archive!D5:E6."
+    });
+    expect(result.__hermesLocalExecutionSnapshot).toMatchObject({
+      baseExecutionId: "exec_range_transfer_copy_undo_sheets_001",
+      targetSheet: "Archive",
+      targetRange: "D5:E6",
+      beforeCells: [
+        [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }],
+        [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+      ],
+      afterCells: [
+        [{ kind: "value", value: { type: "string", value: "Ada" } }, { kind: "value", value: { type: "string", value: "Lovelace" } }],
+        [{ kind: "value", value: { type: "string", value: "Grace" } }, { kind: "value", value: { type: "string", value: "Hopper" } }]
+      ]
     });
     expect(targetRange.setValues).toHaveBeenCalledWith([
       ["Ada", "Lovelace"],
