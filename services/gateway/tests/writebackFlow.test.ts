@@ -3327,6 +3327,75 @@ describe("writeback confirmation flow", () => {
     });
   });
 
+  it("records workbook structure history as undo-eligible when the host confirms an exact rollback snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      operation: "rename_sheet",
+      sheetName: "Old Sheet",
+      newSheetName: "New Sheet",
+      explanation: "Rename the sheet.",
+      confidence: 0.95,
+      requiresConfirmation: true,
+      overwriteRisk: "none"
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_structure_undo_ready",
+      requestId: "req_structure_undo_ready",
+      type: "workbook_structure_update",
+      traceEvent: "result_generated",
+      plan
+    });
+
+    const approvalResponse = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_structure_undo_ready",
+        runId: "run_structure_undo_ready",
+        workbookSessionKey: "google_sheets::workbook-123",
+        plan
+      }
+    });
+
+    expect(approvalResponse.status).toBe(200);
+
+    const approvedBody = approvalResponse.body as Record<string, string>;
+    const completionResponse = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_structure_undo_ready",
+        runId: "run_structure_undo_ready",
+        workbookSessionKey: "google_sheets::workbook-123",
+        approvalToken: approvedBody.approvalToken,
+        planDigest: approvedBody.planDigest,
+        result: {
+          kind: "workbook_structure_update",
+          hostPlatform: "google_sheets",
+          sheetName: "Old Sheet",
+          operation: "rename_sheet",
+          newSheetName: "New Sheet",
+          summary: "Renamed sheet Old Sheet to New Sheet.",
+          undoReady: true
+        }
+      }
+    });
+
+    expect(completionResponse.status).toBe(200);
+    expect(
+      executionLedger.listHistory("google_sheets::workbook-123").entries[0]
+    ).toMatchObject({
+      planType: "workbook_structure_update",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false
+    });
+  });
+
   it("accepts workbook rename completions that report the new sheet name", () => {
     const traceBus = new TraceBus();
     const plan = {
