@@ -424,7 +424,8 @@ const PivotTableWritebackResultSchema = z.intersection(
     kind: z.literal("pivot_table_update"),
     operation: z.literal("pivot_table_update"),
     hostPlatform: HostPlatformSchema,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    undoReady: z.boolean().optional()
   }),
   z.preprocess(stripCompletionEnvelopeInput, PivotTablePlanDataSchema)
 );
@@ -1382,6 +1383,10 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return false;
   }
 
+  if (PivotTablePlanDataSchema.safeParse(plan).success) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1409,6 +1414,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
   switch (result.kind) {
     case "range_write":
     case "range_sort":
+    case "pivot_table_update":
     case "data_cleanup_update":
     case "analysis_report_update":
       return result.undoReady === true;
