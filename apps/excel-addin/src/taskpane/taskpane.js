@@ -3602,6 +3602,64 @@ function wrapFormulaWithCleanupTransform(formula, formulaAwareTransform) {
   return `=LET(_hermes_value, ${expression}, IF(ISTEXT(_hermes_value), ${transformedExpression}, _hermes_value))`;
 }
 
+function getFormulaCellText(formulas, rowIndex, columnIndex) {
+  const formulaValue = normalizeExcelFormulaText(formulas?.[rowIndex]?.[columnIndex]);
+  return typeof formulaValue === "string" && formulaValue.trim().startsWith("=")
+    ? formulaValue
+    : "";
+}
+
+function applyFormulaAwareFillDownCleanup(target, plan, inputValues, inputFormulas, hostLabel) {
+  if (plan.operation !== "fill_down" || !hasAnyRealFormula(inputFormulas)) {
+    return false;
+  }
+
+  if (typeof target?.getCell !== "function") {
+    throw new Error(`${hostLabel} cannot apply formula-aware fill_down without cell-level range access.`);
+  }
+
+  const values = cloneMatrix(inputValues);
+  const formulas = cloneMatrix(inputFormulas);
+  const explicitOffsets = getCleanupColumnOffsets(plan);
+  const targetOffsets = explicitOffsets.length > 0
+    ? explicitOffsets
+    : Array.from({ length: values[0]?.length || 0 }, (_, index) => index);
+
+  for (const columnIndex of targetOffsets) {
+    let lastSeen = null;
+
+    for (let rowIndex = 0; rowIndex < values.length; rowIndex += 1) {
+      const formula = getFormulaCellText(formulas, rowIndex, columnIndex);
+      const value = values[rowIndex]?.[columnIndex];
+
+      if (!formula && isBlankCellValue(value)) {
+        if (!lastSeen) {
+          continue;
+        }
+
+        const destination = target.getCell(rowIndex, columnIndex);
+        if (lastSeen.kind === "formula") {
+          const source = target.getCell(lastSeen.rowIndex, columnIndex);
+          if (typeof destination?.copyFrom !== "function") {
+            throw new Error(`${hostLabel} cannot apply formula-aware fill_down without formula copy support.`);
+          }
+
+          destination.copyFrom(source, Excel?.RangeCopyType?.formulas || "Formulas", false, false);
+        } else {
+          destination.values = [[lastSeen.value]];
+        }
+        continue;
+      }
+
+      lastSeen = formula
+        ? { kind: "formula", rowIndex }
+        : { kind: "value", value };
+    }
+  }
+
+  return true;
+}
+
 function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
   const values = cloneMatrix(inputValues);
   const formulas = cloneMatrix(inputFormulas);
@@ -7562,11 +7620,13 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const beforeValues = cloneMatrix(target.values);
       const beforeFormulas = cloneMatrix(target.formulas);
 
-      const cleanupWrite = buildCleanupWriteMatrix(plan, target.values, target.formulas, "Excel host");
-      if (cleanupWrite.kind === "formulas") {
-        target.formulas = cleanupWrite.matrix;
-      } else {
-        target.values = cleanupWrite.matrix;
+      if (!applyFormulaAwareFillDownCleanup(target, plan, target.values, target.formulas, "Excel host")) {
+        const cleanupWrite = buildCleanupWriteMatrix(plan, target.values, target.formulas, "Excel host");
+        if (cleanupWrite.kind === "formulas") {
+          target.formulas = cleanupWrite.matrix;
+        } else {
+          target.values = cleanupWrite.matrix;
+        }
       }
       target.load(["values", "formulas"]);
       await context.sync();

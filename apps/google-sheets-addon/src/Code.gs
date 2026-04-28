@@ -3821,6 +3821,70 @@ function wrapFormulaWithCleanupTransform_(formula, formulaAwareTransform) {
     transformedExpression + ', _hermes_value))';
 }
 
+function getFormulaCellText_(formulas, rowIndex, columnIndex) {
+  const formulaValue = formulas && formulas[rowIndex] ? formulas[rowIndex][columnIndex] : '';
+  return typeof formulaValue === 'string' && formulaValue.trim().startsWith('=')
+    ? formulaValue
+    : '';
+}
+
+function applyFormulaAwareFillDownCleanup_(target, plan, inputValues, inputFormulas, hostLabel) {
+  if (plan.operation !== 'fill_down' || !hasAnyRealFormula_(inputFormulas)) {
+    return false;
+  }
+
+  if (typeof target.getCell !== 'function') {
+    throw new Error(hostLabel + ' cannot apply formula-aware fill_down without cell-level range access.');
+  }
+
+  if (!SpreadsheetApp.CopyPasteType || !SpreadsheetApp.CopyPasteType.PASTE_FORMULA) {
+    throw new Error(hostLabel + ' cannot apply formula-aware fill_down without formula copy support.');
+  }
+
+  const values = cloneMatrix_(inputValues);
+  const formulas = cloneMatrix_(inputFormulas);
+  const explicitOffsets = getCleanupColumnOffsets_(plan);
+  const targetOffsets = explicitOffsets.length > 0
+    ? explicitOffsets
+    : Array.from({ length: values[0] ? values[0].length : 0 }, function(_value, index) {
+      return index;
+    });
+
+  targetOffsets.forEach(function(columnIndex) {
+    let lastSeen = null;
+
+    for (let rowIndex = 0; rowIndex < values.length; rowIndex += 1) {
+      const formula = getFormulaCellText_(formulas, rowIndex, columnIndex);
+      const value = values[rowIndex] ? values[rowIndex][columnIndex] : '';
+
+      if (!formula && isBlankCellValue_(value)) {
+        if (!lastSeen) {
+          continue;
+        }
+
+        const destination = target.getCell(rowIndex + 1, columnIndex + 1);
+        if (lastSeen.kind === 'formula') {
+          const source = target.getCell(lastSeen.rowIndex + 1, columnIndex + 1);
+          if (typeof source.copyTo !== 'function') {
+            throw new Error(hostLabel + ' cannot apply formula-aware fill_down without formula copy support.');
+          }
+
+          source.copyTo(destination, SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+        } else {
+          destination.setValue(lastSeen.value);
+        }
+        continue;
+      }
+
+      lastSeen = formula
+        ? { kind: 'formula', rowIndex: rowIndex }
+        : { kind: 'value', value: value };
+    }
+  });
+
+  return true;
+}
+
 function buildCleanupWriteMatrix_(plan, inputValues, inputFormulas, hostLabel) {
   const values = cloneMatrix_(inputValues);
   const formulas = cloneMatrix_(inputFormulas);
@@ -5561,8 +5625,10 @@ function applyWritePlan(input) {
   if (isDataCleanupPlan_(plan)) {
     const beforeValues = target.getValues();
     const beforeFormulas = target.getFormulas();
-    const nextValues = buildCleanupWriteMatrix_(plan, beforeValues, beforeFormulas, 'Google Sheets host');
-    target.setValues(nextValues);
+    if (!applyFormulaAwareFillDownCleanup_(target, plan, beforeValues, beforeFormulas, 'Google Sheets host')) {
+      const nextValues = buildCleanupWriteMatrix_(plan, beforeValues, beforeFormulas, 'Google Sheets host');
+      target.setValues(nextValues);
+    }
     SpreadsheetApp.flush();
     return attachLocalExecutionSnapshot_({
       kind: 'data_cleanup_update',
