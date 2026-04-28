@@ -1405,4 +1405,66 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       ["2026-04-23"]
     ]);
   });
+
+  it("applies standardize_format cleanup with formula-aware wrappers in Excel", async () => {
+    const targetRange = createRangeStub({
+      address: "Contacts!B2:B4",
+      rowCount: 3,
+      columnCount: 1,
+      values: [
+        ["2026/04/20"],
+        ["2026/04/21"],
+        ["2026/04/22"]
+      ],
+      formulas: [
+        ["=A2"],
+        [""],
+        ["=A4"]
+      ]
+    });
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "B2:B4",
+        operation: "standardize_format",
+        formatType: "date_text",
+        formatPattern: "YYYY-MM-DD",
+        explanation: "Normalize formula-driven date strings into ISO format.",
+        confidence: 0.87,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!B2:B4"],
+        overwriteRisk: "medium",
+        confirmationLevel: "standard"
+      },
+      requestId: "req_cleanup_standardize_formula_excel_001",
+      runId: "run_cleanup_standardize_formula_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "data_cleanup_update",
+      hostPlatform: "excel_windows",
+      targetSheet: "Contacts",
+      targetRange: "B2:B4",
+      operation: "standardize_format",
+      formatType: "date_text",
+      formatPattern: "YYYY-MM-DD"
+    });
+
+    expect(targetRange.formulas).toEqual([
+      ['=LET(_hermes_value, A2, IF(OR(ISTEXT(_hermes_value), ISNUMBER(_hermes_value)), IF(_hermes_value="", "", IF(ISNUMBER(_hermes_value), TEXT(_hermes_value, "yyyy-mm-dd"), TEXT(DATEVALUE(_hermes_value), "yyyy-mm-dd"))), _hermes_value))'],
+      ["2026-04-21"],
+      ['=LET(_hermes_value, A4, IF(OR(ISTEXT(_hermes_value), ISNUMBER(_hermes_value)), IF(_hermes_value="", "", IF(ISNUMBER(_hermes_value), TEXT(_hermes_value, "yyyy-mm-dd"), TEXT(DATEVALUE(_hermes_value), "yyyy-mm-dd"))), _hermes_value))']
+    ]);
+  });
 });

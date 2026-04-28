@@ -3543,6 +3543,29 @@ function toSentenceCaseText(value) {
   return `${lowerCased.charAt(0).toLocaleUpperCase()}${lowerCased.slice(1)}`;
 }
 
+function quoteCleanupFormulaString(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function getStandardizeFormatFormulaPattern(spec) {
+  if (spec.formatType === "date_text") {
+    const separator = spec.separator || "-";
+    return `yyyy${separator}mm${separator}dd`;
+  }
+
+  return spec.formatPattern;
+}
+
+function buildStandardizeFormatFormulaExpression(spec) {
+  const quotedPattern = quoteCleanupFormulaString(getStandardizeFormatFormulaPattern(spec));
+
+  if (spec.formatType === "date_text") {
+    return `IF(_hermes_value="", "", IF(ISNUMBER(_hermes_value), TEXT(_hermes_value, ${quotedPattern}), TEXT(DATEVALUE(_hermes_value), ${quotedPattern})))`;
+  }
+
+  return `IF(_hermes_value="", "", TEXT(VALUE(SUBSTITUTE(_hermes_value, ",", "")), ${quotedPattern}))`;
+}
+
 function getFormulaAwareCleanupTransform(plan, hostLabel) {
   switch (plan.operation) {
     case "trim_whitespace":
@@ -3585,6 +3608,22 @@ function getFormulaAwareCleanupTransform(plan, hostLabel) {
         default:
           throw new Error(`${hostLabel} does not support exact-safe cleanup semantics for normalize_case mode ${plan.mode}.`);
       }
+    case "standardize_format": {
+      const spec = getSupportedStandardizeFormatSpec(plan?.formatType, plan?.formatPattern);
+      if (!spec) {
+        throw new Error(getStandardizeFormatSupportError(plan?.formatType, plan?.formatPattern, hostLabel));
+      }
+
+      return {
+        applyToValue(value) {
+          return spec.formatType === "date_text"
+            ? standardizeDateTextValueExact(value, spec, hostLabel)
+            : standardizeNumberTextValueExact(value, spec, hostLabel);
+        },
+        formulaCondition: "OR(ISTEXT(_hermes_value), ISNUMBER(_hermes_value))",
+        formulaExpression: buildStandardizeFormatFormulaExpression(spec)
+      };
+    }
     default:
       return null;
   }
@@ -3599,7 +3638,8 @@ function wrapFormulaWithCleanupTransform(formula, formulaAwareTransform) {
   const expression = normalizedFormula.slice(1);
   const transformedExpression = formulaAwareTransform.formulaExpression ||
     `${formulaAwareTransform.formulaFunction}(_hermes_value)`;
-  return `=LET(_hermes_value, ${expression}, IF(ISTEXT(_hermes_value), ${transformedExpression}, _hermes_value))`;
+  const condition = formulaAwareTransform.formulaCondition || "ISTEXT(_hermes_value)";
+  return `=LET(_hermes_value, ${expression}, IF(${condition}, ${transformedExpression}, _hermes_value))`;
 }
 
 function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
