@@ -1354,6 +1354,69 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     ]);
   });
 
+  it("applies remove_blank_rows cleanup across formula-containing ranges in Excel", async () => {
+    const targetRange = createRangeStub({
+      address: "Contacts!A2:B6",
+      rowCount: 5,
+      columnCount: 2,
+      values: [
+        ["North", 10],
+        ["", ""],
+        ["", 25],
+        ["", ""],
+        ["South", 30]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""],
+        ["=A2", ""],
+        ["", ""],
+        ["", "=SUM(C6:D6)"]
+      ]
+    });
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:B6",
+        operation: "remove_blank_rows",
+        explanation: "Remove blank rows without flattening formulas.",
+        confidence: 0.81,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:B6"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_cleanup_remove_blank_rows_formulas_excel_001",
+      runId: "run_cleanup_remove_blank_rows_formulas_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "remove_blank_rows",
+      targetSheet: "Contacts",
+      targetRange: "A2:B6"
+    });
+
+    expect(targetRange.formulas).toEqual([
+      ["North", 10],
+      ["=A2", 25],
+      ["South", "=SUM(C6:D6)"],
+      ["", ""],
+      ["", ""]
+    ]);
+  });
+
   it("applies normalize_case title cleanup in Excel", async () => {
     const targetRange = createRangeStub({
       address: "Contacts!A2:A4",

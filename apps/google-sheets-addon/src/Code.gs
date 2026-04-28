@@ -3885,6 +3885,43 @@ function applyFormulaAwareFillDownCleanup_(target, plan, inputValues, inputFormu
   return true;
 }
 
+function buildFormulaPreservingRow_(row, rowIndex, formulas, targetColumnCount) {
+  return Array.from({ length: targetColumnCount }, function(_value, columnIndex) {
+    const formula = getFormulaCellText_(formulas, rowIndex, columnIndex);
+    return formula || (row ? row[columnIndex] : '') || '';
+  });
+}
+
+function isFormulaAwareRowBlank_(row, rowIndex, formulas, columnOffsets) {
+  return columnOffsets.every(function(columnIndex) {
+    return !getFormulaCellText_(formulas, rowIndex, columnIndex) &&
+      isBlankCellValue_(row ? row[columnIndex] : '');
+  });
+}
+
+function buildFormulaAwareRemoveBlankRowsMatrix_(plan, inputValues, inputFormulas) {
+  const values = cloneMatrix_(inputValues);
+  const formulas = cloneMatrix_(inputFormulas);
+  const targetColumnCount = values[0] ? values[0].length : (formulas[0] ? formulas[0].length : 0);
+  const explicitOffsets = getCleanupColumnOffsets_(plan);
+  const columnOffsets = explicitOffsets.length > 0
+    ? explicitOffsets
+    : Array.from({ length: targetColumnCount }, function(_value, index) {
+      return index;
+    });
+  const retainedRows = [];
+
+  values.forEach(function(row, rowIndex) {
+    if (isFormulaAwareRowBlank_(row, rowIndex, formulas, columnOffsets)) {
+      return;
+    }
+
+    retainedRows.push(buildFormulaPreservingRow_(row, rowIndex, formulas, targetColumnCount));
+  });
+
+  return fillTrailingBlankRows_(retainedRows, targetColumnCount, values.length);
+}
+
 function buildCleanupWriteMatrix_(plan, inputValues, inputFormulas, hostLabel) {
   const values = cloneMatrix_(inputValues);
   const formulas = cloneMatrix_(inputFormulas);
@@ -3892,6 +3929,10 @@ function buildCleanupWriteMatrix_(plan, inputValues, inputFormulas, hostLabel) {
 
   if (!hasAnyRealFormula_(formulas)) {
     return applyCleanupTransform_(plan, values, hostLabel);
+  }
+
+  if (plan.operation === 'remove_blank_rows') {
+    return buildFormulaAwareRemoveBlankRowsMatrix_(plan, values, formulas);
   }
 
   if (!formulaAwareTransform) {
