@@ -181,7 +181,8 @@ const RangeFormatWritebackResultSchema = z.intersection(
   z.object({
     kind: z.literal("range_format_update"),
     hostPlatform: HostPlatformSchema,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    undoReady: z.boolean().optional()
   }),
   z.preprocess(stripCompletionEnvelopeInput, RangeFormatUpdateDataSchema)
 );
@@ -1382,6 +1383,10 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return false;
   }
 
+  if (RangeFormatUpdateDataSchema.safeParse(plan).success) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1408,6 +1413,7 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
 function isCompletionUndoReady(result: CompletionResult): boolean {
   switch (result.kind) {
     case "range_write":
+    case "range_format_update":
     case "range_sort":
     case "data_cleanup_update":
     case "analysis_report_update":
