@@ -1239,6 +1239,66 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     ]);
   });
 
+  it("applies join_columns cleanup across formula-containing ranges in Excel", async () => {
+    const targetRange = createRangeStub({
+      address: "Contacts!A2:C4",
+      rowCount: 3,
+      columnCount: 3,
+      values: [
+        ["Ada", "Lovelace", ""],
+        ["Grace", "Hopper", ""],
+        ["Alan", "Turing", "Existing"]
+      ],
+      formulas: [
+        ["=A1", "", ""],
+        ["", "=B2", ""],
+        ["", "", "=C3"]
+      ]
+    });
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:C4",
+        operation: "join_columns",
+        sourceColumns: ["A", "B"],
+        delimiter: " ",
+        targetColumn: "C",
+        explanation: "Join formula-driven first and last names into a full-name column.",
+        confidence: 0.82,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:C4"],
+        overwriteRisk: "high",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_cleanup_join_columns_formulas_excel_001",
+      runId: "run_cleanup_join_columns_formulas_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "join_columns",
+      targetSheet: "Contacts",
+      targetRange: "A2:C4"
+    });
+
+    expect(targetRange.formulas).toEqual([
+      ["=A1", "Lovelace", '=TEXTJOIN(" ", FALSE, A1, "Lovelace")'],
+      ["Grace", "=B2", '=TEXTJOIN(" ", FALSE, "Grace", B2)'],
+      ["Alan", "Turing", "Alan Turing"]
+    ]);
+  });
+
   it("applies normalize_case title cleanup in Excel", async () => {
     const targetRange = createRangeStub({
       address: "Contacts!A2:A4",

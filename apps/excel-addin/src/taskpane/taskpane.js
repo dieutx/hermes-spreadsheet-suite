@@ -3602,6 +3602,47 @@ function wrapFormulaWithCleanupTransform(formula, formulaAwareTransform) {
   return `=LET(_hermes_value, ${expression}, IF(ISTEXT(_hermes_value), ${transformedExpression}, _hermes_value))`;
 }
 
+function getFormulaCellText(formulas, rowIndex, columnIndex) {
+  const formulaValue = normalizeExcelFormulaText(formulas?.[rowIndex]?.[columnIndex]);
+  return typeof formulaValue === "string" && formulaValue.trim().startsWith("=")
+    ? formulaValue.trim()
+    : "";
+}
+
+function quoteSpreadsheetFormulaString(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function buildFormulaPreservingCleanupRow(row, rowIndex, formulas, targetColumnCount) {
+  return Array.from({ length: targetColumnCount }, (_, columnIndex) => {
+    const formula = getFormulaCellText(formulas, rowIndex, columnIndex);
+    return formula || (row?.[columnIndex] ?? "");
+  });
+}
+
+function buildFormulaAwareJoinColumnMatrix(plan, inputValues, inputFormulas) {
+  const values = cloneMatrix(inputValues);
+  const formulas = cloneMatrix(inputFormulas);
+  const targetColumnCount = values[0]?.length || formulas[0]?.length || 0;
+  const { source, target } = getCleanupColumnOffsets(plan);
+  const quotedDelimiter = quoteSpreadsheetFormulaString(plan.delimiter);
+
+  return values.map((row, rowIndex) => {
+    const nextRow = buildFormulaPreservingCleanupRow(row, rowIndex, formulas, targetColumnCount);
+    const sourceParts = source.map((columnIndex) => {
+      const formula = getFormulaCellText(formulas, rowIndex, columnIndex);
+      return formula ? formula.slice(1) : quoteSpreadsheetFormulaString(row?.[columnIndex] ?? "");
+    });
+    const hasSourceFormula = source.some((columnIndex) => getFormulaCellText(formulas, rowIndex, columnIndex));
+
+    nextRow[target] = hasSourceFormula
+      ? `=TEXTJOIN(${quotedDelimiter}, FALSE, ${sourceParts.join(", ")})`
+      : source.map((columnIndex) => String(row?.[columnIndex] ?? "")).join(plan.delimiter);
+
+    return nextRow;
+  });
+}
+
 function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
   const values = cloneMatrix(inputValues);
   const formulas = cloneMatrix(inputFormulas);
@@ -3611,6 +3652,13 @@ function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
     return {
       kind: "values",
       matrix: applyCleanupTransform(plan, values, hostLabel)
+    };
+  }
+
+  if (plan.operation === "join_columns") {
+    return {
+      kind: "formulas",
+      matrix: buildFormulaAwareJoinColumnMatrix(plan, values, formulas)
     };
   }
 

@@ -1402,6 +1402,63 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
+  it("applies join_columns cleanup across formula-containing ranges in Google Sheets", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A2:C4",
+      row: 2,
+      column: 1,
+      numRows: 3,
+      numColumns: 3,
+      values: [
+        ["Ada", "Lovelace", ""],
+        ["Grace", "Hopper", ""],
+        ["Alan", "Turing", "Existing"]
+      ],
+      formulas: [
+        ["=A1", "", ""],
+        ["", "=B2", ""],
+        ["", "", "=C3"]
+      ]
+    });
+    const sheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn(() => sheet)
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:C4",
+        operation: "join_columns",
+        sourceColumns: ["A", "B"],
+        delimiter: " ",
+        targetColumn: "C",
+        explanation: "Join formula-driven first and last names into a full-name column.",
+        confidence: 0.86,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:C4"],
+        overwriteRisk: "high",
+        confirmationLevel: "destructive"
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "join_columns",
+      targetSheet: "Contacts",
+      targetRange: "A2:C4"
+    });
+    expect(targetRange.setValues).toHaveBeenCalledWith([
+      ["=A1", "Lovelace", '=TEXTJOIN(" ", FALSE, A1, "Lovelace")'],
+      ["Grace", "=B2", '=TEXTJOIN(" ", FALSE, "Grace", B2)'],
+      ["Alan", "Turing", "Alan Turing"]
+    ]);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
   it("fails closed for non-formula-aware cleanup plans when the target range contains formulas in Google Sheets", () => {
     const targetRange = createRangeStub({
       a1Notation: "A2:A4",
