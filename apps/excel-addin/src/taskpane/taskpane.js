@@ -3602,6 +3602,48 @@ function wrapFormulaWithCleanupTransform(formula, formulaAwareTransform) {
   return `=LET(_hermes_value, ${expression}, IF(ISTEXT(_hermes_value), ${transformedExpression}, _hermes_value))`;
 }
 
+function getFormulaCellText(formulas, rowIndex, columnIndex) {
+  const formulaValue = normalizeExcelFormulaText(formulas?.[rowIndex]?.[columnIndex]);
+  return typeof formulaValue === "string" && formulaValue.trim().startsWith("=")
+    ? formulaValue
+    : "";
+}
+
+function buildFormulaPreservingRow(row, rowIndex, formulas, targetColumnCount) {
+  return Array.from({ length: targetColumnCount }, (_, columnIndex) => {
+    const formula = getFormulaCellText(formulas, rowIndex, columnIndex);
+    return formula || row?.[columnIndex] || "";
+  });
+}
+
+function isFormulaAwareRowBlank(row, rowIndex, formulas, columnOffsets) {
+  return columnOffsets.every((columnIndex) =>
+    !getFormulaCellText(formulas, rowIndex, columnIndex) &&
+    isBlankCellValue(row?.[columnIndex])
+  );
+}
+
+function buildFormulaAwareRemoveBlankRowsMatrix(plan, inputValues, inputFormulas) {
+  const values = cloneMatrix(inputValues);
+  const formulas = cloneMatrix(inputFormulas);
+  const targetColumnCount = values[0]?.length || formulas[0]?.length || 0;
+  const explicitOffsets = getCleanupColumnOffsets(plan);
+  const columnOffsets = explicitOffsets.length > 0
+    ? explicitOffsets
+    : Array.from({ length: targetColumnCount }, (_, index) => index);
+  const retainedRows = [];
+
+  values.forEach((row, rowIndex) => {
+    if (isFormulaAwareRowBlank(row, rowIndex, formulas, columnOffsets)) {
+      return;
+    }
+
+    retainedRows.push(buildFormulaPreservingRow(row, rowIndex, formulas, targetColumnCount));
+  });
+
+  return fillTrailingBlankRows(retainedRows, targetColumnCount, values.length);
+}
+
 function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
   const values = cloneMatrix(inputValues);
   const formulas = cloneMatrix(inputFormulas);
@@ -3611,6 +3653,13 @@ function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
     return {
       kind: "values",
       matrix: applyCleanupTransform(plan, values, hostLabel)
+    };
+  }
+
+  if (plan.operation === "remove_blank_rows") {
+    return {
+      kind: "formulas",
+      matrix: buildFormulaAwareRemoveBlankRowsMatrix(plan, values, formulas)
     };
   }
 

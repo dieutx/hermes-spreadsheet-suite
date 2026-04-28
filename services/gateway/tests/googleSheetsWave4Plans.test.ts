@@ -1402,6 +1402,66 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
+  it("applies remove_blank_rows cleanup across formula-containing ranges in Google Sheets", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A2:B6",
+      row: 2,
+      column: 1,
+      numRows: 5,
+      numColumns: 2,
+      values: [
+        ["North", 10],
+        ["", ""],
+        ["", 25],
+        ["", ""],
+        ["South", 30]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""],
+        ["=A2", ""],
+        ["", ""],
+        ["", "=SUM(C6:D6)"]
+      ]
+    });
+    const sheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn(() => sheet)
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:B6",
+        operation: "remove_blank_rows",
+        explanation: "Remove blank rows without flattening formulas.",
+        confidence: 0.84,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:B6"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "remove_blank_rows",
+      targetSheet: "Contacts",
+      targetRange: "A2:B6"
+    });
+    expect(targetRange.setValues).toHaveBeenCalledWith([
+      ["North", 10],
+      ["=A2", 25],
+      ["South", "=SUM(C6:D6)"],
+      ["", ""],
+      ["", ""]
+    ]);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
   it("fails closed for non-formula-aware cleanup plans when the target range contains formulas in Google Sheets", () => {
     const targetRange = createRangeStub({
       a1Notation: "A2:A4",
