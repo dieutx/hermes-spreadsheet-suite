@@ -376,7 +376,8 @@ const NamedRangeWritebackResultSchema = z.intersection(
 
 const RangeTransferWritebackResultSchema = RangeTransferUpdateDataSchema.extend({
   kind: z.literal("range_transfer_update"),
-  hostPlatform: HostPlatformSchema
+  hostPlatform: HostPlatformSchema,
+  undoReady: z.boolean().optional()
 });
 
 const DataCleanupWritebackResultSchema = z.intersection(
@@ -1382,6 +1383,17 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return false;
   }
 
+  if (
+    "sourceSheet" in plan &&
+    "sourceRange" in plan &&
+    "operation" in plan &&
+    plan.operation === "copy" &&
+    "pasteMode" in plan &&
+    (plan.pasteMode === "values" || plan.pasteMode === "formulas")
+  ) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1411,6 +1423,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
     case "range_sort":
     case "data_cleanup_update":
     case "analysis_report_update":
+    case "range_transfer_update":
       return result.undoReady === true;
     default:
       return false;

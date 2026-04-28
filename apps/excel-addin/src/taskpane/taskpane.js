@@ -7665,8 +7665,14 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const actualTargetRange = buildA1RangeFromBounds(
         deriveTransferTargetBounds(plan, resolvedTargetRange)
       );
+      const canSnapshotCopyTransfer = plan.operation === "copy" && plan.pasteMode !== "formats";
+      const beforeValues = canSnapshotCopyTransfer ? cloneMatrix(resolvedTargetRange.values) : null;
+      const beforeFormulas = canSnapshotCopyTransfer ? cloneMatrix(resolvedTargetRange.formulas) : null;
       assertNonOverlappingTransfer(plan, resolvedTargetRange);
       writeTransferValues(resolvedTargetRange, sourceRange, plan);
+      if (canSnapshotCopyTransfer) {
+        resolvedTargetRange.load(["values", "formulas"]);
+      }
       await context.sync();
 
       if (plan.operation === "move") {
@@ -7674,7 +7680,7 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         await context.sync();
       }
 
-      return {
+      const result = {
         kind: "range_transfer_update",
         hostPlatform: platform,
         operation: "range_transfer_update",
@@ -7690,6 +7696,18 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           targetRange: actualTargetRange
         })
       };
+
+      return canSnapshotCopyTransfer
+        ? attachLocalExecutionSnapshot(result, createLocalExecutionSnapshot({
+            executionId,
+            targetSheet: plan.targetSheet,
+            targetRange: actualTargetRange,
+            beforeValues,
+            beforeFormulas,
+            afterValues: resolvedTargetRange.values,
+            afterFormulas: resolvedTargetRange.formulas
+          }))
+        : result;
     }
 
     if (isDataCleanupPlan(plan)) {
