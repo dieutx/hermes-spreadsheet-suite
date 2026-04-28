@@ -489,7 +489,8 @@ const CompositeWritebackResultSchema = z.object({
   stepResults: z.array(CompositeStepWritebackResultSchema).min(1),
   summary: CompletionSummarySchema,
   kind: z.literal("composite_update"),
-  hostPlatform: HostPlatformSchema
+  hostPlatform: HostPlatformSchema,
+  undoReady: z.boolean().optional()
 }).strict();
 
 const CompletionRequestSchema = z.object({
@@ -1097,9 +1098,7 @@ function getCompositeExecutionOutcome(
   return allCompleted
     ? {
       status: "completed",
-      // Composite host results do not yet carry an exact rollback snapshot contract.
-      // Fail closed so history does not promise undo for workflows the host cannot restore exactly.
-      undoEligible: false
+      undoEligible: result.undoReady === true
     }
     : { status: "failed", undoEligible: false };
 }
@@ -1380,6 +1379,10 @@ function hasNonEmptyNotesMatrix(notes: unknown): boolean {
 function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
   if (!plan) {
     return false;
+  }
+
+  if (isCompositePlan(plan)) {
+    return plan.reversible === true;
   }
 
   return (

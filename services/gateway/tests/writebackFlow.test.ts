@@ -2291,8 +2291,118 @@ describe("writeback confirmation flow", () => {
       executionId: (approval.body as any).executionId,
       planType: "composite_plan",
       status: "completed",
-      reversible: false,
+      reversible: true,
       undoEligible: false,
+      redoEligible: false
+    });
+  });
+
+  it("records successful composite history as undo-eligible when the host confirms an exact rollback snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const stepPlan = {
+      targetSheet: "Sales",
+      targetRange: "A1:B2",
+      operation: "replace_range" as const,
+      values: [["Region", "Revenue"], ["North", 1200]],
+      explanation: "Write sample sales data.",
+      confidence: 0.92,
+      requiresConfirmation: true as const,
+      shape: { rows: 2, columns: 2 }
+    };
+    const plan = {
+      steps: [
+        {
+          stepId: "write",
+          dependsOn: [],
+          continueOnError: false,
+          plan: stepPlan
+        }
+      ],
+      explanation: "Write the sample sales table.",
+      confidence: 0.9,
+      requiresConfirmation: true as const,
+      affectedRanges: ["Sales!A1:B2"],
+      overwriteRisk: "low" as const,
+      confirmationLevel: "standard" as const,
+      reversible: true,
+      dryRunRecommended: true,
+      dryRunRequired: false
+    };
+
+    executionLedger.storeDryRun({
+      planDigest: digestPlan(plan),
+      workbookSessionKey: "excel_windows::workbook-123",
+      simulated: true,
+      steps: [
+        { stepId: "write", status: "simulated", summary: "Would write Sales!A1:B2." }
+      ],
+      predictedAffectedRanges: ["Sales!A1:B2"],
+      predictedSummaries: ["Would write the sample sales table."],
+      overwriteRisk: "low",
+      reversible: true,
+      expiresAt: "2099-01-01T00:00:00.000Z"
+    });
+
+    setRunResponse(traceBus, {
+      runId: "run_composite_success_undo_ready",
+      requestId: "req_composite_success_undo_ready",
+      type: "composite_plan",
+      traceEvent: "composite_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_composite_success_undo_ready",
+        runId: "run_composite_success_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_composite_success_undo_ready",
+        runId: "run_composite_success_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "composite_update",
+          operation: "composite_update",
+          hostPlatform: "excel_windows",
+          executionId: (approval.body as any).executionId,
+          undoReady: true,
+          stepResults: [
+            {
+              stepId: "write",
+              status: "completed",
+              summary: "Wrote Sales!A1:B2.",
+              result: buildRangeWriteResult(stepPlan, { undoReady: true })
+            }
+          ],
+          summary: "Workflow finished successfully."
+        }
+      }
+    });
+
+    expect(completion.status).toBe(200);
+    expect(
+      executionLedger.listHistory("excel_windows::workbook-123").entries[0]
+    ).toMatchObject({
+      executionId: (approval.body as any).executionId,
+      planType: "composite_plan",
+      status: "completed",
+      reversible: true,
+      undoEligible: true,
       redoEligible: false
     });
   });
