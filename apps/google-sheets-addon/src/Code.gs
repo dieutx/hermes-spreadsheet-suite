@@ -3757,6 +3757,31 @@ function toSentenceCaseText_(value) {
   return lowerCased.charAt(0).toLocaleUpperCase() + lowerCased.slice(1);
 }
 
+function quoteCleanupFormulaString_(value) {
+  return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"';
+}
+
+function getStandardizeFormatFormulaPattern_(spec) {
+  if (spec.formatType === 'date_text') {
+    const separator = spec.separator || '-';
+    return 'yyyy' + separator + 'mm' + separator + 'dd';
+  }
+
+  return spec.formatPattern;
+}
+
+function buildStandardizeFormatFormulaExpression_(spec) {
+  const quotedPattern = quoteCleanupFormulaString_(getStandardizeFormatFormulaPattern_(spec));
+
+  if (spec.formatType === 'date_text') {
+    return 'IF(_hermes_value="", "", IF(ISNUMBER(_hermes_value), TEXT(_hermes_value, ' +
+      quotedPattern + '), TEXT(DATEVALUE(_hermes_value), ' + quotedPattern + ')))';
+  }
+
+  return 'IF(_hermes_value="", "", TEXT(VALUE(SUBSTITUTE(_hermes_value, ",", "")), ' +
+    quotedPattern + '))';
+}
+
 function getFormulaAwareCleanupTransform_(plan, hostLabel) {
   switch (plan.operation) {
     case 'trim_whitespace':
@@ -3803,6 +3828,22 @@ function getFormulaAwareCleanupTransform_(plan, hostLabel) {
             '.'
           );
       }
+    case 'standardize_format': {
+      const spec = getSupportedStandardizeFormatSpec_(plan && plan.formatType, plan && plan.formatPattern);
+      if (!spec) {
+        throw new Error(getStandardizeFormatSupportError_(plan && plan.formatType, plan && plan.formatPattern, hostLabel));
+      }
+
+      return {
+        applyToValue(value) {
+          return spec.formatType === 'date_text'
+            ? standardizeDateTextValueExact_(value, spec, hostLabel)
+            : standardizeNumberTextValueExact_(value, spec, hostLabel);
+        },
+        formulaCondition: 'OR(ISTEXT(_hermes_value), ISNUMBER(_hermes_value))',
+        formulaExpression: buildStandardizeFormatFormulaExpression_(spec)
+      };
+    }
     default:
       return null;
   }
@@ -3817,7 +3858,8 @@ function wrapFormulaWithCleanupTransform_(formula, formulaAwareTransform) {
   const expression = normalizedFormula.slice(1);
   const transformedExpression = formulaAwareTransform.formulaExpression ||
     formulaAwareTransform.formulaFunction + '(_hermes_value)';
-  return '=LET(_hermes_value, ' + expression + ', IF(ISTEXT(_hermes_value), ' +
+  const condition = formulaAwareTransform.formulaCondition || 'ISTEXT(_hermes_value)';
+  return '=LET(_hermes_value, ' + expression + ', IF(' + condition + ', ' +
     transformedExpression + ', _hermes_value))';
 }
 
