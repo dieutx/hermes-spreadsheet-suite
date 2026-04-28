@@ -1572,12 +1572,42 @@ function normalizeRangeTransferPlanData(value: unknown): unknown {
     "confirmationLevel"
   ]);
 
+  if (!hasOwn(normalized, "operation") && hasOwn(value, "transferOperation")) {
+    normalized.operation = value.transferOperation;
+  }
+
+  if (!hasOwn(normalized, "transpose")) {
+    normalized.transpose = false;
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {
     normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+  } else if (normalized.operation === "move") {
+    normalized.overwriteRisk = "high";
+  } else if (normalized.operation === "append") {
+    normalized.overwriteRisk = "medium";
+  } else if (normalized.operation === "copy") {
+    normalized.overwriteRisk = "low";
+  }
+
+  if (
+    (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0)
+  ) {
+    const refs = [
+      buildQualifiedRangeRef(normalized.sourceSheet, normalized.sourceRange),
+      buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange)
+    ].filter((item): item is string => typeof item === "string" && item.length > 0);
+    if (refs.length > 0) {
+      normalized.affectedRanges = refs;
+    }
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel = normalized.operation === "move" ? "destructive" : "standard";
   }
 
   return normalized;
