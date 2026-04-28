@@ -3605,7 +3605,7 @@ function wrapFormulaWithCleanupTransform(formula, formulaAwareTransform) {
 function getFormulaCellText(formulas, rowIndex, columnIndex) {
   const formulaValue = normalizeExcelFormulaText(formulas?.[rowIndex]?.[columnIndex]);
   return typeof formulaValue === "string" && formulaValue.trim().startsWith("=")
-    ? formulaValue
+    ? formulaValue.trim()
     : "";
 }
 
@@ -3698,7 +3698,7 @@ function buildFormulaAwareRemoveBlankRowsMatrix(plan, inputValues, inputFormulas
 function getFormulaAwareRowDigest(row, rowIndex, formulas, columnOffsets) {
   return JSON.stringify(columnOffsets.map((columnIndex) => {
     const formula = getFormulaCellText(formulas, rowIndex, columnIndex);
-    return formula || row?.[columnIndex] || "";
+    return formula || (row?.[columnIndex] ?? "");
   }));
 }
 
@@ -3761,6 +3761,29 @@ function buildFormulaAwareSplitColumnMatrix(plan, inputValues, inputFormulas) {
   });
 }
 
+function buildFormulaAwareJoinColumnMatrix(plan, inputValues, inputFormulas) {
+  const values = cloneMatrix(inputValues);
+  const formulas = cloneMatrix(inputFormulas);
+  const targetColumnCount = values[0]?.length || formulas[0]?.length || 0;
+  const { source, target } = getCleanupColumnOffsets(plan);
+  const quotedDelimiter = quoteSpreadsheetFormulaString(plan.delimiter);
+
+  return values.map((row, rowIndex) => {
+    const nextRow = buildFormulaPreservingRow(row, rowIndex, formulas, targetColumnCount);
+    const sourceParts = source.map((columnIndex) => {
+      const formula = getFormulaCellText(formulas, rowIndex, columnIndex);
+      return formula ? formula.slice(1) : quoteSpreadsheetFormulaString(row?.[columnIndex] ?? "");
+    });
+    const hasSourceFormula = source.some((columnIndex) => getFormulaCellText(formulas, rowIndex, columnIndex));
+
+    nextRow[target] = hasSourceFormula
+      ? `=TEXTJOIN(${quotedDelimiter}, FALSE, ${sourceParts.join(", ")})`
+      : source.map((columnIndex) => String(row?.[columnIndex] ?? "")).join(plan.delimiter);
+
+    return nextRow;
+  });
+}
+
 function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
   const values = cloneMatrix(inputValues);
   const formulas = cloneMatrix(inputFormulas);
@@ -3791,6 +3814,13 @@ function buildCleanupWriteMatrix(plan, inputValues, inputFormulas, hostLabel) {
     return {
       kind: "formulas",
       matrix: buildFormulaAwareSplitColumnMatrix(plan, values, formulas)
+    };
+  }
+
+  if (plan.operation === "join_columns") {
+    return {
+      kind: "formulas",
+      matrix: buildFormulaAwareJoinColumnMatrix(plan, values, formulas)
     };
   }
 
