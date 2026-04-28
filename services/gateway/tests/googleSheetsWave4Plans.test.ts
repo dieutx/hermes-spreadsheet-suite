@@ -159,8 +159,10 @@ function createRangeStub(options: {
     : currentValues.map((row) =>
         row.map((value) => typeof value === "string" && value.startsWith("=") ? value : "")
       );
+  const copyToCalls: Array<{ from: [number, number]; to: [number, number]; pasteType: string; transposed: boolean }> = [];
 
   const range = {
+    copyToCalls,
     getA1Notation() {
       return options.a1Notation;
     },
@@ -201,10 +203,26 @@ function createRangeStub(options: {
     }),
     clearFormat: vi.fn(),
     getCell(rowIndex: number, columnIndex: number) {
+      const zeroBasedRow = rowIndex - 1;
+      const zeroBasedColumn = columnIndex - 1;
       return {
+        __cellPosition: [rowIndex, columnIndex],
         setValue(value: unknown) {
-          currentValues[rowIndex - 1][columnIndex - 1] = value;
-          currentFormulas[rowIndex - 1][columnIndex - 1] = "";
+          currentValues[zeroBasedRow][zeroBasedColumn] = value;
+          currentFormulas[zeroBasedRow][zeroBasedColumn] = "";
+        },
+        setFormula(formula: string) {
+          currentValues[zeroBasedRow][zeroBasedColumn] = formula;
+          currentFormulas[zeroBasedRow][zeroBasedColumn] = formula;
+        },
+        copyTo(destination: { __cellPosition?: [number, number]; setFormula(formula: string): void }, pasteType: string, transposed: boolean) {
+          copyToCalls.push({
+            from: [rowIndex, columnIndex],
+            to: destination.__cellPosition || [0, 0],
+            pasteType,
+            transposed
+          });
+          destination.setFormula(String(currentFormulas[zeroBasedRow][zeroBasedColumn] || ""));
         }
       };
     },
@@ -1398,6 +1416,74 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       ["=LET(_hermes_value, UPPER(A2), IF(ISTEXT(_hermes_value), LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text))), _hermes_value))"],
       ["=LET(_hermes_value, UPPER(A3), IF(ISTEXT(_hermes_value), LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text))), _hermes_value))"],
       ["Alan turing"]
+    ]);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies fill_down cleanup across formula-containing ranges in Google Sheets", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A2:B5",
+      row: 2,
+      column: 1,
+      numRows: 4,
+      numColumns: 2,
+      values: [
+        ["North", 10],
+        ["", ""],
+        ["South", 30],
+        ["", ""]
+      ],
+      formulas: [
+        ["", "=SUM(C2:D2)"],
+        ["", ""],
+        ["", "=SUM(C4:D4)"],
+        ["", ""]
+      ]
+    });
+    const sheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn(() => sheet)
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:B5",
+        operation: "fill_down",
+        columns: ["A", "B"],
+        explanation: "Fill missing region and metric formulas down.",
+        confidence: 0.86,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:B5"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "fill_down",
+      targetSheet: "Contacts",
+      targetRange: "A2:B5"
+    });
+    expect(targetRange.values).toEqual([
+      ["North", 10],
+      ["North", "=SUM(C2:D2)"],
+      ["South", 30],
+      ["South", "=SUM(C4:D4)"]
+    ]);
+    expect(targetRange.formulas).toEqual([
+      ["", "=SUM(C2:D2)"],
+      ["", "=SUM(C2:D2)"],
+      ["", "=SUM(C4:D4)"],
+      ["", "=SUM(C4:D4)"]
+    ]);
+    expect(targetRange.copyToCalls).toEqual([
+      { from: [1, 2], to: [2, 2], pasteType: "PASTE_FORMULA", transposed: false },
+      { from: [3, 2], to: [4, 2], pasteType: "PASTE_FORMULA", transposed: false }
     ]);
     expect(flush).toHaveBeenCalledTimes(1);
   });

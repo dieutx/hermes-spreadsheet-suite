@@ -121,6 +121,13 @@ function createRangeStub(options: {
   let currentFormulas = options.formulas
     ? options.formulas.map((row) => [...row])
     : currentValues.map((row) => row.map((value) => value == null ? "" : String(value)));
+  const copyFromCalls: Array<{
+    from: [number, number];
+    to: [number, number];
+    copyType: string;
+    skipBlanks: boolean;
+    transpose: boolean;
+  }> = [];
 
   const range = {
     address: options.address,
@@ -130,6 +137,43 @@ function createRangeStub(options: {
     formulas: currentFormulas,
     load: vi.fn(),
     clear: vi.fn(),
+    copyFromCalls,
+    getCell: vi.fn((rowIndex: number, columnIndex: number) => ({
+      __cellPosition: [rowIndex, columnIndex],
+      load: vi.fn(),
+      get values() {
+        return [[currentValues[rowIndex][columnIndex]]];
+      },
+      set values(nextValues: unknown[][]) {
+        currentValues[rowIndex][columnIndex] = nextValues[0]?.[0];
+        currentFormulas[rowIndex][columnIndex] = "";
+      },
+      get formulas() {
+        return [[currentFormulas[rowIndex][columnIndex]]];
+      },
+      set formulas(nextFormulas: (string | null)[][]) {
+        const nextFormula = nextFormulas[0]?.[0] ?? "";
+        currentFormulas[rowIndex][columnIndex] = nextFormula;
+        currentValues[rowIndex][columnIndex] = nextFormula;
+      },
+      copyFrom(
+        source: { __cellPosition?: [number, number]; formulas: (string | null)[][] },
+        copyType: string,
+        skipBlanks: boolean,
+        transpose: boolean
+      ) {
+        copyFromCalls.push({
+          from: source.__cellPosition || [0, 0],
+          to: [rowIndex, columnIndex],
+          copyType,
+          skipBlanks,
+          transpose
+        });
+        const formula = source.formulas[0]?.[0] ?? "";
+        currentFormulas[rowIndex][columnIndex] = formula;
+        currentValues[rowIndex][columnIndex] = formula;
+      }
+    })),
     getResizedRange: vi.fn((rowDelta: number, columnDelta: number) => createRangeStub({
       address: options.address,
       rowCount: rowDelta + 1,
@@ -1236,6 +1280,77 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       ["=LET(_hermes_value, UPPER(A2), IF(ISTEXT(_hermes_value), LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text))), _hermes_value))"],
       ["=LET(_hermes_value, UPPER(A3), IF(ISTEXT(_hermes_value), LET(_hermes_text, LOWER(_hermes_value), UPPER(LEFT(_hermes_text,1)) & MID(_hermes_text,2,LEN(_hermes_text))), _hermes_value))"],
       ["Alan turing"]
+    ]);
+  });
+
+  it("applies fill_down cleanup across formula-containing ranges in Excel", async () => {
+    const targetRange = createRangeStub({
+      address: "Contacts!A2:B5",
+      rowCount: 4,
+      columnCount: 2,
+      values: [
+        ["North", 10],
+        ["", ""],
+        ["South", 30],
+        ["", ""]
+      ],
+      formulas: [
+        ["", "=SUM(C2:D2)"],
+        ["", ""],
+        ["", "=SUM(C4:D4)"],
+        ["", ""]
+      ]
+    });
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "A2:B5",
+        operation: "fill_down",
+        columns: ["A", "B"],
+        explanation: "Fill missing region and metric formulas down.",
+        confidence: 0.81,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!A2:B5"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_cleanup_fill_down_formulas_excel_001",
+      runId: "run_cleanup_fill_down_formulas_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "data_cleanup_update",
+      operation: "fill_down",
+      targetSheet: "Contacts",
+      targetRange: "A2:B5"
+    });
+
+    expect(targetRange.values).toEqual([
+      ["North", 10],
+      ["North", "=SUM(C2:D2)"],
+      ["South", 30],
+      ["South", "=SUM(C4:D4)"]
+    ]);
+    expect(targetRange.formulas).toEqual([
+      ["", "=SUM(C2:D2)"],
+      ["", "=SUM(C2:D2)"],
+      ["", "=SUM(C4:D4)"],
+      ["", "=SUM(C4:D4)"]
+    ]);
+    expect(targetRange.copyFromCalls).toEqual([
+      { from: [0, 1], to: [1, 1], copyType: "Formulas", skipBlanks: false, transpose: false },
+      { from: [2, 1], to: [3, 1], copyType: "Formulas", skipBlanks: false, transpose: false }
     ]);
   });
 
