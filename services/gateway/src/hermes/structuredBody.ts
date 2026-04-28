@@ -1451,6 +1451,77 @@ function normalizeTablePlanData(value: unknown): unknown {
   return normalized;
 }
 
+function normalizeExternalDataProvider(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return ["googlefinance", "importhtml", "importxml", "importdata"].includes(normalized)
+    ? normalized
+    : undefined;
+}
+
+function quoteSpreadsheetFormulaString(value: string): string {
+  return `"${value.replace(/"/g, "\"\"")}"`;
+}
+
+function buildGoogleFinanceFormula(query: unknown): string | undefined {
+  if (!isObject(query) || typeof query.symbol !== "string" || !query.symbol.trim()) {
+    return undefined;
+  }
+
+  const args = [
+    query.symbol,
+    query.attribute,
+    query.startDate,
+    query.endDate,
+    query.interval
+  ]
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => quoteSpreadsheetFormulaString(item.trim()));
+
+  return `=GOOGLEFINANCE(${args.join(",")})`;
+}
+
+function buildWebImportFormula(
+  provider: string,
+  sourceUrl: unknown,
+  selectorType: unknown,
+  selector: unknown
+): string | undefined {
+  if (typeof sourceUrl !== "string" || !sourceUrl.trim()) {
+    return undefined;
+  }
+
+  const quotedUrl = quoteSpreadsheetFormulaString(sourceUrl.trim());
+  if (provider === "importdata") {
+    return `=IMPORTDATA(${quotedUrl})`;
+  }
+
+  if (provider === "importhtml") {
+    if (
+      typeof selectorType !== "string" ||
+      (selectorType !== "table" && selectorType !== "list") ||
+      !(typeof selector === "number" || typeof selector === "string")
+    ) {
+      return undefined;
+    }
+
+    return `=IMPORTHTML(${quotedUrl},${quoteSpreadsheetFormulaString(selectorType)},${selector})`;
+  }
+
+  if (provider === "importxml") {
+    if (typeof selector !== "string" || !selector.trim()) {
+      return undefined;
+    }
+
+    return `=IMPORTXML(${quotedUrl},${quoteSpreadsheetFormulaString(selector.trim())})`;
+  }
+
+  return undefined;
+}
+
 function normalizeExternalDataPlanData(value: unknown): unknown {
   if (!isObject(value)) {
     return value;
@@ -1481,6 +1552,35 @@ function normalizeExternalDataPlanData(value: unknown): unknown {
       "endDate",
       "interval"
     ]);
+  }
+
+  const provider = normalizeExternalDataProvider(normalized.provider);
+  if (provider) {
+    normalized.provider = provider;
+  }
+
+  if (!normalized.sourceType && provider === "googlefinance") {
+    normalized.sourceType = "market_data";
+  } else if (
+    !normalized.sourceType &&
+    (provider === "importhtml" || provider === "importxml" || provider === "importdata")
+  ) {
+    normalized.sourceType = "web_table_import";
+  }
+
+  if (!hasOwn(normalized, "formula") && provider === "googlefinance") {
+    const formula = buildGoogleFinanceFormula(normalized.query);
+    if (formula) {
+      normalized.formula = formula;
+    }
+  } else if (
+    !hasOwn(normalized, "formula") &&
+    (provider === "importhtml" || provider === "importxml" || provider === "importdata")
+  ) {
+    const formula = buildWebImportFormula(provider, normalized.sourceUrl, normalized.selectorType, normalized.selector);
+    if (formula) {
+      normalized.formula = formula;
+    }
   }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
