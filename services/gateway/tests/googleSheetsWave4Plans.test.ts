@@ -1744,7 +1744,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
-  it("fails closed for non-formula-aware cleanup plans when the target range contains formulas in Google Sheets", () => {
+  it("fails closed for unsupported formula-aware standardize_format plans when the target range contains formulas in Google Sheets", () => {
     const targetRange = createRangeStub({
       a1Notation: "A2:C4",
       row: 2,
@@ -1784,7 +1784,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "medium",
         confirmationLevel: "destructive"
       }
-    })).toThrow("Google Sheets host cannot apply cleanup plans exactly when the target range contains formulas.");
+    })).toThrow("Google Sheets host can't standardize date with pattern yyyy-mm-dd exactly.");
 
     expect(flush).not.toHaveBeenCalled();
   });
@@ -1847,6 +1847,64 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       ["2026-04-21"],
       ["2026-04-22"],
       ["2026-04-23"]
+    ]);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies standardize_format cleanup with formula-aware wrappers in Google Sheets", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "B2:B4",
+      row: 2,
+      column: 2,
+      numRows: 3,
+      numColumns: 1,
+      values: [
+        ["2026/04/20"],
+        ["2026/04/21"],
+        ["2026/04/22"]
+      ],
+      formulas: [
+        ["=A2"],
+        [""],
+        ["=A4"]
+      ]
+    });
+    const sheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn(() => sheet)
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    expect(applyWritePlan({
+      plan: {
+        targetSheet: "Contacts",
+        targetRange: "B2:B4",
+        operation: "standardize_format",
+        formatType: "date_text",
+        formatPattern: "YYYY-MM-DD",
+        explanation: "Normalize formula-driven date strings into ISO format.",
+        confidence: 0.84,
+        requiresConfirmation: true,
+        affectedRanges: ["Contacts!B2:B4"],
+        overwriteRisk: "medium",
+        confirmationLevel: "standard"
+      }
+    })).toMatchObject({
+      kind: "data_cleanup_update",
+      hostPlatform: "google_sheets",
+      targetSheet: "Contacts",
+      targetRange: "B2:B4",
+      operation: "standardize_format",
+      formatType: "date_text",
+      formatPattern: "YYYY-MM-DD"
+    });
+
+    expect(targetRange.setValues).toHaveBeenCalledWith([
+      ['=LET(_hermes_value, A2, IF(OR(ISTEXT(_hermes_value), ISNUMBER(_hermes_value)), IF(_hermes_value="", "", IF(ISNUMBER(_hermes_value), TEXT(_hermes_value, "yyyy-mm-dd"), TEXT(DATEVALUE(_hermes_value), "yyyy-mm-dd"))), _hermes_value))'],
+      ["2026-04-21"],
+      ['=LET(_hermes_value, A4, IF(OR(ISTEXT(_hermes_value), ISNUMBER(_hermes_value)), IF(_hermes_value="", "", IF(ISNUMBER(_hermes_value), TEXT(_hermes_value, "yyyy-mm-dd"), TEXT(DATEVALUE(_hermes_value), "yyyy-mm-dd"))), _hermes_value))']
     ]);
     expect(flush).toHaveBeenCalledTimes(1);
   });
