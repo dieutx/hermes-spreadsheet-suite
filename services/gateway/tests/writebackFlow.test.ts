@@ -1607,7 +1607,7 @@ describe("writeback confirmation flow", () => {
     });
   });
 
-  it("records pivot history as non-reversible and not undo-eligible", () => {
+  it("keeps pivot history non-undoable until the host confirms an exact rollback snapshot", () => {
     const traceBus = new TraceBus();
     const executionLedger = new ExecutionLedger();
     const plan = {
@@ -1671,8 +1671,79 @@ describe("writeback confirmation flow", () => {
       executionLedger.listHistory("excel_windows::workbook-123").entries[0]
     ).toMatchObject({
       planType: "pivot_table_plan",
-      reversible: false,
+      reversible: true,
       undoEligible: false
+    });
+  });
+
+  it("records pivot history as undo-eligible when the host confirms an exact rollback snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      valueAggregations: [{ field: "Revenue", aggregation: "sum" as const }],
+      explanation: "Build a sales pivot by region.",
+      confidence: 0.9,
+      requiresConfirmation: true as const,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low" as const,
+      confirmationLevel: "standard" as const
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_pivot_history_undo_ready",
+      requestId: "req_pivot_history_undo_ready",
+      type: "pivot_table_plan",
+      traceEvent: "pivot_table_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_pivot_history_undo_ready",
+        runId: "run_pivot_history_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_pivot_history_undo_ready",
+        runId: "run_pivot_history_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "pivot_table_update",
+          operation: "pivot_table_update",
+          hostPlatform: "excel_windows",
+          ...plan,
+          summary: "Created pivot table on Sales Pivot!A1.",
+          undoReady: true
+        }
+      }
+    });
+    expect(completion.status).toBe(200);
+
+    expect(
+      executionLedger.listHistory("excel_windows::workbook-123").entries[0]
+    ).toMatchObject({
+      planType: "pivot_table_plan",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false
     });
   });
 
