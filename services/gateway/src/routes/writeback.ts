@@ -343,7 +343,8 @@ const RangeSortWritebackResultSchema = z.intersection(
 const RangeFilterWritebackResultSchema = z.object({
   kind: z.literal("range_filter"),
   hostPlatform: HostPlatformSchema,
-  summary: CompletionSummarySchema
+  summary: CompletionSummarySchema,
+  undoReady: z.boolean().optional()
 }).and(
   z.preprocess(stripCompletionEnvelopeInput, RangeFilterPlanDataSchema)
 );
@@ -1415,6 +1416,7 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
         plan.operation === "fill_down" ||
         plan.operation === "standardize_format"
       )) ||
+      ("conditions" in plan && Array.isArray(plan.conditions)) ||
       ("keys" in plan && Array.isArray(plan.keys))
     )
   );
@@ -1424,6 +1426,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
   switch (result.kind) {
     case "range_write":
     case "range_sort":
+    case "range_filter":
     case "data_cleanup_update":
     case "analysis_report_update":
     case "range_transfer_update":
