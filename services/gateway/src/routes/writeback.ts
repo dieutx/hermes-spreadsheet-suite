@@ -371,7 +371,8 @@ const NamedRangeWritebackResultSchema = z.intersection(
   z.object({
     kind: z.literal("named_range_update"),
     hostPlatform: HostPlatformSchema,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    undoReady: z.boolean().optional()
   }),
   z.preprocess(stripCompletionEnvelopeKeepingOperationInput, NamedRangeUpdateDataSchema)
 );
@@ -1399,6 +1400,10 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return plan.reversible === true;
   }
 
+  if (NamedRangeUpdateDataSchema.safeParse(plan).success) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1430,6 +1435,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
     case "range_sort":
     case "range_filter":
     case "data_validation_update":
+    case "named_range_update":
     case "data_cleanup_update":
     case "analysis_report_update":
     case "range_transfer_update":
