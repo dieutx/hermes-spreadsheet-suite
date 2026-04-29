@@ -4447,6 +4447,72 @@ describe("writeback confirmation flow", () => {
     });
   });
 
+  it("records named range history as undo-eligible when the host confirms an exact rollback snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      operation: "retarget",
+      scope: "sheet",
+      sheetName: "Sheet1",
+      targetSheet: "Sheet1",
+      targetRange: "B2:D20",
+      name: "InputRange",
+      explanation: "Retarget the named range to the input block.",
+      confidence: 0.93,
+      requiresConfirmation: true
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_named_range_undo_ready",
+      requestId: "req_named_range_undo_ready",
+      type: "named_range_update",
+      traceEvent: "named_range_update_ready",
+      plan
+    });
+
+    const approvalResponse = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_named_range_undo_ready",
+        runId: "run_named_range_undo_ready",
+        workbookSessionKey: "google_sheets::workbook-123",
+        plan
+      }
+    });
+
+    expect(approvalResponse.status).toBe(200);
+
+    const approvedBody = approvalResponse.body as Record<string, string>;
+    const completionResponse = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_named_range_undo_ready",
+        runId: "run_named_range_undo_ready",
+        workbookSessionKey: "google_sheets::workbook-123",
+        approvalToken: approvedBody.approvalToken,
+        planDigest: approvedBody.planDigest,
+        result: buildNamedRangeUpdateResult(plan, {
+          undoReady: true,
+          summary: "Retargeted InputRange to Sheet1!B2:D20."
+        })
+      }
+    });
+
+    expect(completionResponse.status).toBe(200);
+    expect(
+      executionLedger.listHistory("google_sheets::workbook-123").entries[0]
+    ).toMatchObject({
+      planType: "named_range_update",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false
+    });
+  });
+
   it("rejects named range completion results with same-family identity mismatches through /complete", () => {
     expectRouteCompletionDetailMismatch({
       traceBus: new TraceBus(),
