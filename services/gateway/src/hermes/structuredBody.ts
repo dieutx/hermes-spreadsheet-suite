@@ -150,6 +150,26 @@ function buildQualifiedRangeRef(sheet: unknown, range: unknown): string | undefi
   return `${sheet.trim()}!${range.trim()}`;
 }
 
+function parseQualifiedRangeRef(value: unknown): { sheet: string; range: string } | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(?:'((?:[^']|'')+)'|([^!']+))!(.+)$/);
+  if (!match) {
+    return undefined;
+  }
+
+  const sheet = (match[1] ? match[1].replace(/''/g, "'") : match[2]).trim();
+  const range = match[3].trim();
+  if (!sheet || !range) {
+    return undefined;
+  }
+
+  return { sheet, range };
+}
+
 function humanizeIdentifier(value: string): string {
   return value
     .trim()
@@ -1174,8 +1194,64 @@ function normalizeNamedRangeUpdateData(value: unknown): unknown {
     "overwriteRisk"
   ]);
 
+  if (typeof normalized.operation === "string") {
+    const operation = normalized.operation.trim().toLowerCase();
+    normalized.operation =
+      operation === "define" || operation === "add"
+        ? "create"
+        : operation === "update" || operation === "change_range" || operation === "set_range"
+        ? "retarget"
+        : operation === "remove"
+        ? "delete"
+        : operation;
+  }
+
+  if (!hasOwn(normalized, "scope")) {
+    normalized.scope = typeof normalized.sheetName === "string" && normalized.sheetName.trim()
+      ? "sheet"
+      : "workbook";
+  }
+
+  if (!hasOwn(normalized, "name")) {
+    if (typeof value.rangeName === "string" && value.rangeName.trim()) {
+      normalized.name = value.rangeName.trim();
+    } else if (typeof value.namedRangeName === "string" && value.namedRangeName.trim()) {
+      normalized.name = value.namedRangeName.trim();
+    } else if (typeof value.namedRange === "string" && value.namedRange.trim()) {
+      normalized.name = value.namedRange.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "newName")) {
+    if (typeof value.newRangeName === "string" && value.newRangeName.trim()) {
+      normalized.newName = value.newRangeName.trim();
+    } else if (typeof value.new_name === "string" && value.new_name.trim()) {
+      normalized.newName = value.new_name.trim();
+    }
+  }
+
+  const qualifiedRef =
+    parseQualifiedRangeRef(value.refersTo) ??
+    parseQualifiedRangeRef(value.range) ??
+    parseQualifiedRangeRef(value.target);
+  if (qualifiedRef) {
+    if (!hasOwn(normalized, "targetSheet")) {
+      normalized.targetSheet = qualifiedRef.sheet;
+    }
+    if (!hasOwn(normalized, "targetRange")) {
+      normalized.targetRange = qualifiedRef.range;
+    }
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {

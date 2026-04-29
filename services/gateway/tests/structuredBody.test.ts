@@ -461,6 +461,33 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes named range define aliases and qualified references before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "named_range_update",
+      data: {
+        operation: "define",
+        rangeName: "SalesData",
+        refersTo: "Sales!A1:D20",
+        explanation: "Define a named range for the sales table.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "named_range_update",
+      data: {
+        operation: "create",
+        scope: "workbook",
+        name: "SalesData",
+        targetSheet: "Sales",
+        targetRange: "A1:D20",
+        affectedRanges: ["Sales!A1:D20"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes table plans before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "table_plan",
