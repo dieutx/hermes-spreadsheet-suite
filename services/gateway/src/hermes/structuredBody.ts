@@ -1245,14 +1245,82 @@ function normalizeAnalysisReportPlanData(value: unknown): unknown {
     "confirmationLevel"
   ]);
 
-  if (hasOwn(value, "sections") && Array.isArray(value.sections)) {
-    normalized.sections = value.sections.map((item) =>
-      normalizeAnalysisSectionLikeValue(item, value.sourceSheet, value.sourceRange)
+  if (!hasOwn(normalized, "sourceRange")) {
+    const dataRangeRef = parseQualifiedRangeRef(value.dataRange);
+    const sourceAliasRef = parseQualifiedRangeRef(value.source);
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    const sourceRef =
+      dataRangeRef.sheet || dataRangeRef.range
+        ? dataRangeRef
+        : sourceAliasRef.sheet || sourceAliasRef.range
+        ? sourceAliasRef
+        : rangeRef;
+    if (!hasOwn(normalized, "sourceSheet") && sourceRef.sheet) {
+      normalized.sourceSheet = sourceRef.sheet;
+    }
+    if (sourceRef.range) {
+      normalized.sourceRange = sourceRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange")) {
+    const outputRangeRef = parseQualifiedRangeRef(value.outputRange);
+    const destinationRef = parseQualifiedRangeRef(value.destination);
+    const targetAliasRef = parseQualifiedRangeRef(value.target);
+    const targetRef =
+      outputRangeRef.sheet || outputRangeRef.range
+        ? outputRangeRef
+        : destinationRef.sheet || destinationRef.range
+        ? destinationRef
+        : targetAliasRef;
+    if (!hasOwn(normalized, "targetSheet") && targetRef.sheet) {
+      normalized.targetSheet = targetRef.sheet;
+    }
+    if (targetRef.range) {
+      normalized.targetRange = targetRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "outputMode")) {
+    const outputMode = typeof value.output === "string"
+      ? value.output.trim().toLowerCase()
+      : typeof value.mode === "string"
+      ? value.mode.trim().toLowerCase()
+      : undefined;
+    normalized.outputMode =
+      outputMode === "sheet" ||
+      outputMode === "worksheet" ||
+      outputMode === "materialized" ||
+      outputMode === "materialize" ||
+      outputMode === "materialize_report"
+        ? "materialize_report"
+        : outputMode === "chat" ||
+          outputMode === "chat_only" ||
+          outputMode === "inline" ||
+          outputMode === "summary"
+        ? "chat_only"
+        : normalized.outputMode;
+  }
+
+  const sectionValues = hasOwn(value, "sections") && Array.isArray(value.sections)
+    ? value.sections
+    : hasOwn(value, "reportSections") && Array.isArray(value.reportSections)
+    ? value.reportSections
+    : undefined;
+  if (sectionValues) {
+    normalized.sections = sectionValues.map((item) =>
+      normalizeAnalysisSectionLikeValue(item, normalized.sourceSheet, normalized.sourceRange)
     );
   }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!hasOwn(normalized, "requiresConfirmation") && normalized.outputMode === "materialize_report") {
+    normalized.requiresConfirmation = true;
+  } else if (!hasOwn(normalized, "requiresConfirmation") && normalized.outputMode === "chat_only") {
+    normalized.requiresConfirmation = false;
   }
 
   if (
