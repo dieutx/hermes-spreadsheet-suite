@@ -432,7 +432,8 @@ const ExternalDataWritebackResultSchema = z.intersection(
   z.object({
     kind: z.literal("external_data_update"),
     hostPlatform: HostPlatformSchema,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    undoReady: z.boolean().optional()
   }),
   z.preprocess(stripCompletionEnvelopeInput, ExternalDataPlanDataSchema)
 );
@@ -1444,6 +1445,10 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return true;
   }
 
+  if (ExternalDataPlanDataSchema.safeParse(plan).success) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1475,6 +1480,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
     case "workbook_structure_update":
     case "sheet_structure_update":
     case "range_format_update":
+    case "external_data_update":
     case "range_sort":
     case "range_filter":
     case "data_validation_update":
