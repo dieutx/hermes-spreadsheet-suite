@@ -428,6 +428,39 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes chart creation aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "chart_plan",
+      data: {
+        dataRange: "Sales!A1:C20",
+        targetSheet: "Sales Chart",
+        insertAt: "D2",
+        chartType: "column",
+        categoryField: "Month",
+        series: [{ field: "Revenue", label: "Revenue" }],
+        chartTitle: "Quarterly Revenue",
+        explanation: "Chart quarterly revenue.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:C20",
+        targetSheet: "Sales Chart",
+        targetRange: "D2",
+        title: "Quarterly Revenue",
+        affectedRanges: ["Sales!A1:C20", "Sales Chart!D2"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes data validation prompt and error-message aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "data_validation_plan",
