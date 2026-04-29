@@ -541,6 +541,45 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes table plan aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "table_plan",
+      data: {
+        sheet: "Sales",
+        range: "A1:F50",
+        tableName: "SalesTable",
+        hasHeader: true,
+        tableStyle: "TableStyleMedium2",
+        bandedRows: true,
+        bandedColumns: false,
+        filterButton: true,
+        totalsRow: true,
+        explanation: "Create a native table for the sales range.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "table_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        styleName: "TableStyleMedium2",
+        showBandedRows: true,
+        showBandedColumns: false,
+        showFilterButton: true,
+        showTotalsRow: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("coerces formula alternateFormulas string entries into contract-valid objects", () => {
     const rawBody = {
       type: "formula",
