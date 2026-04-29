@@ -465,7 +465,8 @@ const TableWritebackResultSchema = z.intersection(
     kind: z.literal("table_update"),
     operation: z.literal("table_update"),
     hostPlatform: HostPlatformSchema,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    undoReady: z.boolean().optional()
   }),
   z.preprocess(stripCompletionEnvelopeInput, TablePlanDataSchema)
 );
@@ -1449,6 +1450,10 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return true;
   }
 
+  if (TablePlanDataSchema.safeParse(plan).success) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1488,6 +1493,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
     case "conditional_format_update":
     case "pivot_table_update":
     case "chart_update":
+    case "table_update":
     case "data_cleanup_update":
     case "analysis_report_update":
     case "range_transfer_update":
