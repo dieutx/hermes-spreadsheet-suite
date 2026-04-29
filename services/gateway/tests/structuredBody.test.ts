@@ -461,6 +461,36 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes dropdown validation aliases and defaults before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "data_validation_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "C2:C20",
+        ruleType: "dropdown",
+        options: ["Open", "Closed", "Paused"],
+        promptMessage: "Choose a status.",
+        explanation: "Restrict status values.",
+        confidence: 0.94,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "data_validation_plan",
+      data: {
+        ruleType: "list",
+        values: ["Open", "Closed", "Paused"],
+        showDropdown: true,
+        allowBlank: true,
+        invalidDataBehavior: "reject",
+        inputMessage: "Choose a status.",
+        affectedRanges: ["Sheet1!C2:C20"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes table plans before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "table_plan",
