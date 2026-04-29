@@ -351,6 +351,39 @@ describe("structured body normalization", () => {
     expect(parsed).toEqual(expectedBody);
   });
 
+  it("normalizes sheet update aliases and infers shape before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "sheet_update",
+      data: {
+        sheet: "Sheet1",
+        range: "A1:B2",
+        operation: "set_values",
+        data: [
+          ["Region", "Revenue"],
+          ["North", 1200]
+        ],
+        explanation: "Write the summarized revenue table.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "sheet_update",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:B2",
+        operation: "replace_range",
+        values: [
+          ["Region", "Revenue"],
+          ["North", 1200]
+        ],
+        shape: { rows: 2, columns: 2 }
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes chart legendPosition none to the contract-safe hidden alias", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "chart_plan",

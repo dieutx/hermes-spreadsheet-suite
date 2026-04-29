@@ -142,6 +142,18 @@ function normalizeShapeValue(value: unknown): unknown {
   return pickFields(value, ["rows", "columns"]);
 }
 
+function inferShapeFromMatrix(value: unknown): { rows: number; columns: number } | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const firstRow = value[0];
+  return {
+    rows: value.length,
+    columns: Array.isArray(firstRow) ? firstRow.length : 0
+  };
+}
+
 function buildQualifiedRangeRef(sheet: unknown, range: unknown): string | undefined {
   if (typeof sheet !== "string" || !sheet.trim() || typeof range !== "string" || !range.trim()) {
     return undefined;
@@ -1610,6 +1622,36 @@ function normalizeSheetUpdateData(value: unknown): unknown {
     normalized.shape = normalizeShapeValue(value.shape);
   }
 
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "operation")) {
+    if (typeof value.action === "string" && value.action.trim()) {
+      normalized.operation = value.action.trim();
+    } else if (typeof value.op === "string" && value.op.trim()) {
+      normalized.operation = value.op.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "values") && Array.isArray(value.data)) {
+    normalized.values = value.data;
+  }
+
   if (normalized.operation === "set_values") {
     normalized.operation = "replace_range";
   } else if (
@@ -1626,6 +1668,16 @@ function normalizeSheetUpdateData(value: unknown): unknown {
 
   if (hasOwn(normalized, "overwriteRisk")) {
     normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+  }
+
+  if (!hasOwn(normalized, "shape") && hasOwn(value, "data")) {
+    const inferredShape =
+      inferShapeFromMatrix(normalized.values) ??
+      inferShapeFromMatrix(normalized.formulas) ??
+      inferShapeFromMatrix(normalized.notes);
+    if (inferredShape) {
+      normalized.shape = inferredShape;
+    }
   }
 
   return normalized;
