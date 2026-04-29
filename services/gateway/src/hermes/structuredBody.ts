@@ -1038,10 +1038,65 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
     return value;
   }
 
-  const normalized: JsonRecord = { ...value };
+  const knownInputFields = new Set([
+    "targetSheet",
+    "targetRange",
+    "hasHeader",
+    "keys",
+    "explanation",
+    "confidence",
+    "requiresConfirmation",
+    "affectedRanges",
+    "sheet",
+    "sheetName",
+    "range",
+    "header",
+    "includesHeader",
+    "sortKeys"
+  ]);
+  const normalized = pickFields(value, [
+    "targetSheet",
+    "targetRange",
+    "hasHeader",
+    "keys",
+    "explanation",
+    "confidence",
+    "requiresConfirmation",
+    "affectedRanges"
+  ]);
+
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange")) {
+    if (typeof value.range === "string" && value.range.trim()) {
+      normalized.targetRange = value.range.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "hasHeader")) {
+    if (typeof value.header === "boolean") {
+      normalized.hasHeader = value.header;
+    } else if (typeof value.includesHeader === "boolean") {
+      normalized.hasHeader = value.includesHeader;
+    }
+  }
+
+  if (!hasOwn(normalized, "keys") && hasOwn(value, "sortKeys")) {
+    normalized.keys = value.sortKeys;
+  }
 
   if (hasOwn(value, "keys") && Array.isArray(value.keys)) {
-    normalized.keys = value.keys.map((item) => {
+    normalized.keys = value.keys;
+  }
+
+  if (hasOwn(normalized, "keys") && Array.isArray(normalized.keys)) {
+    normalized.keys = normalized.keys.map((item) => {
       if (!isObject(item)) {
         return item;
       }
@@ -1049,10 +1104,31 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
       const normalizedItem = pickFields(item, ["columnRef", "direction", "sortOn"]);
       if (
         (!normalizedItem.columnRef || typeof normalizedItem.columnRef !== "string") &&
-        typeof item.field === "string" &&
-        item.field.trim()
+        typeof item.field === "string" && item.field.trim()
       ) {
         normalizedItem.columnRef = item.field.trim();
+      }
+      if (
+        (!normalizedItem.columnRef || typeof normalizedItem.columnRef !== "string") &&
+        typeof item.column === "string" && item.column.trim()
+      ) {
+        normalizedItem.columnRef = item.column.trim();
+      } else if (
+        !normalizedItem.columnRef &&
+        typeof item.column === "number" &&
+        Number.isInteger(item.column)
+      ) {
+        normalizedItem.columnRef = item.column;
+      }
+
+      if (!hasOwn(normalizedItem, "direction")) {
+        if (typeof item.order === "string") {
+          normalizedItem.direction = item.order;
+        } else if (typeof item.sortDirection === "string") {
+          normalizedItem.direction = item.sortDirection;
+        } else if (typeof item.ascending === "boolean") {
+          normalizedItem.direction = item.ascending ? "asc" : "desc";
+        }
       }
 
       if (typeof normalizedItem.direction === "string") {
@@ -1069,6 +1145,19 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
+  }
+
+  for (const key of Object.keys(value)) {
+    if (!knownInputFields.has(key) && !hasOwn(normalized, key)) {
+      normalized[key] = value[key];
+    }
   }
 
   return normalized;
