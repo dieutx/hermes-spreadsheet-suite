@@ -191,6 +191,10 @@ const WorkbookPositionResolutionFields = {
   sheetCount: z.number().int().min(1)
 } satisfies z.ZodRawShape;
 
+const WorkbookStructureUndoReadinessFields = {
+  undoReady: z.boolean().optional()
+} satisfies z.ZodRawShape;
+
 const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation", [
   z.object({
     kind: z.literal("workbook_structure_update"),
@@ -198,14 +202,16 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     operation: z.literal("create_sheet"),
     sheetName: z.string().min(1),
     ...WorkbookPositionResolutionFields,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    ...WorkbookStructureUndoReadinessFields
   }),
   z.object({
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("delete_sheet"),
     sheetName: z.string().min(1),
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    ...WorkbookStructureUndoReadinessFields
   }),
   z.object({
     kind: z.literal("workbook_structure_update"),
@@ -213,7 +219,8 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     operation: z.literal("rename_sheet"),
     sheetName: z.string().min(1),
     newSheetName: z.string().min(1),
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    ...WorkbookStructureUndoReadinessFields
   }),
   z.object({
     kind: z.literal("workbook_structure_update"),
@@ -222,7 +229,8 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     sheetName: z.string().min(1),
     newSheetName: z.string().min(1),
     ...WorkbookPositionResolutionFields,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    ...WorkbookStructureUndoReadinessFields
   }),
   z.object({
     kind: z.literal("workbook_structure_update"),
@@ -230,21 +238,24 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     operation: z.literal("move_sheet"),
     sheetName: z.string().min(1),
     ...WorkbookPositionResolutionFields,
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    ...WorkbookStructureUndoReadinessFields
   }),
   z.object({
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("hide_sheet"),
     sheetName: z.string().min(1),
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    ...WorkbookStructureUndoReadinessFields
   }),
   z.object({
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("unhide_sheet"),
     sheetName: z.string().min(1),
-    summary: CompletionSummarySchema
+    summary: CompletionSummarySchema,
+    ...WorkbookStructureUndoReadinessFields
   })
 ]);
 
@@ -1404,6 +1415,10 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return true;
   }
 
+  if (WorkbookStructureUpdateDataSchema.safeParse(plan).success) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1432,6 +1447,7 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
 function isCompletionUndoReady(result: CompletionResult): boolean {
   switch (result.kind) {
     case "range_write":
+    case "workbook_structure_update":
     case "range_sort":
     case "range_filter":
     case "data_validation_update":
