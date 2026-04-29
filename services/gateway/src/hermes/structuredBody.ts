@@ -1690,6 +1690,54 @@ function normalizeDataCleanupPlanData(value: unknown): unknown {
     "confirmationLevel"
   ]);
 
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "operation")) {
+    if (typeof value.action === "string" && value.action.trim()) {
+      normalized.operation = value.action.trim();
+    } else if (typeof value.cleanupOperation === "string" && value.cleanupOperation.trim()) {
+      normalized.operation = value.cleanupOperation.trim();
+    } else if (typeof value.op === "string" && value.op.trim()) {
+      normalized.operation = value.op.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "sourceColumn")) {
+    if (typeof value.column === "string" && value.column.trim()) {
+      normalized.sourceColumn = value.column.trim();
+    } else if (typeof value.source === "string" && value.source.trim()) {
+      normalized.sourceColumn = value.source.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "delimiter") && typeof value.separator === "string") {
+    normalized.delimiter = value.separator;
+  }
+
+  if (!hasOwn(normalized, "targetStartColumn")) {
+    if (typeof value.startColumn === "string" && value.startColumn.trim()) {
+      normalized.targetStartColumn = value.startColumn.trim();
+    } else if (typeof value.outputStartColumn === "string" && value.outputStartColumn.trim()) {
+      normalized.targetStartColumn = value.outputStartColumn.trim();
+    }
+  }
+
   if (hasOwn(value, "keyColumns") && Array.isArray(value.keyColumns)) {
     normalized.keyColumns = [...value.keyColumns];
   }
@@ -1708,6 +1756,12 @@ function normalizeDataCleanupPlanData(value: unknown): unknown {
     normalized.operation = "remove_duplicate_rows";
   } else if (normalized.operation === "standardize_case") {
     normalized.operation = "normalize_case";
+  } else if (normalized.operation === "split") {
+    normalized.operation = "split_column";
+  } else if (normalized.operation === "join") {
+    normalized.operation = "join_columns";
+  } else if (normalized.operation === "dedupe" || normalized.operation === "deduplicate") {
+    normalized.operation = "remove_duplicate_rows";
   }
 
   if (typeof normalized.formatType === "string") {
