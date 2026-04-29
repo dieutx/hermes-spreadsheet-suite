@@ -270,6 +270,7 @@ const SheetStructureWritebackResultSchema = z.object({
   frozenRows: z.number().int().min(0).optional(),
   frozenColumns: z.number().int().min(0).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  undoReady: z.boolean().optional(),
   summary: CompletionSummarySchema
 }).superRefine((data, ctx) => {
   switch (data.operation) {
@@ -1424,6 +1425,10 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     return true;
   }
 
+  if (SheetStructureUpdateDataSchema.safeParse(plan).success) {
+    return true;
+  }
+
   return (
     "targetSheet" in plan &&
     typeof plan.targetSheet === "string" &&
@@ -1453,6 +1458,7 @@ function isCompletionUndoReady(result: CompletionResult): boolean {
   switch (result.kind) {
     case "range_write":
     case "workbook_structure_update":
+    case "sheet_structure_update":
     case "range_sort":
     case "range_filter":
     case "data_validation_update":
