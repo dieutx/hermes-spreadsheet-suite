@@ -6809,6 +6809,152 @@ describe("writeback confirmation flow", () => {
     });
   });
 
+  it("keeps table history non-undoable until the host confirms an exact rollback snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      targetSheet: "Sales",
+      targetRange: "A1:F20",
+      name: "SalesTable",
+      hasHeaders: true,
+      styleName: "TableStyleMedium2",
+      showBandedRows: true,
+      showBandedColumns: false,
+      showFilterButton: true,
+      showTotalsRow: false,
+      explanation: "Format the selected range as a sales table.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F20"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_table_history_001",
+      requestId: "req_table_history_001",
+      type: "table_plan",
+      traceEvent: "table_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_table_history_001",
+        runId: "run_table_history_001",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_table_history_001",
+        runId: "run_table_history_001",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "table_update",
+          operation: "table_update",
+          hostPlatform: "excel_windows",
+          ...plan,
+          summary: "Formatted Sales!A1:F20 as a table."
+        }
+      }
+    });
+    expect(completion.status).toBe(200);
+
+    expect(
+      executionLedger.listHistory("excel_windows::workbook-123").entries[0]
+    ).toMatchObject({
+      planType: "table_plan",
+      reversible: true,
+      undoEligible: false
+    });
+  });
+
+  it("records table history as undo-eligible when the host confirms an exact rollback snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      targetSheet: "Sales",
+      targetRange: "A1:F20",
+      name: "SalesTable",
+      hasHeaders: true,
+      styleName: "TableStyleMedium2",
+      showBandedRows: true,
+      showBandedColumns: false,
+      showFilterButton: true,
+      showTotalsRow: false,
+      explanation: "Format the selected range as a sales table.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F20"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_table_history_undo_ready",
+      requestId: "req_table_history_undo_ready",
+      type: "table_plan",
+      traceEvent: "table_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_table_history_undo_ready",
+        runId: "run_table_history_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_table_history_undo_ready",
+        runId: "run_table_history_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "table_update",
+          operation: "table_update",
+          hostPlatform: "excel_windows",
+          ...plan,
+          summary: "Formatted Sales!A1:F20 as a table.",
+          undoReady: true
+        }
+      }
+    });
+    expect(completion.status).toBe(200);
+
+    expect(
+      executionLedger.listHistory("excel_windows::workbook-123").entries[0]
+    ).toMatchObject({
+      planType: "table_plan",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false
+    });
+  });
+
   it("approves and completes a destructive data cleanup plan with typed completion state", () => {
     const traceBus = new TraceBus();
     const plan = {
