@@ -1321,12 +1321,41 @@ function normalizePivotTablePlanData(value: unknown): unknown {
     normalized.rowGroups = [...value.rowGroups];
   }
 
+  if (!hasOwn(normalized, "rowGroups") && hasOwn(value, "rows") && Array.isArray(value.rows)) {
+    normalized.rowGroups = [...value.rows];
+  }
+
   if (hasOwn(value, "columnGroups") && Array.isArray(value.columnGroups)) {
     normalized.columnGroups = [...value.columnGroups];
   }
 
+  if (!hasOwn(normalized, "columnGroups") && hasOwn(value, "columns") && Array.isArray(value.columns)) {
+    normalized.columnGroups = [...value.columns];
+  }
+
   if (hasOwn(value, "valueAggregations") && Array.isArray(value.valueAggregations)) {
     normalized.valueAggregations = value.valueAggregations.map((item) => isObject(item) ? { ...item } : item);
+  }
+
+  if (!hasOwn(normalized, "valueAggregations") && hasOwn(value, "values") && Array.isArray(value.values)) {
+    const defaultAggregation = typeof value.aggregation === "string" ? value.aggregation : undefined;
+    normalized.valueAggregations = value.values.map((item) => {
+      if (typeof item === "string") {
+        return {
+          field: item,
+          aggregation: defaultAggregation
+        };
+      }
+
+      if (isObject(item)) {
+        return {
+          ...item,
+          aggregation: typeof item.aggregation === "string" ? item.aggregation : defaultAggregation
+        };
+      }
+
+      return item;
+    });
   }
 
   if (hasOwn(value, "filters") && Array.isArray(value.filters)) {
