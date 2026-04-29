@@ -3788,6 +3788,82 @@ describe("writeback confirmation flow", () => {
     });
   });
 
+  it("records range format history as undo-eligible when the host confirms an exact rollback snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      targetSheet: "Sheet1",
+      targetRange: "A1:B2",
+      format: {
+        backgroundColor: "#4472C4",
+        bold: true,
+        border: {
+          all: {
+            style: "solid",
+            color: "#111827"
+          }
+        }
+      },
+      explanation: "Format the selected header range.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      overwriteRisk: "low"
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_format_undo_ready",
+      requestId: "req_format_undo_ready",
+      type: "range_format_update",
+      traceEvent: "result_generated",
+      plan
+    });
+
+    const approvalResponse = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_format_undo_ready",
+        runId: "run_format_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+
+    expect(approvalResponse.status).toBe(200);
+
+    const approvedBody = approvalResponse.body as Record<string, string>;
+    const completionResponse = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_format_undo_ready",
+        runId: "run_format_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: approvedBody.approvalToken,
+        planDigest: approvedBody.planDigest,
+        result: {
+          kind: "range_format_update",
+          hostPlatform: "excel_windows",
+          ...plan,
+          summary: "Applied formatting to Sheet1!A1:B2.",
+          undoReady: true
+        }
+      }
+    });
+
+    expect(completionResponse.status).toBe(200);
+    expect(
+      executionLedger.listHistory("excel_windows::workbook-123").entries[0]
+    ).toMatchObject({
+      planType: "range_format_update",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false
+    });
+  });
+
   it("approves and completes a conditional format plan with a typed result payload", () => {
     const traceBus = new TraceBus();
     const plan = {
