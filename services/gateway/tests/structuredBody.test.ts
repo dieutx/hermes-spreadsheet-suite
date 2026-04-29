@@ -351,6 +351,68 @@ describe("structured body normalization", () => {
     expect(parsed).toEqual(expectedBody);
   });
 
+  it("synthesizes external data formulas from provider fields before validation", () => {
+    const marketData = normalizeHermesStructuredBodyInput({
+      type: "external_data_plan",
+      data: {
+        provider: "GOOGLEFINANCE",
+        query: {
+          symbol: "NASDAQ:GOOG",
+          attribute: "price",
+          startDate: "2026-01-01",
+          endDate: "2026-04-01",
+          interval: "DAILY"
+        },
+        targetSheet: "Market Data",
+        targetRange: "B2",
+        explanation: "Anchor GOOG history in B2.",
+        confidence: 0.92,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(marketData).toMatchObject({
+      type: "external_data_plan",
+      data: {
+        sourceType: "market_data",
+        provider: "googlefinance",
+        formula: '=GOOGLEFINANCE("NASDAQ:GOOG","price","2026-01-01","2026-04-01","DAILY")',
+        affectedRanges: ["Market Data!B2"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(marketData)).not.toThrow();
+
+    const webImport = normalizeHermesStructuredBodyInput({
+      type: "external_data_plan",
+      data: {
+        provider: "IMPORTHTML",
+        sourceUrl: "https://example.com/markets",
+        selectorType: "table",
+        selector: 1,
+        targetSheet: "Imports",
+        targetRange: "A1",
+        explanation: "Import the first market table.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(webImport).toMatchObject({
+      type: "external_data_plan",
+      data: {
+        sourceType: "web_table_import",
+        provider: "importhtml",
+        formula: '=IMPORTHTML("https://example.com/markets","table",1)',
+        affectedRanges: ["Imports!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(webImport)).not.toThrow();
+  });
+
   it("normalizes chart legendPosition none to the contract-safe hidden alias", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "chart_plan",
