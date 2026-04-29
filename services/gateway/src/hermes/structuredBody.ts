@@ -150,6 +150,33 @@ function buildQualifiedRangeRef(sheet: unknown, range: unknown): string | undefi
   return `${sheet.trim()}!${range.trim()}`;
 }
 
+function parseQualifiedRangeRef(value: unknown): { sheet?: string; range?: string } {
+  if (typeof value !== "string") {
+    return {};
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return {};
+  }
+
+  const separatorIndex = trimmed.lastIndexOf("!");
+  if (separatorIndex < 1 || separatorIndex === trimmed.length - 1) {
+    return { range: trimmed };
+  }
+
+  const rawSheet = trimmed.slice(0, separatorIndex).trim();
+  const rawRange = trimmed.slice(separatorIndex + 1).trim();
+  const sheet = rawSheet.startsWith("'") && rawSheet.endsWith("'")
+    ? rawSheet.slice(1, -1).replace(/''/g, "'")
+    : rawSheet;
+
+  return {
+    sheet: sheet || undefined,
+    range: rawRange || undefined
+  };
+}
+
 function humanizeIdentifier(value: string): string {
   return value
     .trim()
@@ -1347,6 +1374,30 @@ function normalizeChartPlanData(value: unknown): unknown {
 
   if (hasOwn(value, "series") && Array.isArray(value.series)) {
     normalized.series = value.series.map((item) => normalizeChartSeriesValue(item));
+  }
+
+  if (!hasOwn(normalized, "sourceRange") && hasOwn(value, "dataRange")) {
+    const dataRange = parseQualifiedRangeRef(value.dataRange);
+    if (!hasOwn(normalized, "sourceSheet") && dataRange.sheet) {
+      normalized.sourceSheet = dataRange.sheet;
+    }
+    if (dataRange.range) {
+      normalized.sourceRange = dataRange.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "insertAt")) {
+    const insertAt = parseQualifiedRangeRef(value.insertAt);
+    if (!hasOwn(normalized, "targetSheet") && insertAt.sheet) {
+      normalized.targetSheet = insertAt.sheet;
+    }
+    if (insertAt.range) {
+      normalized.targetRange = insertAt.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "title") && hasOwn(value, "chartTitle")) {
+    normalized.title = value.chartTitle;
   }
 
   if (!hasOwn(normalized, "horizontalAxisTitle") && hasOwn(value, "xAxisTitle")) {
