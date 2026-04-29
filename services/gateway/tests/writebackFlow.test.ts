@@ -5354,6 +5354,77 @@ describe("writeback confirmation flow", () => {
     });
   });
 
+  it("records range filter history as undo-eligible when the host confirms an exact rollback snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      targetSheet: "Sheet1",
+      targetRange: "A1:F25",
+      hasHeader: true,
+      conditions: [
+        { columnRef: "Status", operator: "equals", value: "Open" }
+      ],
+      combiner: "and",
+      clearExistingFilters: true,
+      explanation: "Show only open items.",
+      confidence: 0.93,
+      requiresConfirmation: true
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_filter_undo_ready",
+      requestId: "req_filter_undo_ready",
+      type: "range_filter_plan",
+      traceEvent: "range_filter_plan_ready",
+      plan
+    });
+
+    const approvalResponse = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_filter_undo_ready",
+        runId: "run_filter_undo_ready",
+        workbookSessionKey: "google_sheets::sheet-123",
+        plan
+      }
+    });
+
+    expect(approvalResponse.status).toBe(200);
+
+    const approvedBody = approvalResponse.body as Record<string, string>;
+    const completionResponse = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_filter_undo_ready",
+        runId: "run_filter_undo_ready",
+        workbookSessionKey: "google_sheets::sheet-123",
+        approvalToken: approvedBody.approvalToken,
+        planDigest: approvedBody.planDigest,
+        result: {
+          kind: "range_filter",
+          hostPlatform: "google_sheets",
+          ...plan,
+          undoReady: true,
+          summary: "Filtered Sheet1!A1:F25 to rows where Status equals Open."
+        }
+      }
+    });
+
+    expect(completionResponse.status).toBe(200);
+    expect(
+      executionLedger.listHistory("google_sheets::sheet-123").entries[0]
+    ).toMatchObject({
+      planType: "range_filter_plan",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false
+    });
+  });
+
   it("rejects range filter completion results with same-family detail mismatches through /complete", () => {
     expectRouteCompletionDetailMismatch({
       traceBus: new TraceBus(),
