@@ -89,11 +89,21 @@ function getAllowedCorsOrigins(
 
 export function getConfig(): GatewayConfig {
   const gatewayPublicBaseUrl = process.env.GATEWAY_PUBLIC_BASE_URL ?? "http://127.0.0.1:8787";
-  const approvalSecret = process.env.APPROVAL_SECRET ?? "change-me";
+  const approvalSecret = process.env.APPROVAL_SECRET?.trim() ?? "";
+  const allowedCorsOrigins = getAllowedCorsOrigins(
+    gatewayPublicBaseUrl,
+    process.env.GATEWAY_ALLOWED_ORIGINS
+  );
 
-  if (approvalSecret === "change-me" && !isLoopbackBaseUrl(gatewayPublicBaseUrl)) {
+  if (!approvalSecret) {
     throw new Error(
-      "APPROVAL_SECRET must be configured before exposing the gateway on a non-local base URL."
+      "APPROVAL_SECRET must be configured before the gateway can approve writeback plans."
+    );
+  }
+
+  if (allowedCorsOrigins.includes("*") && !isLoopbackBaseUrl(gatewayPublicBaseUrl)) {
+    throw new Error(
+      "GATEWAY_ALLOWED_ORIGINS must not contain * when the gateway public base URL is not local."
     );
   }
 
@@ -102,10 +112,7 @@ export function getConfig(): GatewayConfig {
     environmentLabel: process.env.HERMES_ENVIRONMENT_LABEL ?? "local-dev",
     serviceLabel: process.env.HERMES_SERVICE_LABEL ?? "hermes-gateway-local",
     gatewayPublicBaseUrl,
-    allowedCorsOrigins: getAllowedCorsOrigins(
-      gatewayPublicBaseUrl,
-      process.env.GATEWAY_ALLOWED_ORIGINS
-    ),
+    allowedCorsOrigins,
     maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 8_000_000),
     approvalSecret,
     saveInvalidHermesDebugArtifacts: parseBooleanEnv(process.env.HERMES_DEBUG_INVALID_RESPONSES),

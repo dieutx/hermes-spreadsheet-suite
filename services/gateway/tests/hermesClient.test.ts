@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HermesResponseSchema, type HermesRequest } from "@hermes/contracts";
 import { getConfig } from "../src/lib/config.ts";
 import { SPREADSHEET_RUNTIME_RULES } from "../src/hermes/runtimeRules.ts";
@@ -13,8 +13,13 @@ import {
 import { HermesAgentClient } from "../src/lib/hermesClient.ts";
 import { TraceBus } from "../src/lib/traceBus.ts";
 
+beforeEach(() => {
+  process.env.APPROVAL_SECRET = "test-approval-secret";
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
+  delete process.env.APPROVAL_SECRET;
   delete process.env.HERMES_DEBUG_INVALID_RESPONSES;
   delete process.env.HERMES_AGENT_BASE_URL;
   delete process.env.HERMES_API_SERVER_KEY;

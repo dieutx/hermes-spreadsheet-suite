@@ -23,6 +23,36 @@ describe("write-back approval tokens", () => {
     expect(verified.valid).toBe(true);
   });
 
+  it("adds a random nonce so identical approvals do not reuse the same token", () => {
+    const secret = "demo-secret";
+    const input = {
+      requestId: "req_123",
+      runId: "run_123",
+      planDigest: "digest_123",
+      issuedAt: "2026-04-19T09:30:00.000Z",
+      secret
+    };
+
+    const firstToken = createApprovalToken(input);
+    const secondToken = createApprovalToken(input);
+
+    expect(firstToken).not.toBe(secondToken);
+
+    const [encodedPayload] = firstToken.split(".");
+    const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+
+    expect(payload.nonce).toMatch(/^[A-Za-z0-9_-]{22,}$/);
+    expect(
+      verifyApprovalToken({
+        token: firstToken,
+        requestId: input.requestId,
+        runId: input.runId,
+        planDigest: input.planDigest,
+        secret
+      }).valid
+    ).toBe(true);
+  });
+
   it("rejects a token when the write plan digest changes", () => {
     const secret = "demo-secret";
     const token = createApprovalToken({
