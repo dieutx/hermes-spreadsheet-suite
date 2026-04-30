@@ -511,6 +511,44 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.data.stepResults).toHaveLength(1);
   });
 
+  it("rejects formula responses with non-cell targetCell values", () => {
+    const parsed = HermesResponseSchema.safeParse({
+      schemaVersion: "1.0.0",
+      type: "formula",
+      requestId: "req_formula_001",
+      hermesRunId: "run_formula_001",
+      processedBy: "hermes",
+      serviceLabel: "hermes-gateway-local",
+      environmentLabel: "local-dev",
+      startedAt: "2026-04-20T12:10:00.000Z",
+      completedAt: "2026-04-20T12:10:01.000Z",
+      durationMs: 1000,
+      trace: [
+        {
+          event: "completed",
+          timestamp: "2026-04-20T12:10:01.000Z"
+        }
+      ],
+      ui: {
+        displayMode: "structured-preview",
+        showTrace: true,
+        showWarnings: true,
+        showConfidence: true,
+        showRequiresConfirmation: true
+      },
+      data: {
+        intent: "suggest",
+        targetCell: "A1:B2",
+        formula: "=SUM(A1:A10)",
+        formulaLanguage: "excel",
+        explanation: "Suggest a total formula.",
+        confidence: 0.9
+      }
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts the Step 2 backend request envelope exactly", () => {
     const parsed = HermesRequestSchema.parse({
       schemaVersion: "1.0.0",
