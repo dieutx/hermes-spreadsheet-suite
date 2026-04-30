@@ -2177,6 +2177,166 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(targetRange.numberFormat).toEqual([["General"]]);
   });
 
+  it("restores Excel data validation snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const beforeValidation = {
+      rule: {
+        decimal: {
+          operator: "GreaterThanOrEqualTo",
+          formula1: 0
+        }
+      },
+      ignoreBlanks: true,
+      prompt: {
+        title: "Old validation",
+        message: "Old prompt"
+      },
+      errorAlert: {
+        title: "Old error",
+        message: "Old error message",
+        style: "warning",
+        showAlert: true
+      }
+    };
+    const afterValidation = {
+      rule: {
+        wholeNumber: {
+          operator: "Between",
+          formula1: 1,
+          formula2: 10
+        }
+      },
+      ignoreBlanks: false,
+      prompt: {
+        title: "Entry guidance",
+        message: "Enter a whole number from 1 to 10."
+      },
+      errorAlert: {
+        title: "Invalid entry",
+        message: "Only whole numbers from 1 to 10 are allowed.",
+        style: "stop",
+        showAlert: true
+      }
+    };
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_validation_001"],
+      executions: {
+        exec_validation_001: {
+          baseExecutionId: "exec_validation_001"
+        }
+      },
+      bases: {
+        exec_validation_001: {
+          baseExecutionId: "exec_validation_001",
+          kind: "data_validation",
+          targetSheet: "Sales",
+          targetRange: "B2:B20",
+          shape: {
+            rows: 19,
+            columns: 1
+          },
+          beforeValidation,
+          afterValidation
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "data_validation_update",
+          operation: "data_validation_update",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    let currentRule = afterValidation.rule;
+    let currentIgnoreBlanks = afterValidation.ignoreBlanks;
+    let currentPrompt = afterValidation.prompt;
+    let currentErrorAlert = afterValidation.errorAlert;
+    const dataValidation = {};
+    Object.defineProperty(dataValidation, "rule", {
+      configurable: true,
+      get() {
+        return currentRule;
+      },
+      set(rule) {
+        currentRule = rule;
+      }
+    });
+    Object.defineProperty(dataValidation, "ignoreBlanks", {
+      configurable: true,
+      get() {
+        return currentIgnoreBlanks;
+      },
+      set(value) {
+        currentIgnoreBlanks = value;
+      }
+    });
+    Object.defineProperty(dataValidation, "prompt", {
+      configurable: true,
+      get() {
+        return currentPrompt;
+      },
+      set(value) {
+        currentPrompt = value;
+      }
+    });
+    Object.defineProperty(dataValidation, "errorAlert", {
+      configurable: true,
+      get() {
+        return currentErrorAlert;
+      },
+      set(value) {
+        currentErrorAlert = value;
+      }
+    });
+    const targetRange = {
+      rowCount: 19,
+      columnCount: 1,
+      load: vi.fn(),
+      dataValidation
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem() {
+              return {
+                getRange() {
+                  return targetRange;
+                }
+              };
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_validation_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(currentRule).toEqual(beforeValidation.rule);
+    expect(currentIgnoreBlanks).toBe(true);
+    expect(currentPrompt).toEqual(beforeValidation.prompt);
+    expect(currentErrorAlert).toEqual(beforeValidation.errorAlert);
+  });
+
   it("renders and applies native Excel table plans", async () => {
     const table = {
       name: "",
