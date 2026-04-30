@@ -647,6 +647,96 @@ describe("Google Sheets wave 1 helper compilation", () => {
     expect(resolveRelativeColumnRef_("3", targetRange, true)).toBeNull();
   });
 
+  it("captures Google Sheets notes in local execution snapshots for undo and redo", () => {
+    const values = [["A", "B"]];
+    const formulas = [["", ""]];
+    const notes = [["old note", ""]];
+    const getCell = (row: number, column: number) => ({
+      setFormula(value: string) {
+        formulas[row - 1][column - 1] = value;
+      },
+      setValue(value: unknown) {
+        values[row - 1][column - 1] = value;
+        formulas[row - 1][column - 1] = "";
+      },
+      setNote(value: string) {
+        notes[row - 1][column - 1] = value;
+      }
+    });
+    const targetRange = {
+      getNumRows() {
+        return 1;
+      },
+      getNumColumns() {
+        return 2;
+      },
+      getValues() {
+        return values.map((row) => row.slice());
+      },
+      getFormulas() {
+        return formulas.map((row) => row.slice());
+      },
+      getNotes() {
+        return notes.map((row) => row.slice());
+      },
+      setNotes(nextNotes: string[][]) {
+        nextNotes.forEach((row, rowIndex) => {
+          row.forEach((note, columnIndex) => {
+            notes[rowIndex][columnIndex] = note;
+          });
+        });
+      },
+      getCell
+    };
+    const sheet = {
+      getRange(rangeA1: string) {
+        expect(rangeA1).toBe("A1:B1");
+        return targetRange;
+      }
+    };
+    const spreadsheet = {
+      getSheetByName(sheetName: string) {
+        expect(sheetName).toBe("Sheet1");
+        return sheet;
+      }
+    };
+    const { applyWritePlan, applyExecutionCellSnapshot } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      executionId: "exec_notes_sheets_001",
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:B1",
+        operation: "set_notes",
+        shape: { rows: 1, columns: 2 },
+        notes: [["new note", ""]],
+        explanation: "Update one cell note and clear the adjacent note.",
+        confidence: 0.92,
+        requiresConfirmation: true
+      }
+    });
+
+    const snapshot = result.__hermesLocalExecutionSnapshot;
+    expect(snapshot.beforeCells[0][0]).toMatchObject({ kind: "value", note: "old note" });
+    expect(snapshot.beforeCells[0][1]).toMatchObject({ kind: "value", note: "" });
+    expect(snapshot.afterCells[0][0]).toMatchObject({ kind: "value", note: "new note" });
+    expect(snapshot.afterCells[0][1]).toMatchObject({ kind: "value", note: "" });
+
+    applyExecutionCellSnapshot({
+      targetSheet: "Sheet1",
+      targetRange: "A1:B1",
+      cells: snapshot.beforeCells
+    });
+    expect(notes).toEqual([["old note", ""]]);
+
+    applyExecutionCellSnapshot({
+      targetSheet: "Sheet1",
+      targetRange: "A1:B1",
+      cells: snapshot.afterCells
+    });
+    expect(notes).toEqual([["new note", ""]]);
+  });
+
   it("renders detailed sort and filter previews including keys, conditions, and filter reset state", () => {
     const sidebar = loadSidebarContext();
     const sortPreview = sidebar.renderStructuredPreview({

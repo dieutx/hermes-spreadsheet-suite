@@ -3305,25 +3305,52 @@ function deserializeExecutionSnapshotScalar_(serialized) {
   }
 }
 
-function buildExecutionSnapshotCellMatrix_(values, formulas) {
+function normalizeExecutionSnapshotNote_(note) {
+  return note == null ? '' : String(note);
+}
+
+function snapshotCellHasNote_(cell) {
+  return !!cell && typeof cell === 'object' && Object.prototype.hasOwnProperty.call(cell, 'note');
+}
+
+function buildExecutionSnapshotCellMatrix_(values, formulas, notes) {
+  const includeNotes = Array.isArray(notes);
   return (values || []).map(function(row, rowIndex) {
     return (row || []).map(function(value, columnIndex) {
       const formulaValue = formulas && formulas[rowIndex] && typeof formulas[rowIndex][columnIndex] === 'string'
         ? formulas[rowIndex][columnIndex].trim()
         : '';
-      if (typeof formulaValue === 'string' && formulaValue.trim().startsWith('=')) {
-        return {
+      const snapshotCell = typeof formulaValue === 'string' && formulaValue.trim().startsWith('=')
+        ? {
           kind: 'formula',
           formula: formulaValue
+        }
+        : {
+          kind: 'value',
+          value: serializeExecutionSnapshotScalar_(value)
         };
+
+      if (includeNotes) {
+        snapshotCell.note = normalizeExecutionSnapshotNote_(
+          notes && notes[rowIndex] ? notes[rowIndex][columnIndex] : ''
+        );
       }
 
-      return {
-        kind: 'value',
-        value: serializeExecutionSnapshotScalar_(value)
-      };
+      return snapshotCell;
     });
   });
+}
+
+function readRangeNotesForSnapshot_(target, plan) {
+  if (!plan || !Array.isArray(plan.notes)) {
+    return null;
+  }
+
+  if (!target || typeof target.getNotes !== 'function') {
+    throw new Error('Google Sheets host cannot capture note undo snapshots on this range.');
+  }
+
+  return target.getNotes();
 }
 
 function createLocalExecutionSnapshot_(input) {
@@ -3335,8 +3362,8 @@ function createLocalExecutionSnapshot_(input) {
     baseExecutionId: input.executionId,
     targetSheet: input.targetSheet,
     targetRange: input.targetRange,
-    beforeCells: buildExecutionSnapshotCellMatrix_(input.beforeValues, input.beforeFormulas),
-    afterCells: buildExecutionSnapshotCellMatrix_(input.afterValues, input.afterFormulas)
+    beforeCells: buildExecutionSnapshotCellMatrix_(input.beforeValues, input.beforeFormulas, input.beforeNotes),
+    afterCells: buildExecutionSnapshotCellMatrix_(input.afterValues, input.afterFormulas, input.afterNotes)
   };
 }
 
@@ -3422,6 +3449,14 @@ function applyExecutionCellSnapshot(input) {
         cell.setFormula(snapshotCell.formula);
       } else {
         cell.setValue(deserializeExecutionSnapshotScalar_(snapshotCell && snapshotCell.value));
+      }
+
+      if (snapshotCellHasNote_(snapshotCell)) {
+        if (typeof cell.setNote !== 'function') {
+          throw new Error('Google Sheets host cannot restore notes for this undo snapshot.');
+        }
+
+        cell.setNote(normalizeExecutionSnapshotNote_(snapshotCell.note));
       }
     }
   }
@@ -6006,6 +6041,7 @@ function applyWritePlan(input) {
 
   const beforeValues = target.getValues();
   const beforeFormulas = target.getFormulas();
+  const beforeNotes = readRangeNotesForSnapshot_(target, plan);
   if (plan.values && !plan.formulas && !plan.notes) {
     target.setValues(plan.values);
     SpreadsheetApp.flush();
@@ -6059,8 +6095,10 @@ function applyWritePlan(input) {
     targetRange: plan.targetRange,
     beforeValues: beforeValues,
     beforeFormulas: beforeFormulas,
+    beforeNotes: beforeNotes,
     afterValues: target.getValues(),
-    afterFormulas: target.getFormulas()
+    afterFormulas: target.getFormulas(),
+    afterNotes: beforeNotes ? readRangeNotesForSnapshot_(target, plan) : null
   }));
 }
 
