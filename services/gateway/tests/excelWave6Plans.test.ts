@@ -2960,6 +2960,105 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(copiedSheet.delete).toHaveBeenCalledTimes(1);
   });
 
+  it("restores Excel chart snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_chart_001"],
+      executions: {
+        exec_chart_001: {
+          baseExecutionId: "exec_chart_001"
+        }
+      },
+      bases: {
+        exec_chart_001: {
+          baseExecutionId: "exec_chart_001",
+          kind: "chart",
+          targetSheet: "Sales Chart",
+          chartName: "HermesChart_exec_chart_001",
+          before: {
+            exists: false,
+            name: "HermesChart_exec_chart_001"
+          },
+          after: {
+            exists: true,
+            name: "HermesChart_exec_chart_001"
+          },
+          plan: {
+            sourceSheet: "Sales",
+            sourceRange: "A1:C20",
+            targetSheet: "Sales Chart",
+            targetRange: "A1",
+            chartType: "line",
+            categoryField: "Month",
+            series: [{ field: "Revenue" }],
+            title: "Revenue",
+            legendPosition: "none",
+            explanation: "Chart revenue.",
+            confidence: 0.91,
+            requiresConfirmation: true,
+            affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+            overwriteRisk: "low",
+            confirmationLevel: "standard"
+          }
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "chart_update",
+          operation: "chart_update",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    const chart = {
+      name: "HermesChart_exec_chart_001",
+      load: vi.fn(),
+      delete: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("Sales Chart");
+              return {
+                charts: {
+                  getItem(chartName: string) {
+                    expect(chartName).toBe("HermesChart_exec_chart_001");
+                    return chart;
+                  }
+                }
+              };
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_chart_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(chart.delete).toHaveBeenCalledTimes(1);
+  });
+
   it("renders and applies native Excel table plans", async () => {
     const table = {
       name: "",
