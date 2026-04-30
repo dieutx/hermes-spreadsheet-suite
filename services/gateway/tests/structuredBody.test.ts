@@ -351,6 +351,38 @@ describe("structured body normalization", () => {
     expect(parsed).toEqual(expectedBody);
   });
 
+  it("normalizes range format target and style aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_format_update",
+      data: {
+        sheet: "Sheet1",
+        range: "A1:B2",
+        background: "#ffeeaa",
+        fontColor: "#112233",
+        bold: true,
+        wrapText: true,
+        explanation: "Format the summary header.",
+        confidence: 0.89,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "range_format_update",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:B2",
+        format: {
+          backgroundColor: "#ffeeaa",
+          textColor: "#112233",
+          bold: true,
+          wrapStrategy: "wrap"
+        }
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("synthesizes external data formulas from provider fields before validation", () => {
     const marketData = normalizeHermesStructuredBodyInput({
       type: "external_data_plan",

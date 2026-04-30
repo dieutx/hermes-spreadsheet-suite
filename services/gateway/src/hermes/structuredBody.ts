@@ -890,7 +890,7 @@ function normalizeRangeFormatValue(value: unknown): unknown {
     return value;
   }
 
-  return pickFields(value, [
+  const normalized = pickFields(value, [
     "numberFormat",
     "backgroundColor",
     "textColor",
@@ -907,6 +907,28 @@ function normalizeRangeFormatValue(value: unknown): unknown {
     "columnWidth",
     "rowHeight"
   ]);
+
+  if (!hasOwn(normalized, "backgroundColor")) {
+    if (typeof value.background === "string" && value.background.trim()) {
+      normalized.backgroundColor = value.background.trim();
+    } else if (typeof value.fillColor === "string" && value.fillColor.trim()) {
+      normalized.backgroundColor = value.fillColor.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "textColor") && typeof value.fontColor === "string" && value.fontColor.trim()) {
+    normalized.textColor = value.fontColor.trim();
+  }
+
+  if (!hasOwn(normalized, "wrapStrategy")) {
+    if (value.wrapText === true) {
+      normalized.wrapStrategy = "wrap";
+    } else if (typeof value.wrap === "string" && value.wrap.trim()) {
+      normalized.wrapStrategy = value.wrap.trim();
+    }
+  }
+
+  return normalized;
 }
 
 function normalizeRangeFormatUpdateData(value: unknown): unknown {
@@ -923,8 +945,28 @@ function normalizeRangeFormatUpdateData(value: unknown): unknown {
     "overwriteRisk"
   ]);
 
-  if (hasOwn(value, "format")) {
-    normalized.format = normalizeRangeFormatValue(value.format);
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef?.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef?.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  const formatSource = hasOwn(value, "format") ? value.format : value;
+  const normalizedFormat = normalizeRangeFormatValue(formatSource);
+  if (isObject(normalizedFormat) && Object.keys(normalizedFormat).length > 0) {
+    normalized.format = normalizedFormat;
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {
