@@ -70,6 +70,10 @@ export function getDefaultClaspCredentialsPath(): string {
   return path.join(os.homedir(), ".clasprc.json");
 }
 
+function formatMissingClaspCredentialsMessage(user: string): string {
+  return `No usable clasp OAuth credentials were found for user "${user}".`;
+}
+
 export function extractGoogleSpreadsheetId(input: string): string {
   const value = String(input || "").trim();
   if (!value) {
@@ -228,10 +232,24 @@ export async function readClaspAuthorizedUser(options?: {
     options?.credentialsPath || getDefaultClaspCredentialsPath()
   );
   const user = String(options?.user || "default").trim() || "default";
-  const raw = await fs.readFile(credentialsPath, "utf8");
-  const parsed = JSON.parse(raw) as {
+  let raw: string;
+  try {
+    raw = await fs.readFile(credentialsPath, "utf8");
+  } catch {
+    throw new Error(formatMissingClaspCredentialsMessage(user));
+  }
+
+  let parsed: {
     tokens?: Record<string, Partial<ClaspAuthorizedUser>>;
   };
+  try {
+    parsed = JSON.parse(raw) as {
+      tokens?: Record<string, Partial<ClaspAuthorizedUser>>;
+    };
+  } catch {
+    throw new Error(formatMissingClaspCredentialsMessage(user));
+  }
+
   const tokenRecord = parsed.tokens?.[user];
 
   if (
@@ -240,9 +258,7 @@ export async function readClaspAuthorizedUser(options?: {
     !tokenRecord.client_secret ||
     !tokenRecord.refresh_token
   ) {
-    throw new Error(
-      `No usable clasp OAuth credentials were found for user "${user}" in ${credentialsPath}.`
-    );
+    throw new Error(formatMissingClaspCredentialsMessage(user));
   }
 
   return {

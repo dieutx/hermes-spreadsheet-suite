@@ -13,6 +13,7 @@ import {
   buildClaspConfig,
   extractGoogleSpreadsheetId,
   isAppsScriptReachableGatewayBaseUrl,
+  readClaspAuthorizedUser,
   refreshClaspAccessToken,
   stageGoogleSheetsAddonProject
 } from "../src/lib/googleSheetsAddonDeploy";
@@ -71,6 +72,41 @@ describe("Google Sheets add-on deploy helpers", () => {
     expect(source).toContain('"clientVersion": "google-sheets-addon-live-demo"');
     expect(source).toContain('"reviewerSafeMode": true');
     expect(source).toContain('"forceExtractionMode": "demo"');
+  });
+
+  it("sanitizes clasp credential loading failures", async () => {
+    const stageDir = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-gs-addon-creds-test-"));
+    tempDirs.push(stageDir);
+
+    const missingPath = path.join(stageDir, "private", ".clasprc.json");
+    let missingMessage = "";
+    try {
+      await readClaspAuthorizedUser({ credentialsPath: missingPath, user: "default" });
+    } catch (error) {
+      missingMessage = (error as Error).message;
+    }
+
+    expect(missingMessage).toBe('No usable clasp OAuth credentials were found for user "default".');
+    expect(missingMessage).not.toContain(stageDir);
+    expect(missingMessage).not.toContain(".clasprc.json");
+
+    const incompletePath = path.join(stageDir, ".clasprc.json");
+    await fs.writeFile(
+      incompletePath,
+      JSON.stringify({ tokens: { default: { client_id: "client_123" } } }),
+      "utf8"
+    );
+
+    let incompleteMessage = "";
+    try {
+      await readClaspAuthorizedUser({ credentialsPath: incompletePath, user: "default" });
+    } catch (error) {
+      incompleteMessage = (error as Error).message;
+    }
+
+    expect(incompleteMessage).toBe('No usable clasp OAuth credentials were found for user "default".');
+    expect(incompleteMessage).not.toContain(stageDir);
+    expect(incompleteMessage).not.toContain(".clasprc.json");
   });
 
   it("refreshes the clasp access token from the stored OAuth credentials", async () => {
