@@ -800,6 +800,30 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(metaLine).not.toContain("/srv/hermes");
     expect(metaLine).not.toContain("internal.example");
     expect(metaLine).not.toContain("provider https://internal");
+
+    const embeddedMetaLine = taskpane.getResponseMetaLine({
+      type: "chat",
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        "qa_HERMES_API_SERVER_KEY"
+      ],
+      downstreamProvider: {
+        label: "Hermes Gateway",
+        model: "gpt-5 qa_HERMES_AGENT_BASE_URL"
+      },
+      ui: {
+        showConfidence: true,
+        showRequiresConfirmation: false
+      },
+      data: {
+        message: "Processed remotely.",
+        confidence: 0.9
+      }
+    });
+
+    expect(embeddedMetaLine).toContain("skills SelectionExplainerSkill");
+    expect(embeddedMetaLine).toContain("provider Hermes Gateway");
+    expect(embeddedMetaLine).not.toContain("qa_HERMES");
   });
 
   it("escapes quotes in Excel preview action attributes", async () => {
