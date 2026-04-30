@@ -522,6 +522,7 @@
     if (
       /cannot append exactly when the approved target range contains internal gaps/i.test(message) ||
       /cannot append exactly within the approved target range/i.test(message) ||
+      /requires append targetRange to match the full destination rectangle/i.test(message) ||
       /cannot split this column exactly within the approved target range/i.test(message)
     ) {
       return formatUserFacingErrorText(
