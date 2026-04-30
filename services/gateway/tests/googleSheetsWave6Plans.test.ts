@@ -2962,6 +2962,34 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
   });
 
+  it("sanitizes JSON gateway failures before display in Google Sheets", async () => {
+    const code = loadCodeModule();
+    const sidebar = loadSidebarContext();
+    const hooks = (sidebar as any).__sidebarTestHooks;
+    const bodyText = JSON.stringify({
+      error: {
+        message: "ReferenceError at /srv/hermes/services/gateway/src/app.ts:99 HERMES_API_SERVER_KEY=secret_123",
+        userAction: "Inspect https://internal.example/debug for stack trace details."
+      }
+    });
+
+    expect(code.extractGatewayErrorMessage(500, bodyText)).toBe(
+      "Hermes gateway request failed with 500."
+    );
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        return JSON.parse(bodyText);
+      },
+      async text() {
+        return "";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+  });
+
   it("translates raw 404 gateway text into an actionable sidebar error", async () => {
     const sidebar = loadSidebarContext();
     const hooks = (sidebar as any).__sidebarTestHooks;

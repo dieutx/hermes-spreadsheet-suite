@@ -5340,6 +5340,7 @@ async function parseJson(response) {
       const payload = await response.json();
       const payloadMessage = payload?.error?.message || payload?.error || payload?.message || message;
       const payloadUserAction = payload?.error?.userAction || payload?.userAction;
+      const formattedPayloadMessage = formatUserFacingErrorText(payloadMessage, payloadUserAction);
       if (
         response.status === 404 &&
         typeof payloadMessage === "string" &&
@@ -5349,8 +5350,10 @@ async function parseJson(response) {
           `The Hermes request was sent to a service path that does not exist (${responseUrl}, HTTP ${response.status}).`,
           "Close Excel, reload the Hermes add-in, and retry. If it keeps happening, reinstall the live manifest so Hermes uses the correct gateway path."
         );
+      } else if (containsSensitiveGatewayErrorText(formattedPayloadMessage)) {
+        message = formatRawGatewayTextFailure(response.status);
       } else {
-        message = formatUserFacingErrorText(payloadMessage, payloadUserAction);
+        message = formattedPayloadMessage;
         message = appendGatewayIssueSummary(message, payload?.error?.issues);
       }
     } catch {

@@ -764,6 +764,7 @@
           : payload && payload.userAction
             ? payload.userAction
             : undefined;
+        const formattedMessage = formatUserFacingErrorText(rawMessage, userAction);
         if (
           response.status === 404 &&
           typeof rawMessage === "string" &&
@@ -773,8 +774,10 @@
             `The Hermes request was sent to a service path that does not exist (${responseUrl}, HTTP ${response.status}).`,
             "Reload the sidebar and retry. If it keeps happening, reload the current deployment so Hermes uses the correct gateway path."
           );
+        } else if (containsSensitiveGatewayErrorText(formattedMessage)) {
+          message = formatRawGatewayTextFailure(response.status);
         } else {
-          message = formatUserFacingErrorText(rawMessage, userAction);
+          message = formattedMessage;
         }
       } catch (_error) {
         const text = await response.text();

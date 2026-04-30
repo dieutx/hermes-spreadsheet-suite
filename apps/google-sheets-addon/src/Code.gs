@@ -250,14 +250,18 @@ function extractGatewayErrorMessage_(statusCode, bodyText) {
       }
       return message;
     };
+    const formatSafeMessage = function(message, userAction) {
+      const formatted = formatMessage(message, userAction);
+      return containsSensitiveGatewayErrorText_(formatted) ? fallback : formatted;
+    };
     if (parsed && parsed.error && typeof parsed.error.message === 'string' && parsed.error.message.trim()) {
-      return formatMessage(parsed.error.message.trim(), parsed.error.userAction);
+      return formatSafeMessage(parsed.error.message.trim(), parsed.error.userAction);
     }
     if (parsed && typeof parsed.error === 'string' && parsed.error.trim()) {
-      return parsed.error;
+      return formatSafeMessage(parsed.error.trim());
     }
     if (parsed && typeof parsed.message === 'string' && parsed.message.trim()) {
-      return formatMessage(parsed.message.trim(), parsed.userAction);
+      return formatSafeMessage(parsed.message.trim(), parsed.userAction);
     }
   } catch (_error) {
     // Fall back to the raw text when the gateway does not return JSON.
