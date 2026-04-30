@@ -1965,7 +1965,7 @@ function getCompositePreviewSupportErrors(steps) {
 function containsSensitiveHostDiagnostics(message) {
   const text = String(message || "");
   return (
-    /\b(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)\s*[:=]/i.test(text) ||
+    /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)/i.test(text) ||
     /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(text) ||
     /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(text) ||
     /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(text) ||
@@ -5454,7 +5454,7 @@ async function parseJson(response) {
 function containsSensitiveGatewayErrorText(text) {
   const value = String(text || "");
   return (
-    /\b(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)\s*[:=]/i.test(value) ||
+    /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)/i.test(value) ||
     /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(value) ||
     /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(value) ||
     /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(value) ||

@@ -269,6 +269,10 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       new Error("Request failed at https://internal.example/api with HERMES_API_SERVER_KEY=secret_123"),
       "Failed to contact Hermes."
     )).toBe("Failed to contact Hermes.");
+
+    expect(taskpane.sanitizeHostExecutionError(
+      new Error("Writeback failed for qa_HERMES_API_SERVER_KEY")
+    )).toBe("Write-back failed.");
   });
 
   it("formats gateway request issue paths into a visible request-details summary", async () => {
@@ -532,6 +536,18 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       },
       async text() {
         return "ReferenceError at /srv/hermes/services/gateway/src/app.ts:99 HERMES_API_SERVER_KEY=secret_123";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(taskpane.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return "Gateway failed for qa_HERMES_API_SERVER_KEY";
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
   });
