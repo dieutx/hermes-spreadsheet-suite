@@ -712,7 +712,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects append transfers when targetRange is a larger search window in Google Sheets", () => {
+  it("appends values into the first empty rows of a Google Sheets search window", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B3",
       row: 2,
@@ -781,7 +781,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     };
     const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
 
-    expect(() => applyWritePlan({
+    const result = applyWritePlan({
       plan: {
         sourceSheet: "RawData",
         sourceRange: "A2:B3",
@@ -797,11 +797,27 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    })).toThrow("The approved targetRange does not match the transfer shape.");
+    });
 
-    expect(appendWriteRange.setValues).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      hostPlatform: "google_sheets",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Archive",
+      targetRange: "D7:E8",
+      transferOperation: "append",
+      pasteMode: "values",
+      transpose: false,
+      summary: "Appended RawData!A2:B3 into Archive!D7:E8."
+    });
+    expect(appendWriteRange.setValues).toHaveBeenCalledWith([
+      ["Ada", "Lovelace"],
+      ["Grace", "Hopper"]
+    ]);
     expect(targetRange.setValues).not.toHaveBeenCalled();
-    expect(flush).not.toHaveBeenCalled();
+    expect(flush).toHaveBeenCalledTimes(1);
   });
 
   it("uses Google Sheets copy semantics for formula-mode transfers so relative references can rebase", () => {
@@ -909,6 +925,132 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
+  it("appends formulas into the first empty rows of a Google Sheets search window", () => {
+    const sourceRange = createRangeStub({
+      a1Notation: "A2:B3",
+      row: 2,
+      column: 1,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        [10, 20],
+        [30, 40]
+      ],
+      formulas: [
+        ["=A1+1", "=B1+1"],
+        ["=A2+1", "=B2+1"]
+      ]
+    });
+    const targetRange = createRangeStub({
+      a1Notation: "D5:E9",
+      row: 5,
+      column: 4,
+      numRows: 5,
+      numColumns: 2,
+      values: [
+        ["Existing", "One"],
+        ["Existing", "Two"],
+        ["", ""],
+        ["", ""],
+        ["", ""]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""],
+        ["", ""],
+        ["", ""],
+        ["", ""]
+      ]
+    });
+    const appendWriteRange = createRangeStub({
+      a1Notation: "D7:E8",
+      row: 7,
+      column: 4,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["", ""],
+        ["", ""]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ]
+    });
+    sourceRange.copyTo = vi.fn((destination: typeof appendWriteRange, pasteType: string, transpose: boolean) => {
+      expect(destination).toBe(appendWriteRange);
+      expect(pasteType).toBe("PASTE_FORMULA");
+      expect(transpose).toBe(false);
+    });
+
+    const targetSheet = {
+      getRange: vi.fn((firstArg: string | number, column?: number, numRows?: number, numColumns?: number) => {
+        if (typeof firstArg === "string") {
+          expect(firstArg).toBe("D5:E9");
+          return targetRange;
+        }
+
+        expect(firstArg).toBe(7);
+        expect(column).toBe(4);
+        expect(numRows).toBe(2);
+        expect(numColumns).toBe(2);
+        return appendWriteRange;
+      })
+    };
+    const sourceSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("A2:B3");
+        return sourceRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return sourceSheet;
+        }
+
+        expect(sheetName).toBe("Archive");
+        return targetSheet;
+      })
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Archive",
+        targetRange: "D5:E9",
+        operation: "append",
+        pasteMode: "formulas",
+        transpose: false,
+        explanation: "Append the source formulas after the existing archive block.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Archive!D5:E9"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(result).toEqual({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      hostPlatform: "google_sheets",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Archive",
+      targetRange: "D7:E8",
+      transferOperation: "append",
+      pasteMode: "formulas",
+      transpose: false,
+      summary: "Appended RawData!A2:B3 into Archive!D7:E8."
+    });
+    expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
+    expect(appendWriteRange.setFormulas).not.toHaveBeenCalled();
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
   it("applies format-only move transfers in Google Sheets and clears the source formatting after success", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B3",
@@ -998,7 +1140,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects format-only append transfers when targetRange is a larger search window in Google Sheets", () => {
+  it("appends formats into the first empty rows of a Google Sheets search window", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B3",
       row: 2,
@@ -1073,7 +1215,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     };
     const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
 
-    expect(() => applyWritePlan({
+    const result = applyWritePlan({
       plan: {
         sourceSheet: "RawData",
         sourceRange: "A2:B3",
@@ -1089,11 +1231,24 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    })).toThrow("The approved targetRange does not match the transfer shape.");
+    });
 
-    expect(sourceRange.copyTo).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      hostPlatform: "google_sheets",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Archive",
+      targetRange: "D7:E8",
+      transferOperation: "append",
+      pasteMode: "formats",
+      transpose: false,
+      summary: "Appended RawData!A2:B3 into Archive!D7:E8."
+    });
+    expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
     expect(appendWriteRange.setValues).not.toHaveBeenCalled();
-    expect(flush).not.toHaveBeenCalled();
+    expect(flush).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed when a fully blank multi-row append target is too small in Google Sheets", () => {
@@ -1164,7 +1319,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    })).toThrow("The approved targetRange does not match the transfer shape.");
+    })).toThrow("Google Sheets host cannot append exactly within the approved target range.");
 
     expect(targetRange.setValues).not.toHaveBeenCalled();
     expect(flush).not.toHaveBeenCalled();
