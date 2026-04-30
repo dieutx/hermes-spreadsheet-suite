@@ -142,6 +142,18 @@ function normalizeShapeValue(value: unknown): unknown {
   return pickFields(value, ["rows", "columns"]);
 }
 
+function inferShapeFromMatrix(value: unknown): { rows: number; columns: number } | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const firstRow = value[0];
+  return {
+    rows: value.length,
+    columns: Array.isArray(firstRow) ? firstRow.length : 0
+  };
+}
+
 function buildQualifiedRangeRef(sheet: unknown, range: unknown): string | undefined {
   if (typeof sheet !== "string" || !sheet.trim() || typeof range !== "string" || !range.trim()) {
     return undefined;
@@ -150,14 +162,14 @@ function buildQualifiedRangeRef(sheet: unknown, range: unknown): string | undefi
   return `${sheet.trim()}!${range.trim()}`;
 }
 
-function parseQualifiedRangeRef(value: unknown): { sheet?: string; range?: string } {
+function parseQualifiedRangeRef(value: unknown): { sheet?: string; range?: string } | undefined {
   if (typeof value !== "string") {
-    return {};
+    return undefined;
   }
 
   const trimmed = value.trim();
   if (!trimmed) {
-    return {};
+    return undefined;
   }
 
   const separatorIndex = trimmed.lastIndexOf("!");
@@ -866,6 +878,52 @@ function normalizeWorkbookStructureUpdateData(value: unknown): unknown {
     "overwriteRisk"
   ]);
 
+  if (!hasOwn(normalized, "operation")) {
+    if (typeof value.action === "string" && value.action.trim()) {
+      normalized.operation = value.action.trim();
+    } else if (typeof value.op === "string" && value.op.trim()) {
+      normalized.operation = value.op.trim();
+    }
+  }
+
+  if (typeof normalized.operation === "string") {
+    const operation = normalized.operation.trim().toLowerCase();
+    normalized.operation =
+      operation === "add" || operation === "create" || operation === "insert" || operation === "new"
+        ? "create_sheet"
+        : operation === "delete" || operation === "remove"
+        ? "delete_sheet"
+        : operation === "rename"
+        ? "rename_sheet"
+        : operation === "duplicate" || operation === "copy"
+        ? "duplicate_sheet"
+        : operation === "move"
+        ? "move_sheet"
+        : operation === "hide"
+        ? "hide_sheet"
+        : operation === "unhide" || operation === "show"
+        ? "unhide_sheet"
+        : operation;
+  }
+
+  if (!hasOwn(normalized, "sheetName")) {
+    if (typeof value.name === "string" && value.name.trim()) {
+      normalized.sheetName = value.name.trim();
+    } else if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.sheetName = value.sheet.trim();
+    } else if (typeof value.sheetTitle === "string" && value.sheetTitle.trim()) {
+      normalized.sheetName = value.sheetTitle.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "newSheetName")) {
+    if (typeof value.newName === "string" && value.newName.trim()) {
+      normalized.newSheetName = value.newName.trim();
+    } else if (typeof value.newTitle === "string" && value.newTitle.trim()) {
+      normalized.newSheetName = value.newTitle.trim();
+    }
+  }
+
   if (hasOwn(normalized, "overwriteRisk")) {
     normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
   }
@@ -878,7 +936,7 @@ function normalizeRangeFormatValue(value: unknown): unknown {
     return value;
   }
 
-  return pickFields(value, [
+  const normalized = pickFields(value, [
     "numberFormat",
     "backgroundColor",
     "textColor",
@@ -895,6 +953,28 @@ function normalizeRangeFormatValue(value: unknown): unknown {
     "columnWidth",
     "rowHeight"
   ]);
+
+  if (!hasOwn(normalized, "backgroundColor")) {
+    if (typeof value.background === "string" && value.background.trim()) {
+      normalized.backgroundColor = value.background.trim();
+    } else if (typeof value.fillColor === "string" && value.fillColor.trim()) {
+      normalized.backgroundColor = value.fillColor.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "textColor") && typeof value.fontColor === "string" && value.fontColor.trim()) {
+    normalized.textColor = value.fontColor.trim();
+  }
+
+  if (!hasOwn(normalized, "wrapStrategy")) {
+    if (value.wrapText === true) {
+      normalized.wrapStrategy = "wrap";
+    } else if (typeof value.wrap === "string" && value.wrap.trim()) {
+      normalized.wrapStrategy = value.wrap.trim();
+    }
+  }
+
+  return normalized;
 }
 
 function normalizeRangeFormatUpdateData(value: unknown): unknown {
@@ -911,8 +991,28 @@ function normalizeRangeFormatUpdateData(value: unknown): unknown {
     "overwriteRisk"
   ]);
 
-  if (hasOwn(value, "format")) {
-    normalized.format = normalizeRangeFormatValue(value.format);
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef?.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef?.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  const formatSource = hasOwn(value, "format") ? value.format : value;
+  const normalizedFormat = normalizeRangeFormatValue(formatSource);
+  if (isObject(normalizedFormat) && Object.keys(normalizedFormat).length > 0) {
+    normalized.format = normalizedFormat;
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {
@@ -1087,10 +1187,10 @@ function normalizeConditionalFormatPlanData(value: unknown): unknown {
   if (!hasOwn(normalized, "targetRange")) {
     const rangeValue = hasOwn(value, "range") ? value.range : value.target;
     const rangeRef = parseQualifiedRangeRef(rangeValue);
-    if (!hasOwn(normalized, "targetSheet") && rangeRef.sheet) {
+    if (!hasOwn(normalized, "targetSheet") && rangeRef?.sheet) {
       normalized.targetSheet = rangeRef.sheet;
     }
-    if (rangeRef.range) {
+    if (rangeRef?.range) {
       normalized.targetRange = rangeRef.range;
     }
   }
@@ -1197,10 +1297,110 @@ function normalizeSheetStructureUpdateData(value: unknown): unknown {
     return value;
   }
 
-  const normalized: JsonRecord = { ...value };
+  const knownInputFields = new Set([
+    "targetSheet",
+    "operation",
+    "startIndex",
+    "count",
+    "targetRange",
+    "frozenRows",
+    "frozenColumns",
+    "color",
+    "explanation",
+    "confidence",
+    "requiresConfirmation",
+    "confirmationLevel",
+    "affectedRanges",
+    "overwriteRisk",
+    "sheet",
+    "sheetName",
+    "action",
+    "op",
+    "range"
+  ]);
+  const normalized = pickFields(value, [
+    "targetSheet",
+    "operation",
+    "startIndex",
+    "count",
+    "targetRange",
+    "frozenRows",
+    "frozenColumns",
+    "color",
+    "explanation",
+    "confidence",
+    "requiresConfirmation",
+    "confirmationLevel",
+    "affectedRanges",
+    "overwriteRisk"
+  ]);
+
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef?.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef?.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "operation")) {
+    if (typeof value.action === "string" && value.action.trim()) {
+      normalized.operation = value.action.trim();
+    } else if (typeof value.op === "string" && value.op.trim()) {
+      normalized.operation = value.op.trim();
+    }
+  }
+
+  if (typeof normalized.operation === "string") {
+    const operation = normalized.operation.trim().toLowerCase();
+    normalized.operation =
+      operation === "merge"
+        ? "merge_cells"
+        : operation === "unmerge"
+        ? "unmerge_cells"
+        : operation === "freeze"
+        ? "freeze_panes"
+        : operation === "unfreeze"
+        ? "unfreeze_panes"
+        : operation;
+  }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel =
+      normalized.operation === "delete_rows" || normalized.operation === "delete_columns"
+        ? "destructive"
+        : "standard";
+  }
+
+  if (hasOwn(normalized, "overwriteRisk")) {
+    normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+  }
+
+  for (const key of Object.keys(value)) {
+    if (!knownInputFields.has(key) && !hasOwn(normalized, key)) {
+      normalized[key] = value[key];
+    }
   }
 
   return normalized;
@@ -1211,10 +1411,65 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
     return value;
   }
 
-  const normalized: JsonRecord = { ...value };
+  const knownInputFields = new Set([
+    "targetSheet",
+    "targetRange",
+    "hasHeader",
+    "keys",
+    "explanation",
+    "confidence",
+    "requiresConfirmation",
+    "affectedRanges",
+    "sheet",
+    "sheetName",
+    "range",
+    "header",
+    "includesHeader",
+    "sortKeys"
+  ]);
+  const normalized = pickFields(value, [
+    "targetSheet",
+    "targetRange",
+    "hasHeader",
+    "keys",
+    "explanation",
+    "confidence",
+    "requiresConfirmation",
+    "affectedRanges"
+  ]);
+
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange")) {
+    if (typeof value.range === "string" && value.range.trim()) {
+      normalized.targetRange = value.range.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "hasHeader")) {
+    if (typeof value.header === "boolean") {
+      normalized.hasHeader = value.header;
+    } else if (typeof value.includesHeader === "boolean") {
+      normalized.hasHeader = value.includesHeader;
+    }
+  }
+
+  if (!hasOwn(normalized, "keys") && hasOwn(value, "sortKeys")) {
+    normalized.keys = value.sortKeys;
+  }
 
   if (hasOwn(value, "keys") && Array.isArray(value.keys)) {
-    normalized.keys = value.keys.map((item) => {
+    normalized.keys = value.keys;
+  }
+
+  if (hasOwn(normalized, "keys") && Array.isArray(normalized.keys)) {
+    normalized.keys = normalized.keys.map((item) => {
       if (!isObject(item)) {
         return item;
       }
@@ -1222,10 +1477,31 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
       const normalizedItem = pickFields(item, ["columnRef", "direction", "sortOn"]);
       if (
         (!normalizedItem.columnRef || typeof normalizedItem.columnRef !== "string") &&
-        typeof item.field === "string" &&
-        item.field.trim()
+        typeof item.field === "string" && item.field.trim()
       ) {
         normalizedItem.columnRef = item.field.trim();
+      }
+      if (
+        (!normalizedItem.columnRef || typeof normalizedItem.columnRef !== "string") &&
+        typeof item.column === "string" && item.column.trim()
+      ) {
+        normalizedItem.columnRef = item.column.trim();
+      } else if (
+        !normalizedItem.columnRef &&
+        typeof item.column === "number" &&
+        Number.isInteger(item.column)
+      ) {
+        normalizedItem.columnRef = item.column;
+      }
+
+      if (!hasOwn(normalizedItem, "direction")) {
+        if (typeof item.order === "string") {
+          normalizedItem.direction = item.order;
+        } else if (typeof item.sortDirection === "string") {
+          normalizedItem.direction = item.sortDirection;
+        } else if (typeof item.ascending === "boolean") {
+          normalizedItem.direction = item.ascending ? "asc" : "desc";
+        }
       }
 
       if (typeof normalizedItem.direction === "string") {
@@ -1242,6 +1518,19 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
+  }
+
+  for (const key of Object.keys(value)) {
+    if (!knownInputFields.has(key) && !hasOwn(normalized, key)) {
+      normalized[key] = value[key];
+    }
   }
 
   return normalized;
@@ -1450,8 +1739,64 @@ function normalizeNamedRangeUpdateData(value: unknown): unknown {
     "overwriteRisk"
   ]);
 
+  if (typeof normalized.operation === "string") {
+    const operation = normalized.operation.trim().toLowerCase();
+    normalized.operation =
+      operation === "define" || operation === "add"
+        ? "create"
+        : operation === "update" || operation === "change_range" || operation === "set_range"
+        ? "retarget"
+        : operation === "remove"
+        ? "delete"
+        : operation;
+  }
+
+  if (!hasOwn(normalized, "scope")) {
+    normalized.scope = typeof normalized.sheetName === "string" && normalized.sheetName.trim()
+      ? "sheet"
+      : "workbook";
+  }
+
+  if (!hasOwn(normalized, "name")) {
+    if (typeof value.rangeName === "string" && value.rangeName.trim()) {
+      normalized.name = value.rangeName.trim();
+    } else if (typeof value.namedRangeName === "string" && value.namedRangeName.trim()) {
+      normalized.name = value.namedRangeName.trim();
+    } else if (typeof value.namedRange === "string" && value.namedRange.trim()) {
+      normalized.name = value.namedRange.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "newName")) {
+    if (typeof value.newRangeName === "string" && value.newRangeName.trim()) {
+      normalized.newName = value.newRangeName.trim();
+    } else if (typeof value.new_name === "string" && value.new_name.trim()) {
+      normalized.newName = value.new_name.trim();
+    }
+  }
+
+  const qualifiedRef =
+    parseQualifiedRangeRef(value.refersTo) ??
+    parseQualifiedRangeRef(value.range) ??
+    parseQualifiedRangeRef(value.target);
+  if (qualifiedRef) {
+    if (!hasOwn(normalized, "targetSheet")) {
+      normalized.targetSheet = qualifiedRef.sheet;
+    }
+    if (!hasOwn(normalized, "targetRange")) {
+      normalized.targetRange = qualifiedRef.range;
+    }
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {
@@ -1494,14 +1839,72 @@ function normalizeAnalysisReportPlanData(value: unknown): unknown {
     "confirmationLevel"
   ]);
 
-  if (hasOwn(value, "sections") && Array.isArray(value.sections)) {
-    normalized.sections = value.sections.map((item) =>
-      normalizeAnalysisSectionLikeValue(item, value.sourceSheet, value.sourceRange)
+  if (!hasOwn(normalized, "sourceRange")) {
+    const dataRangeRef = parseQualifiedRangeRef(value.dataRange);
+    const sourceAliasRef = parseQualifiedRangeRef(value.source);
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    const sourceRef = dataRangeRef ?? sourceAliasRef ?? rangeRef;
+    if (!hasOwn(normalized, "sourceSheet") && sourceRef?.sheet) {
+      normalized.sourceSheet = sourceRef.sheet;
+    }
+    if (sourceRef?.range) {
+      normalized.sourceRange = sourceRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange")) {
+    const outputRangeRef = parseQualifiedRangeRef(value.outputRange);
+    const destinationRef = parseQualifiedRangeRef(value.destination);
+    const targetAliasRef = parseQualifiedRangeRef(value.target);
+    const targetRef = outputRangeRef ?? destinationRef ?? targetAliasRef;
+    if (!hasOwn(normalized, "targetSheet") && targetRef?.sheet) {
+      normalized.targetSheet = targetRef.sheet;
+    }
+    if (targetRef?.range) {
+      normalized.targetRange = targetRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "outputMode")) {
+    const outputMode = typeof value.output === "string"
+      ? value.output.trim().toLowerCase()
+      : typeof value.mode === "string"
+      ? value.mode.trim().toLowerCase()
+      : undefined;
+    normalized.outputMode =
+      outputMode === "sheet" ||
+      outputMode === "worksheet" ||
+      outputMode === "materialized" ||
+      outputMode === "materialize" ||
+      outputMode === "materialize_report"
+        ? "materialize_report"
+        : outputMode === "chat" ||
+          outputMode === "chat_only" ||
+          outputMode === "inline" ||
+          outputMode === "summary"
+        ? "chat_only"
+        : normalized.outputMode;
+  }
+
+  const sectionValues = hasOwn(value, "sections") && Array.isArray(value.sections)
+    ? value.sections
+    : hasOwn(value, "reportSections") && Array.isArray(value.reportSections)
+    ? value.reportSections
+    : undefined;
+  if (sectionValues) {
+    normalized.sections = sectionValues.map((item) =>
+      normalizeAnalysisSectionLikeValue(item, normalized.sourceSheet, normalized.sourceRange)
     );
   }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!hasOwn(normalized, "requiresConfirmation") && normalized.outputMode === "materialize_report") {
+    normalized.requiresConfirmation = true;
+  } else if (!hasOwn(normalized, "requiresConfirmation") && normalized.outputMode === "chat_only") {
+    normalized.requiresConfirmation = false;
   }
 
   if (
@@ -1656,20 +2059,20 @@ function normalizeChartPlanData(value: unknown): unknown {
 
   if (!hasOwn(normalized, "sourceRange") && hasOwn(value, "dataRange")) {
     const dataRange = parseQualifiedRangeRef(value.dataRange);
-    if (!hasOwn(normalized, "sourceSheet") && dataRange.sheet) {
+    if (!hasOwn(normalized, "sourceSheet") && dataRange?.sheet) {
       normalized.sourceSheet = dataRange.sheet;
     }
-    if (dataRange.range) {
+    if (dataRange?.range) {
       normalized.sourceRange = dataRange.range;
     }
   }
 
   if (!hasOwn(normalized, "targetRange") && hasOwn(value, "insertAt")) {
     const insertAt = parseQualifiedRangeRef(value.insertAt);
-    if (!hasOwn(normalized, "targetSheet") && insertAt.sheet) {
+    if (!hasOwn(normalized, "targetSheet") && insertAt?.sheet) {
       normalized.targetSheet = insertAt.sheet;
     }
-    if (insertAt.range) {
+    if (insertAt?.range) {
       normalized.targetRange = insertAt.range;
     }
   }
@@ -1748,6 +2151,68 @@ function normalizeTablePlanData(value: unknown): unknown {
     "overwriteRisk",
     "confirmationLevel"
   ]);
+
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef?.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef?.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "name") && typeof value.tableName === "string" && value.tableName.trim()) {
+    normalized.name = value.tableName.trim();
+  }
+
+  if (!hasOwn(normalized, "hasHeaders")) {
+    if (typeof value.hasHeader === "boolean") {
+      normalized.hasHeaders = value.hasHeader;
+    } else if (typeof value.header === "boolean") {
+      normalized.hasHeaders = value.header;
+    }
+  }
+
+  if (!hasOwn(normalized, "styleName")) {
+    if (typeof value.tableStyle === "string" && value.tableStyle.trim()) {
+      normalized.styleName = value.tableStyle.trim();
+    } else if (typeof value.style === "string" && value.style.trim()) {
+      normalized.styleName = value.style.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "showBandedRows") && typeof value.bandedRows === "boolean") {
+    normalized.showBandedRows = value.bandedRows;
+  }
+
+  if (!hasOwn(normalized, "showBandedColumns") && typeof value.bandedColumns === "boolean") {
+    normalized.showBandedColumns = value.bandedColumns;
+  }
+
+  if (!hasOwn(normalized, "showFilterButton")) {
+    if (typeof value.filterButton === "boolean") {
+      normalized.showFilterButton = value.filterButton;
+    } else if (typeof value.filterButtons === "boolean") {
+      normalized.showFilterButton = value.filterButtons;
+    }
+  }
+
+  if (!hasOwn(normalized, "showTotalsRow")) {
+    if (typeof value.totalsRow === "boolean") {
+      normalized.showTotalsRow = value.totalsRow;
+    } else if (typeof value.totalRow === "boolean") {
+      normalized.showTotalsRow = value.totalRow;
+    }
+  }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
@@ -1959,6 +2424,36 @@ function normalizeSheetUpdateData(value: unknown): unknown {
     normalized.shape = normalizeShapeValue(value.shape);
   }
 
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef?.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef?.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "operation")) {
+    if (typeof value.action === "string" && value.action.trim()) {
+      normalized.operation = value.action.trim();
+    } else if (typeof value.op === "string" && value.op.trim()) {
+      normalized.operation = value.op.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "values") && Array.isArray(value.data)) {
+    normalized.values = value.data;
+  }
+
   if (normalized.operation === "set_values") {
     normalized.operation = "replace_range";
   } else if (
@@ -1975,6 +2470,16 @@ function normalizeSheetUpdateData(value: unknown): unknown {
 
   if (hasOwn(normalized, "overwriteRisk")) {
     normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+  }
+
+  if (!hasOwn(normalized, "shape") && hasOwn(value, "data")) {
+    const inferredShape =
+      inferShapeFromMatrix(normalized.values) ??
+      inferShapeFromMatrix(normalized.formulas) ??
+      inferShapeFromMatrix(normalized.notes);
+    if (inferredShape) {
+      normalized.shape = inferredShape;
+    }
   }
 
   return normalized;
@@ -2069,6 +2574,54 @@ function normalizeDataCleanupPlanData(value: unknown): unknown {
     "confirmationLevel"
   ]);
 
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef?.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef?.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "operation")) {
+    if (typeof value.action === "string" && value.action.trim()) {
+      normalized.operation = value.action.trim();
+    } else if (typeof value.cleanupOperation === "string" && value.cleanupOperation.trim()) {
+      normalized.operation = value.cleanupOperation.trim();
+    } else if (typeof value.op === "string" && value.op.trim()) {
+      normalized.operation = value.op.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "sourceColumn")) {
+    if (typeof value.column === "string" && value.column.trim()) {
+      normalized.sourceColumn = value.column.trim();
+    } else if (typeof value.source === "string" && value.source.trim()) {
+      normalized.sourceColumn = value.source.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "delimiter") && typeof value.separator === "string") {
+    normalized.delimiter = value.separator;
+  }
+
+  if (!hasOwn(normalized, "targetStartColumn")) {
+    if (typeof value.startColumn === "string" && value.startColumn.trim()) {
+      normalized.targetStartColumn = value.startColumn.trim();
+    } else if (typeof value.outputStartColumn === "string" && value.outputStartColumn.trim()) {
+      normalized.targetStartColumn = value.outputStartColumn.trim();
+    }
+  }
+
   if (hasOwn(value, "keyColumns") && Array.isArray(value.keyColumns)) {
     normalized.keyColumns = [...value.keyColumns];
   }
@@ -2087,6 +2640,12 @@ function normalizeDataCleanupPlanData(value: unknown): unknown {
     normalized.operation = "remove_duplicate_rows";
   } else if (normalized.operation === "standardize_case") {
     normalized.operation = "normalize_case";
+  } else if (normalized.operation === "split") {
+    normalized.operation = "split_column";
+  } else if (normalized.operation === "join") {
+    normalized.operation = "join_columns";
+  } else if (normalized.operation === "dedupe" || normalized.operation === "deduplicate") {
+    normalized.operation = "remove_duplicate_rows";
   }
 
   if (typeof normalized.formatType === "string") {
