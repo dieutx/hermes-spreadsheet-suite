@@ -620,6 +620,38 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes range filter condition aliases and defaults before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_filter_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        hasHeader: true,
+        conditions: [
+          { field: "Status", operator: "equal_to", value: "Open" },
+          { column: "Revenue", operator: "greater_than_or_equal_to", value: 1000 }
+        ],
+        explanation: "Filter to open high-value rows.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "range_filter_plan",
+      data: {
+        combiner: "and",
+        clearExistingFilters: true,
+        conditions: [
+          { columnRef: "Status", operator: "equals", value: "Open" },
+          { columnRef: "Revenue", operator: "greaterThanOrEqual", value: 1000 }
+        ],
+        affectedRanges: ["Sales!A1:F50"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes table plans before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "table_plan",
