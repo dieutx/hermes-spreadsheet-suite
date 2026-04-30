@@ -1814,7 +1814,7 @@ function applyChartOptionOrFail_(chartBuilder, optionName, optionValue, failureL
   }
 }
 
-function applyChartPlan_(spreadsheet, plan) {
+function applyChartPlan_(spreadsheet, plan, executionId) {
   if (plan.chartType === 'pie' && hasChartAxisTitles_(plan)) {
     throw new Error('Google Sheets host does not support axis titles for pie charts.');
   }
@@ -1833,6 +1833,7 @@ function applyChartPlan_(spreadsheet, plan) {
   if (typeof targetSheet.newChart !== 'function' || typeof targetSheet.insertChart !== 'function') {
     throw new Error('Google Sheets host does not support exact-safe chart creation yet.');
   }
+  const beforeChartIds = readChartIdentitySetForSnapshot_(targetSheet);
 
   const sourceRange = sourceSheet.getRange(plan.sourceRange);
   const headerMap = buildHeaderMap_(sourceRange);
@@ -1892,8 +1893,9 @@ function applyChartPlan_(spreadsheet, plan) {
   const chart = chartBuilder.build();
   targetSheet.insertChart(chart);
   SpreadsheetApp.flush();
+  const afterChart = readInsertedChartStateForSnapshot_(targetSheet, beforeChartIds, chart, plan.targetRange);
 
-  return {
+  return attachLocalExecutionSnapshot_({
     kind: 'chart_update',
     operation: 'chart_update',
     hostPlatform: 'google_sheets',
@@ -1915,7 +1917,13 @@ function applyChartPlan_(spreadsheet, plan) {
     overwriteRisk: plan.overwriteRisk,
     confirmationLevel: plan.confirmationLevel,
     summary: 'Created ' + plan.chartType + ' chart on ' + plan.targetSheet + '!' + normalizeA1_(plan.targetRange) + '.'
-  };
+  }, createChartLocalExecutionSnapshot_({
+    executionId: executionId,
+    targetSheet: plan.targetSheet,
+    targetRange: normalizeA1_(plan.targetRange),
+    after: afterChart,
+    plan: plan
+  }));
 }
 
 function validateGoogleSheetsTablePlanSupport_(plan) {
@@ -4106,6 +4114,177 @@ function createWorkbookStructureDuplicateLocalExecutionSnapshot_(input) {
   };
 }
 
+function cloneLocalExecutionSnapshotValue_(value) {
+  if (value === null || value === undefined || typeof value !== 'object') {
+    return value;
+  }
+
+  if (isDateObject_(value)) {
+    return value.toISOString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(function(entry) {
+      return cloneLocalExecutionSnapshotValue_(entry);
+    });
+  }
+
+  const clone = {};
+  Object.keys(value).forEach(function(key) {
+    clone[key] = cloneLocalExecutionSnapshotValue_(value[key]);
+  });
+  return clone;
+}
+
+function getChartSnapshotId_(chart) {
+  if (!chart || typeof chart !== 'object') {
+    return null;
+  }
+
+  if (typeof chart.getChartId === 'function') {
+    const chartId = chart.getChartId();
+    if (typeof chartId === 'number' && Number.isFinite(chartId)) {
+      return chartId;
+    }
+    if (typeof chartId === 'string' && chartId.trim().length > 0) {
+      return chartId.trim();
+    }
+  }
+
+  if (chart.id !== undefined && chart.id !== null && String(chart.id).trim().length > 0) {
+    return chart.id;
+  }
+
+  return null;
+}
+
+function readChartIdentitySetForSnapshot_(sheet) {
+  if (
+    !sheet ||
+    typeof sheet.getCharts !== 'function' ||
+    typeof sheet.removeChart !== 'function'
+  ) {
+    return null;
+  }
+
+  const charts = sheet.getCharts();
+  if (!Array.isArray(charts)) {
+    return null;
+  }
+
+  const chartIds = {};
+  charts.forEach(function(chart) {
+    const chartId = getChartSnapshotId_(chart);
+    if (chartId !== null) {
+      chartIds[String(chartId)] = true;
+    }
+  });
+  return chartIds;
+}
+
+function getChartContainerAnchorA1_(chart) {
+  if (!chart || typeof chart.getContainerInfo !== 'function') {
+    return null;
+  }
+
+  const containerInfo = chart.getContainerInfo();
+  if (!containerInfo) {
+    return null;
+  }
+
+  const anchorRow = typeof containerInfo.getAnchorRow === 'function'
+    ? containerInfo.getAnchorRow()
+    : containerInfo.anchorRow;
+  const anchorColumn = typeof containerInfo.getAnchorColumn === 'function'
+    ? containerInfo.getAnchorColumn()
+    : containerInfo.anchorColumn;
+
+  if (!Number.isInteger(anchorRow) || anchorRow < 1 || !Number.isInteger(anchorColumn) || anchorColumn < 1) {
+    return null;
+  }
+
+  return buildA1RangeFromBounds_({
+    startRow: anchorRow,
+    endRow: anchorRow,
+    startColumn: anchorColumn,
+    endColumn: anchorColumn
+  });
+}
+
+function createChartSnapshotState_(chart, fallbackTargetRange) {
+  if (!chart) {
+    return {
+      exists: false,
+      targetRange: normalizeA1_(fallbackTargetRange)
+    };
+  }
+
+  const state = {
+    exists: true,
+    targetRange: normalizeA1_(getChartContainerAnchorA1_(chart) || fallbackTargetRange)
+  };
+  const chartId = getChartSnapshotId_(chart);
+  if (chartId !== null) {
+    state.chartId = chartId;
+  }
+  return state;
+}
+
+function readInsertedChartStateForSnapshot_(sheet, beforeChartIds, insertedChart, targetRange) {
+  if (!beforeChartIds || !sheet || typeof sheet.getCharts !== 'function') {
+    return null;
+  }
+
+  const insertedChartId = getChartSnapshotId_(insertedChart);
+  const charts = sheet.getCharts();
+  if (!Array.isArray(charts)) {
+    return null;
+  }
+
+  const insertedChartIdKey = insertedChartId === null ? null : String(insertedChartId);
+  const newCharts = charts.filter(function(chart) {
+    const chartId = getChartSnapshotId_(chart);
+    if (chartId === null) {
+      return chart === insertedChart;
+    }
+    if (insertedChartIdKey !== null && String(chartId) === insertedChartIdKey) {
+      return true;
+    }
+    return !beforeChartIds[String(chartId)];
+  });
+
+  const chart = newCharts.length === 1 ? newCharts[0] : insertedChart;
+  return createChartSnapshotState_(chart, targetRange);
+}
+
+function createChartLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.targetSheet ||
+    !input.targetRange ||
+    !input.after ||
+    input.after.exists !== true ||
+    !input.plan
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'chart',
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    chartId: input.after.chartId,
+    before: {
+      exists: false,
+      targetRange: input.targetRange
+    },
+    after: input.after,
+    plan: cloneLocalExecutionSnapshotValue_(input.plan)
+  };
+}
+
 function createCompositeLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !Array.isArray(input.entries) || input.entries.length === 0) {
     return null;
@@ -5154,6 +5333,146 @@ function applyExecutionWorkbookStructureSnapshot_(input) {
   };
 }
 
+function normalizeChartSnapshotState_(state) {
+  if (!state || typeof state !== 'object' || typeof state.exists !== 'boolean') {
+    throw new Error('The saved chart snapshot is malformed.');
+  }
+
+  const normalized = {
+    exists: state.exists,
+    targetRange: normalizeA1_(state.targetRange || '')
+  };
+
+  if (!normalized.targetRange) {
+    throw new Error('The saved chart snapshot is malformed.');
+  }
+
+  if (state.chartId !== undefined && state.chartId !== null && String(state.chartId).trim().length > 0) {
+    normalized.chartId = state.chartId;
+  }
+
+  return normalized;
+}
+
+function resolveExecutionChartSnapshot_(input) {
+  if (!input || typeof input !== 'object' || input.kind !== 'chart' || !input.targetSheet || !input.targetRange) {
+    throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+  }
+
+  const from = normalizeChartSnapshotState_(input.from);
+  const to = normalizeChartSnapshotState_(input.to);
+  const spreadsheet = SpreadsheetApp.getActive();
+  const sheet = spreadsheet.getSheetByName(input.targetSheet);
+  if (!sheet) {
+    throw new Error('Target sheet not found: ' + input.targetSheet);
+  }
+
+  return {
+    spreadsheet: spreadsheet,
+    sheet: sheet,
+    targetSheet: input.targetSheet,
+    targetRange: normalizeA1_(input.targetRange),
+    from: from,
+    to: to,
+    plan: input.plan
+  };
+}
+
+function findChartForSnapshot_(sheet, state, fallbackTargetRange) {
+  if (!sheet || typeof sheet.getCharts !== 'function') {
+    throw new Error('Google Sheets host cannot inspect saved chart snapshots.');
+  }
+
+  const charts = sheet.getCharts();
+  if (!Array.isArray(charts)) {
+    throw new Error('Google Sheets host cannot inspect saved chart snapshots.');
+  }
+
+  if (state.chartId !== undefined && state.chartId !== null) {
+    const chartId = String(state.chartId);
+    const chart = charts.find(function(candidate) {
+      const candidateId = getChartSnapshotId_(candidate);
+      return candidateId !== null && String(candidateId) === chartId;
+    });
+    if (chart) {
+      return chart;
+    }
+  }
+
+  const targetRange = normalizeA1_(state.targetRange || fallbackTargetRange);
+  const anchorMatches = charts.filter(function(candidate) {
+    const anchorA1 = getChartContainerAnchorA1_(candidate);
+    return anchorA1 && normalizeA1_(anchorA1) === targetRange;
+  });
+
+  if (anchorMatches.length === 1) {
+    return anchorMatches[0];
+  }
+
+  throw new Error('Google Sheets host cannot find the saved chart snapshot.');
+}
+
+function assertChartSnapshotPlan_(plan) {
+  if (
+    !plan ||
+    typeof plan.sourceSheet !== 'string' ||
+    typeof plan.sourceRange !== 'string' ||
+    typeof plan.targetSheet !== 'string' ||
+    typeof plan.targetRange !== 'string' ||
+    typeof plan.chartType !== 'string'
+  ) {
+    throw new Error('The saved chart snapshot is malformed.');
+  }
+}
+
+function validateExecutionChartSnapshot_(input) {
+  const snapshot = resolveExecutionChartSnapshot_(input);
+  if (snapshot.from.exists === true) {
+    findChartForSnapshot_(snapshot.sheet, snapshot.from, snapshot.targetRange);
+  }
+
+  if (snapshot.to.exists === true) {
+    assertChartSnapshotPlan_(snapshot.plan);
+  }
+
+  return {
+    ok: true,
+    targetSheet: snapshot.targetSheet,
+    targetRange: snapshot.targetRange
+  };
+}
+
+function applyExecutionChartSnapshot_(input) {
+  const snapshot = resolveExecutionChartSnapshot_(input);
+
+  if (snapshot.from.exists === true && snapshot.to.exists === false) {
+    const chart = findChartForSnapshot_(snapshot.sheet, snapshot.from, snapshot.targetRange);
+    if (typeof snapshot.sheet.removeChart !== 'function') {
+      throw new Error('Google Sheets host cannot remove the saved chart snapshot.');
+    }
+
+    snapshot.sheet.removeChart(chart);
+    SpreadsheetApp.flush();
+    return {
+      ok: true,
+      targetSheet: snapshot.targetSheet,
+      targetRange: snapshot.targetRange
+    };
+  }
+
+  if (snapshot.from.exists === false && snapshot.to.exists === true) {
+    assertChartSnapshotPlan_(snapshot.plan);
+    applyChartPlan_(snapshot.spreadsheet, snapshot.plan, null);
+    return {
+      ok: true,
+      targetSheet: snapshot.targetSheet,
+      targetRange: snapshot.targetRange
+    };
+  }
+
+  throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+}
+
 function validateExecutionCellSnapshot(input) {
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
@@ -5173,6 +5492,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'workbook_structure') {
     return validateExecutionWorkbookStructureSnapshot_(input);
+  }
+
+  if (input && input.kind === 'chart') {
+    return validateExecutionChartSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -5204,6 +5527,10 @@ function applyExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'workbook_structure') {
     return applyExecutionWorkbookStructureSnapshot_(input);
+  }
+
+  if (input && input.kind === 'chart') {
+    return applyExecutionChartSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -5257,6 +5584,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'workbook_structure') {
     return validateExecutionWorkbookStructureSnapshot_(input);
+  }
+
+  if (input && input.kind === 'chart') {
+    return validateExecutionChartSnapshot_(input);
   }
 
   if (!input || typeof input !== 'object') {
@@ -6968,7 +7299,7 @@ function applyWritePlan(input) {
   }
 
   if (isChartPlan_(plan)) {
-    return applyChartPlan_(spreadsheet, plan);
+    return applyChartPlan_(spreadsheet, plan, input.executionId);
   }
 
   if (isTablePlan_(plan)) {

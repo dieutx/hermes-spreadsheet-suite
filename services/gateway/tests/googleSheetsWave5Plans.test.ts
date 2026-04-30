@@ -680,7 +680,14 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
       numColumns: 1,
       values: [[""]]
     });
-    const builtChart = { id: "chart-1" };
+    const existingChart = {
+      getChartId: vi.fn(() => 101)
+    };
+    const builtChart = {
+      id: "chart-1",
+      getChartId: vi.fn(() => 202)
+    };
+    const charts = [existingChart];
     const chartBuilder = {
       addRange: vi.fn().mockReturnThis(),
       setChartType: vi.fn().mockReturnThis(),
@@ -690,8 +697,12 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     };
     const chartSheet = {
       getRange: vi.fn(() => anchorRange),
+      getCharts: vi.fn(() => [...charts]),
       newChart: vi.fn(() => chartBuilder),
-      insertChart: vi.fn()
+      removeChart: vi.fn(),
+      insertChart: vi.fn((chart: typeof builtChart) => {
+        charts.push(chart);
+      })
     };
     const spreadsheet = {
       getSheetByName: vi.fn((sheetName: string) => {
@@ -723,6 +734,7 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
 
     const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
     const result = applyWritePlan({
+      executionId: "exec_chart_apply_google_001",
       plan: {
         sourceSheet: "Sales",
         sourceRange: "A1:C20",
@@ -777,7 +789,30 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
       legendPosition: "hidden",
       horizontalAxisTitle: "Month",
       verticalAxisTitle: "USD",
-      summary: "Created line chart on Sales Chart!A1."
+      summary: "Created line chart on Sales Chart!A1.",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_chart_apply_google_001",
+        kind: "chart",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartId: 202,
+        before: {
+          exists: false,
+          targetRange: "A1"
+        },
+        after: {
+          exists: true,
+          targetRange: "A1",
+          chartId: 202
+        },
+        plan: {
+          sourceSheet: "Sales",
+          sourceRange: "A1:C20",
+          targetSheet: "Sales Chart",
+          targetRange: "A1",
+          chartType: "line"
+        }
+      }
     });
     expect(flush).toHaveBeenCalledTimes(1);
   });

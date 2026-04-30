@@ -255,6 +255,10 @@
     return snapshot && snapshot.kind === "workbook_structure";
   }
 
+  function isChartLocalExecutionSnapshot(snapshot) {
+    return snapshot && snapshot.kind === "chart";
+  }
+
   function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
     if (!isCompositeLocalExecutionSnapshot(snapshot)) {
       return [snapshot];
@@ -344,6 +348,18 @@
         ...(entry.source ? { source: entry.source } : {}),
         from: mode === "undo" ? entry.after : entry.before,
         to: mode === "undo" ? entry.before : entry.after
+      };
+    }
+
+    if (isChartLocalExecutionSnapshot(entry)) {
+      return {
+        kind: "chart",
+        targetSheet: entry.targetSheet,
+        targetRange: entry.targetRange,
+        ...(entry.chartId !== undefined ? { chartId: entry.chartId } : {}),
+        from: mode === "undo" ? entry.after : entry.before,
+        to: mode === "undo" ? entry.before : entry.after,
+        plan: entry.plan
       };
     }
 
