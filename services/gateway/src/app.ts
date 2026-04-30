@@ -64,6 +64,27 @@ export function allowPrivateNetworkPreflight(allowedOrigins: string[] | undefine
   };
 }
 
+export function enforceAllowedOrigin(allowedOrigins: string[] | undefined) {
+  return function allowedOriginMiddleware(
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) {
+    if (isCorsOriginAllowed(req.headers.origin, allowedOrigins)) {
+      next();
+      return;
+    }
+
+    res.status(403).json({
+      error: {
+        code: "ORIGIN_NOT_ALLOWED",
+        message: "This Hermes gateway origin is not allowed.",
+        userAction: "Open Hermes from an approved Excel or Google Sheets host, then retry."
+      }
+    });
+  };
+}
+
 export function handleGatewayAppError(
   error: unknown,
   _req: express.Request,
@@ -132,6 +153,7 @@ export function createApp() {
     });
   });
 
+  app.use(enforceAllowedOrigin(config.allowedCorsOrigins));
   app.use("/api/uploads", createUploadRouter({ attachmentStore, config }));
   app.use("/api/requests", createRequestRouter({
     traceBus,
