@@ -870,6 +870,39 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes cleanup split-column aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "data_cleanup_plan",
+      data: {
+        sheet: "Sales",
+        range: "C2:C20",
+        action: "split",
+        column: "C",
+        separator: ",",
+        startColumn: "D",
+        explanation: "Split customer name values into separate columns.",
+        confidence: 0.87,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "data_cleanup_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "C2:C20",
+        operation: "split_column",
+        sourceColumn: "C",
+        delimiter: ",",
+        targetStartColumn: "D",
+        affectedRanges: ["Sales!C2:C20"],
+        overwriteRisk: "high",
+        confirmationLevel: "destructive"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("coerces formula alternateFormulas string entries into contract-valid objects", () => {
     const rawBody = {
       type: "formula",
