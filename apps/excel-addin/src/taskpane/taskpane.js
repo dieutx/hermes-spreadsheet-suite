@@ -1362,6 +1362,31 @@ function createWorkbookStructureVisibilityLocalExecutionSnapshot({
   };
 }
 
+function createWorkbookStructureCreateLocalExecutionSnapshot({
+  executionId,
+  sheetName,
+  afterPosition
+}) {
+  if (!executionId || !sheetName || !Number.isInteger(afterPosition)) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "workbook_structure",
+    operation: "create_sheet",
+    before: {
+      exists: false,
+      name: sheetName
+    },
+    after: {
+      exists: true,
+      name: sheetName,
+      position: afterPosition
+    }
+  };
+}
+
 function createWorkbookStructureMoveLocalExecutionSnapshot({
   executionId,
   sheetName,
@@ -1937,6 +1962,24 @@ function assertWorkbookStructureVisibilitySnapshotState(state) {
   }
 }
 
+function assertWorkbookStructureCreateSnapshotState(state) {
+  if (
+    !state ||
+    typeof state.exists !== "boolean" ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  if (
+    state.exists === true &&
+    (!Number.isInteger(state.position) || state.position < 0)
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
 function assertWorkbookStructureMoveSnapshotState(state) {
   if (
     !state ||
@@ -1954,7 +1997,8 @@ function getWorkbookStructureSnapshotTransitionForMode(snapshot, mode) {
   if (
     snapshot?.operation !== "rename_sheet" &&
     snapshot?.operation !== "sheet_visibility" &&
-    snapshot?.operation !== "move_sheet"
+    snapshot?.operation !== "move_sheet" &&
+    snapshot?.operation !== "create_sheet"
   ) {
     throw new Error("That workbook structure history entry cannot be restored exactly.");
   }
@@ -1967,6 +2011,44 @@ function getWorkbookStructureSnapshotTransitionForMode(snapshot, mode) {
 }
 
 async function applyWorkbookStructureSnapshotTransition(context, transition) {
+  if (transition.operation === "create_sheet") {
+    assertWorkbookStructureCreateSnapshotState(transition.from);
+    assertWorkbookStructureCreateSnapshotState(transition.to);
+
+    if (transition.to.exists === false) {
+      const sheet = context.workbook.worksheets.getItem(transition.from.name);
+      if (typeof sheet.load === "function") {
+        sheet.load(["name", "position", "visibility"]);
+        await context.sync();
+      }
+
+      if (typeof sheet.position === "number" && sheet.position !== transition.from.position) {
+        throw new Error("Sheet position changed since this history entry was captured.");
+      }
+
+      if (sheet.visibility === Excel.SheetVisibility.veryHidden) {
+        sheet.visibility = Excel.SheetVisibility.hidden;
+      }
+
+      if (typeof sheet.delete !== "function") {
+        throw new Error("Excel host cannot restore the saved sheet creation.");
+      }
+
+      sheet.delete();
+      return;
+    }
+
+    if (transition.to.exists === true) {
+      const createdSheet = context.workbook.worksheets.add(transition.to.name);
+      if (Number.isInteger(transition.to.position)) {
+        createdSheet.position = transition.to.position;
+      }
+      return;
+    }
+
+    throw new Error("That workbook structure history entry cannot be restored exactly.");
+  }
+
   if (transition.operation === "sheet_visibility") {
     assertWorkbookStructureVisibilitySnapshotState(transition.from);
     assertWorkbookStructureVisibilitySnapshotState(transition.to);
@@ -2023,7 +2105,10 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
   const transition = getWorkbookStructureSnapshotTransitionForMode(snapshot, mode);
 
   return Excel.run(async (context) => {
-    if (transition.operation === "sheet_visibility") {
+    if (transition.operation === "create_sheet") {
+      assertWorkbookStructureCreateSnapshotState(transition.from);
+      assertWorkbookStructureCreateSnapshotState(transition.to);
+    } else if (transition.operation === "sheet_visibility") {
       assertWorkbookStructureVisibilitySnapshotState(transition.from);
       assertWorkbookStructureVisibilitySnapshotState(transition.to);
     } else if (transition.operation === "move_sheet") {
@@ -2034,10 +2119,16 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
       assertWorkbookStructureRenameSnapshotState(transition.to);
     }
 
+    if (transition.operation === "create_sheet" && transition.from.exists === false) {
+      return;
+    }
+
     const sheet = context.workbook.worksheets.getItem(transition.from.name);
     if (typeof sheet.load === "function") {
       sheet.load(transition.operation === "sheet_visibility"
         ? ["name", "visibility"]
+        : transition.operation === "create_sheet"
+          ? ["name", "position", "visibility"]
         : transition.operation === "move_sheet"
           ? ["name", "position"]
           : ["name"]);
@@ -2045,7 +2136,7 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
     }
 
     if (
-      transition.operation === "move_sheet" &&
+      (transition.operation === "create_sheet" || transition.operation === "move_sheet") &&
       typeof sheet.position === "number" &&
       sheet.position !== transition.from.position
     ) {
@@ -8593,16 +8684,27 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           if (desiredPosition < orderedSheets.length) {
             createdSheet.position = desiredPosition;
           }
+          createdSheet.load?.(["name", "position"]);
           await context.sync();
-          return {
+          const createdSheetName = typeof createdSheet.name === "string" && createdSheet.name.trim().length > 0
+            ? createdSheet.name
+            : resolvedPlan.sheetName;
+          const createdPosition = Number.isInteger(createdSheet.position)
+            ? createdSheet.position
+            : desiredPosition;
+          return attachLocalExecutionSnapshot({
             kind: "workbook_structure_update",
             hostPlatform: platform,
-            sheetName: resolvedPlan.sheetName,
+            sheetName: createdSheetName,
             operation: resolvedPlan.operation,
-            positionResolved: desiredPosition,
+            positionResolved: createdPosition,
             sheetCount: orderedSheets.length + 1,
             summary: getWorkbookStructureStatusSummary(resolvedPlan)
-          };
+          }, createWorkbookStructureCreateLocalExecutionSnapshot({
+            executionId,
+            sheetName: createdSheetName,
+            afterPosition: createdPosition
+          }));
         }
         case "delete_sheet": {
           const sheet = findSheet(resolvedPlan.sheetName);
