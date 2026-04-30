@@ -76,6 +76,13 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("web_table_import/importhtml, importxml, or importdata");
   });
 
+  it("treats missing note-write capability as unsupported", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
+
+    expect(prompt).toContain("note_writes: unsupported");
+    expect(prompt).toContain("Do not propose sheet_update operations that depend on notes.");
+  });
+
   it("includes a host capability matrix for Excel planning", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       source: {

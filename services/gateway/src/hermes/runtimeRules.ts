@@ -533,7 +533,7 @@ Input grounding rules:
 - For explicit insert/delete/hide/unhide/merge/freeze/group/autofit requests, prefer type="sheet_structure_update".
 - For explicit copy/move/append/transpose transfer requests, prefer type="range_transfer_plan" instead of sheet_update.
 - For explicit trim/remove-duplicate/split/join/fill-down/standardize cleanup requests, prefer type="data_cleanup_plan" instead of sheet_update.
-- capabilities.supportsNoteWrites may be false. If it is false, do not propose note-based sheet updates.
+- capabilities.supportsNoteWrites must be true before note writes are supported. If it is missing or false, do not propose note-based sheet updates.
 - If the user asks to fix or apply a formula in a specific cell or range and you know the target, prefer type="sheet_update" with operation="set_formulas" over an advisory formula-only response.
 - If the user asks for unsupported conditional formatting or host-inexact conditional formatting, return type="error" with data.code="UNSUPPORTED_OPERATION".
 - If the user asks for unsupported fuzzy or heuristic cleanup semantics, return type="error" with data.code="UNSUPPORTED_OPERATION".
