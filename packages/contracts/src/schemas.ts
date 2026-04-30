@@ -29,6 +29,11 @@ const StrictA1RangeStringSchema = z.string().min(1).max(128).refine(
   { message: "must be a valid A1 range." }
 );
 
+const A1TargetRangeSchema = z.string().min(1).max(128).refine(
+  (value) => parseA1Range(value) !== null,
+  { message: "targetRange must be a valid A1 range." }
+);
+
 const MAX_CONTEXT_CELL_TEXT_LENGTH = 4000;
 const MAX_CONTEXT_FORMULA_TEXT_LENGTH = 16000;
 const MAX_CONTEXT_MATRIX_ROWS = 500;
@@ -653,7 +658,7 @@ export const RangeSortKeySchema = strictObject({
 
 export const RangeSortPlanDataSchema = strictObject({
   targetSheet: z.string().min(1).max(128),
-  targetRange: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
   hasHeader: z.boolean(),
   keys: z.array(RangeSortKeySchema).min(1).max(5),
   explanation: z.string().min(1).max(12000),
@@ -755,7 +760,7 @@ export const RangeFilterConditionSchema = strictObject({
 
 export const RangeFilterPlanDataSchema = strictObject({
   targetSheet: z.string().min(1).max(128),
-  targetRange: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
   hasHeader: z.boolean(),
   conditions: z.array(RangeFilterConditionSchema).min(1).max(10),
   combiner: z.enum(["and", "or"]),
@@ -778,11 +783,6 @@ export const ValidationComparatorSchema = z.enum([
 ]);
 
 export const InvalidDataBehaviorSchema = z.enum(["warn", "reject"]);
-
-const A1TargetRangeSchema = z.string().min(1).max(128).refine(
-  (value) => parseA1Range(value) !== null,
-  { message: "targetRange must be a valid A1 range." }
-);
 
 const SingleCellA1TargetSchema = z.string().min(1).max(128).refine((value) => {
   const parsed = parseA1Range(value);
