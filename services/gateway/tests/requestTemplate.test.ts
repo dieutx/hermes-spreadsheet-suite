@@ -117,6 +117,46 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain('type="error"');
   });
 
+  it("redacts attachment access fields from the serialized Hermes prompt", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Import the uploaded receipt image.",
+      context: {
+        selection: {
+          range: "A1:B2",
+          headers: ["A", "B"],
+          values: [["", ""]]
+        },
+        attachments: [
+          {
+            id: "att_prompt_001",
+            type: "image",
+            mimeType: "image/png",
+            fileName: "receipt.png",
+            size: 2048,
+            source: "upload",
+            previewUrl: "https://gateway.example/api/uploads/att_prompt_001/content?uploadToken=upl_secret_123&sessionId=sess_123",
+            uploadToken: "upl_secret_123",
+            storageRef: "blob://att_prompt_001",
+            extractedText: "raw extracted text that should not be forwarded",
+            metadata: {
+              internalUrl: "https://internal.example/receipt.png"
+            }
+          }
+        ]
+      }
+    }));
+
+    expect(prompt).toContain('"id": "att_prompt_001"');
+    expect(prompt).toContain('"mimeType": "image/png"');
+    expect(prompt).toContain('"fileName": "receipt.png"');
+    expect(prompt).not.toContain("uploadToken");
+    expect(prompt).not.toContain("upl_secret_123");
+    expect(prompt).not.toContain("previewUrl");
+    expect(prompt).not.toContain("storageRef");
+    expect(prompt).not.toContain("raw extracted text");
+    expect(prompt).not.toContain("internal.example");
+  });
+
   it("guides targeted formula-fix prompts toward executable sheet updates", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "Fix the formula in cell F6 and apply it."
