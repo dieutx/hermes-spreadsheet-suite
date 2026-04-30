@@ -989,6 +989,30 @@ function isExternalDataPlan_(plan) {
   );
 }
 
+function getSingleCellFormula_(range) {
+  if (range && typeof range.getFormula === 'function') {
+    return range.getFormula();
+  }
+
+  if (range && typeof range.getFormulas === 'function') {
+    const formulas = range.getFormulas();
+    return formulas && formulas[0] ? formulas[0][0] : '';
+  }
+
+  return '';
+}
+
+function assertExternalDataFormulaApplied_(target, plan) {
+  const expectedFormula = String(plan && plan.formula ? plan.formula : '').trim();
+  const appliedFormula = String(getSingleCellFormula_(target) || '').trim();
+
+  if (appliedFormula !== expectedFormula) {
+    throw new Error('Google Sheets host could not verify the applied external data formula.');
+  }
+
+  return appliedFormula;
+}
+
 function isCompositePlan_(plan) {
   return Boolean(
     plan &&
@@ -5624,6 +5648,7 @@ function applyWritePlan(input) {
 
     target.setFormula(plan.formula);
     SpreadsheetApp.flush();
+    const appliedFormula = assertExternalDataFormulaApplied_(target, plan);
     return {
       kind: 'external_data_update',
       hostPlatform: 'google_sheets',
@@ -5635,7 +5660,7 @@ function applyWritePlan(input) {
       selector: plan.selector,
       targetSheet: plan.targetSheet,
       targetRange: plan.targetRange,
-      formula: plan.formula,
+      formula: appliedFormula,
       explanation: plan.explanation,
       confidence: plan.confidence,
       requiresConfirmation: plan.requiresConfirmation,

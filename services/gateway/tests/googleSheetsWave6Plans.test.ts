@@ -2732,6 +2732,62 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("fails closed when an external data formula does not persist on the target cell", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "B2",
+      row: 2,
+      column: 2,
+      numRows: 1,
+      numColumns: 1
+    });
+    targetRange.setFormula = vi.fn();
+    targetRange.getFormulas = vi.fn(() => [[""]]);
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getId() {
+        return "sheet-123";
+      },
+      getSheetByName(name: string) {
+        if (name === "Market Data") {
+          return sheet;
+        }
+        return null;
+      }
+    };
+
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(() => code.applyWritePlan({
+      requestId: "req_external_data_apply_mismatch",
+      runId: "run_external_data_apply_mismatch",
+      approvalToken: "token",
+      plan: {
+        sourceType: "market_data",
+        provider: "googlefinance",
+        query: {
+          symbol: "CURRENCY:BTCUSD",
+          attribute: "price"
+        },
+        targetSheet: "Market Data",
+        targetRange: "B2",
+        formula: '=GOOGLEFINANCE("CURRENCY:BTCUSD","price")',
+        explanation: "Anchor the latest BTC price in B2.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Market Data!B2"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    })).toThrow("Google Sheets host could not verify the applied external data formula.");
+    expect(targetRange.setFormula).toHaveBeenCalledWith('=GOOGLEFINANCE("CURRENCY:BTCUSD","price")');
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("applies Google Sheets table-like plans with banding and filters", () => {
     const targetRange = createRangeStub({
       a1Notation: "A1:F50",
