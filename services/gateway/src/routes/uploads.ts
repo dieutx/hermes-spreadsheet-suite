@@ -13,6 +13,9 @@ type UploadRouteErrorPayload = {
   };
 };
 
+const MAX_UPLOAD_SESSION_ID_LENGTH = 128;
+const MAX_UPLOAD_WORKBOOK_ID_LENGTH = 256;
+
 function matchesImageMimeType(
   buffer: Buffer,
   mimeType: (typeof MvpImageMimeTypes)[number]
@@ -151,6 +154,16 @@ export function createUploadRouter(input: {
       });
       return;
     }
+    if (sessionId.length > MAX_UPLOAD_SESSION_ID_LENGTH) {
+      res.status(400).json({
+        error: {
+          code: "INVALID_REQUEST",
+          message: "Image uploads require a Hermes session id no longer than 128 characters.",
+          userAction: "Reload the spreadsheet sidebar or add-in, then try the upload again."
+        }
+      });
+      return;
+    }
 
     const workbookId = typeof req.body.workbookId === "string" && req.body.workbookId.trim().length > 0
       ? req.body.workbookId.trim()
@@ -160,6 +173,16 @@ export function createUploadRouter(input: {
         error: {
           code: "INVALID_REQUEST",
           message: "Image uploads require a workbook id.",
+          userAction: "Reload the spreadsheet, then try the upload again from the workbook where you want to use it."
+        }
+      });
+      return;
+    }
+    if (workbookId.length > MAX_UPLOAD_WORKBOOK_ID_LENGTH) {
+      res.status(400).json({
+        error: {
+          code: "INVALID_REQUEST",
+          message: "Image uploads require a workbook id no longer than 256 characters.",
           userAction: "Reload the spreadsheet, then try the upload again from the workbook where you want to use it."
         }
       });
