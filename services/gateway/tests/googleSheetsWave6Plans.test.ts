@@ -3773,6 +3773,209 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("attaches local undo snapshots for Google Sheets sheet visibility writes", () => {
+    let hidden = false;
+    const sheet = {
+      getName: vi.fn(() => "Sheet1"),
+      isSheetHidden: vi.fn(() => hidden),
+      hideSheet: vi.fn(() => {
+        hidden = true;
+      }),
+      showSheet: vi.fn(() => {
+        hidden = false;
+      })
+    };
+    const otherSheet = {
+      getName: vi.fn(() => "Sheet2"),
+      isSheetHidden: vi.fn(() => false)
+    };
+    const spreadsheet = {
+      getSheets: vi.fn(() => [sheet, otherSheet]),
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_hide_sheet_snapshot_sheets_001",
+      runId: "run_hide_sheet_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_hide_sheet_snapshot_sheets_001",
+      plan: {
+        operation: "hide_sheet",
+        sheetName: "Sheet1",
+        explanation: "Hide the staging sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(hidden).toBe(true);
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "hide_sheet",
+      sheetName: "Sheet1",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_hide_sheet_snapshot_sheets_001",
+        kind: "workbook_structure",
+        operation: "sheet_visibility",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          visibility: "visible"
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          visibility: "hidden"
+        }
+      }
+    });
+  });
+
+  it("passes Google Sheets sheet visibility snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    const before = {
+      exists: true,
+      name: "Sheet1",
+      visibility: "visible"
+    };
+    const after = {
+      exists: true,
+      name: "Sheet1",
+      visibility: "hidden"
+    };
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_hide_sheet_001"],
+      executions: {
+        exec_hide_sheet_001: {
+          baseExecutionId: "exec_hide_sheet_001"
+        }
+      },
+      bases: {
+        exec_hide_sheet_001: {
+          baseExecutionId: "exec_hide_sheet_001",
+          kind: "workbook_structure",
+          operation: "sheet_visibility",
+          before,
+          after
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "workbook_structure_update",
+          operation: "hide_sheet",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_hide_sheet_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "workbook_structure",
+          operation: "sheet_visibility",
+          from: after,
+          to: before
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "workbook_structure",
+          operation: "sheet_visibility",
+          from: after,
+          to: before
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies Google Sheets sheet visibility snapshots on the server", () => {
+    let hidden = true;
+    const sheet = {
+      isSheetHidden: vi.fn(() => hidden),
+      hideSheet: vi.fn(() => {
+        hidden = true;
+      }),
+      showSheet: vi.fn(() => {
+        hidden = false;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "sheet_visibility",
+      from: {
+        exists: true,
+        name: "Sheet1",
+        visibility: "hidden"
+      },
+      to: {
+        exists: true,
+        name: "Sheet1",
+        visibility: "visible"
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "sheet_visibility"
+    });
+
+    expect(hidden).toBe(false);
+    expect(sheet.showSheet).toHaveBeenCalledTimes(1);
+    expect(sheet.hideSheet).not.toHaveBeenCalled();
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("applies external data plans by anchoring a first-class formula into a single Google Sheets cell", () => {
     const targetRange = createRangeStub({
       a1Notation: "B2",
