@@ -2520,6 +2520,13 @@ function normalizeExternalDataPlanData(value: unknown): unknown {
     }
   }
 
+  if (provider === "importhtml" && typeof normalized.selector === "string") {
+    const selectorIndex = normalized.selector.trim();
+    if (/^[1-9]\d*$/.test(selectorIndex)) {
+      normalized.selector = Number(selectorIndex);
+    }
+  }
+
   if (!hasOwn(normalized, "formula") && provider === "googlefinance") {
     const formula = buildGoogleFinanceFormula(normalized.query);
     if (formula) {
