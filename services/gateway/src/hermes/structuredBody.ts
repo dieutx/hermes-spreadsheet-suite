@@ -2775,6 +2775,35 @@ function normalizeTableUpdateData(value: unknown): unknown {
   ]);
 }
 
+function getSheetImportRowsMatrix(value: JsonRecord): unknown[][] | undefined {
+  const rowsCandidate = hasOwn(value, "rows")
+    ? value.rows
+    : hasOwn(value, "data")
+    ? value.data
+    : value.table;
+
+  if (
+    !Array.isArray(rowsCandidate) ||
+    rowsCandidate.length === 0 ||
+    !rowsCandidate.every((row) => Array.isArray(row))
+  ) {
+    return undefined;
+  }
+
+  return rowsCandidate as unknown[][];
+}
+
+function normalizeExtractionModeValue(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "real" || normalized === "demo" || normalized === "unavailable"
+    ? normalized
+    : value;
+}
+
 function normalizeSheetImportPlanData(value: unknown): unknown {
   if (!isObject(value)) {
     return value;
@@ -2791,12 +2820,66 @@ function normalizeSheetImportPlanData(value: unknown): unknown {
     "extractionMode"
   ]);
 
+  const rowsMatrix = getSheetImportRowsMatrix(value);
+
+  if (!hasOwn(normalized, "sourceAttachmentId")) {
+    if (hasOwn(value, "attachmentId")) {
+      normalized.sourceAttachmentId = value.attachmentId;
+    } else if (hasOwn(value, "sourceId")) {
+      normalized.sourceAttachmentId = value.sourceId;
+    }
+  }
+
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (hasOwn(value, "sheet")) {
+      normalized.targetSheet = value.sheet;
+    } else if (hasOwn(value, "sheetName")) {
+      normalized.targetSheet = value.sheetName;
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange")) {
+    const rangeValue = hasOwn(value, "range") ? value.range : value.target;
+    const rangeRef = parseQualifiedRangeRef(rangeValue);
+    if (rangeRef) {
+      if (!hasOwn(normalized, "targetSheet") && rangeRef.sheet) {
+        normalized.targetSheet = rangeRef.sheet;
+      }
+      if (rangeRef.range) {
+        normalized.targetRange = rangeRef.range;
+      }
+    }
+  }
+
+  if (!hasOwn(normalized, "headers") && rowsMatrix) {
+    normalized.headers = rowsMatrix[0].map((cell) => String(cell ?? ""));
+  }
+
+  if (!hasOwn(normalized, "values") && rowsMatrix) {
+    normalized.values = rowsMatrix.slice(1);
+  }
+
+  if (!hasOwn(normalized, "extractionMode")) {
+    if (hasOwn(value, "mode")) {
+      normalized.extractionMode = normalizeExtractionModeValue(value.mode);
+    } else if (hasOwn(value, "extraction")) {
+      normalized.extractionMode = normalizeExtractionModeValue(value.extraction);
+    }
+  } else {
+    normalized.extractionMode = normalizeExtractionModeValue(normalized.extractionMode);
+  }
+
   if (hasOwn(value, "warnings")) {
     normalized.warnings = normalizeWarningsValue(value.warnings);
   }
 
   if (hasOwn(value, "shape")) {
     normalized.shape = normalizeShapeValue(value.shape);
+  } else if (Array.isArray(normalized.headers) && Array.isArray(normalized.values)) {
+    normalized.shape = {
+      rows: 1 + normalized.values.length,
+      columns: normalized.headers.length
+    };
   }
 
   return normalized;
