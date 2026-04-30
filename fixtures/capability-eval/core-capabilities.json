@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "id": "gateway.request.selection-explain",
+      "host": "gateway",
+      "family": "request",
+      "description": "Validates the base Step 2 request contract for a selection explanation.",
+      "request": {
+        "schemaVersion": "1.0.0",
+        "requestId": "req_fixture_selection_001",
+        "source": {
+          "channel": "excel_windows",
+          "clientVersion": "0.1.0",
+          "sessionId": "sess_fixture_selection_001"
+        },
+        "host": {
+          "platform": "excel_windows",
+          "workbookTitle": "Revenue Demo",
+          "workbookId": "workbook_fixture_selection_001",
+          "activeSheet": "Sales",
+          "selectedRange": "A1:B1"
+        },
+        "userMessage": "Explain this selected range",
+        "conversation": [
+          {
+            "role": "user",
+            "content": "Explain this selected range"
+          }
+        ],
+        "context": {
+          "selection": {
+            "range": "A1:B1",
+            "headers": ["Name", "Revenue"],
+            "values": [["Cable", 15.5]]
+          }
+        },
+        "capabilities": {
+          "canRenderTrace": true,
+          "canRenderStructuredPreview": true,
+          "canConfirmWriteBack": true,
+          "supportsImageInputs": false,
+          "supportsWriteBackExecution": true
+        },
+        "reviewer": {
+          "reviewerSafeMode": true,
+          "forceExtractionMode": "demo"
+        },
+        "confirmation": {
+          "state": "none"
+        }
+      },
+      "expect": {
+        "valid": true,
+        "paths": {
+          "host.platform": "excel_windows",
+          "context.selection.range": "A1:B1"
+        }
+      }
+    },
+    {
+      "id": "gateway.sheet-import.rows-normalization",
+      "host": "gateway",
+      "family": "sheet_import_plan",
+      "description": "Ensures imported rows split headers from values and count the header row in shape.rows.",
+      "structuredBody": {
+        "type": "sheet_import_plan",
+        "data": {
+          "sourceAttachmentId": "att_fixture_import_001",
+          "targetSheet": "Import",
+          "targetRange": "A1:B2",
+          "rows": [
+            ["Name", "Revenue"],
+            ["Cable", 15.5]
+          ],
+          "confidence": 0.91,
+          "requiresConfirmation": true,
+          "extractionMode": "demo"
+        }
+      },
+      "expect": {
+        "valid": true,
+        "paths": {
+          "type": "sheet_import_plan",
+          "data.headers.0": "Name",
+          "data.values.0.1": 15.5,
+          "data.shape.rows": 2,
+          "data.shape.columns": 2
+        }
+      }
+    },
+    {
+      "id": "excel.range-format.static-border",
+      "host": "excel",
+      "family": "range_format_update",
+      "description": "Covers static formatting with borders as a first-class write-capable plan.",
+      "structuredBody": {
+        "type": "range_format_update",
+        "data": {
+          "targetSheet": "Sales",
+          "targetRange": "A1:B2",
+          "format": {
+            "backgroundColor": "#4472C4",
+            "textColor": "#FFFFFF",
+            "bold": true,
+            "border": {
+              "all": {
+                "style": "solid",
+                "color": "#111827"
+              }
+            }
+          },
+          "explanation": "Format the selected header range.",
+          "confidence": 0.92,
+          "requiresConfirmation": true,
+          "affectedRanges": ["Sales!A1:B2"],
+          "confirmationLevel": "standard",
+          "overwriteRisk": "low"
+        }
+      },
+      "expect": {
+        "valid": true,
+        "paths": {
+          "data.format.border.all.style": "solid",
+          "data.requiresConfirmation": true
+        }
+      }
+    },
+    {
+      "id": "google-sheets.external-data.importhtml",
+      "host": "google_sheets",
+      "family": "external_data_plan",
+      "description": "Validates Google Sheets IMPORTHTML formula planning.",
+      "structuredBody": {
+        "type": "external_data_plan",
+        "data": {
+          "targetSheet": "Imports",
+          "targetRange": "A1",
+          "sourceType": "web_table_import",
+          "provider": "importhtml",
+          "sourceUrl": "https://example.com/table",
+          "selectorType": "table",
+          "selector": 1,
+          "formula": "=IMPORTHTML(\"https://example.com/table\",\"table\",1)",
+          "explanation": "Import the first public HTML table.",
+          "confidence": 0.83,
+          "requiresConfirmation": true,
+          "affectedRanges": ["Imports!A1"],
+          "overwriteRisk": "medium",
+          "confirmationLevel": "standard"
+        }
+      },
+      "expect": {
+        "valid": true,
+        "paths": {
+          "data.provider": "importhtml",
+          "data.selector": 1,
+          "data.requiresConfirmation": true
+        }
+      }
+    },
+    {
+      "id": "gateway.reviewer-safe.unavailable-extracted-table",
+      "host": "gateway",
+      "family": "extracted_table",
+      "description": "Negative fixture proving unavailable extraction mode cannot carry fabricated table rows.",
+      "structuredBody": {
+        "type": "extracted_table",
+        "data": {
+          "sourceAttachmentId": "att_fixture_unavailable_001",
+          "headers": ["Name"],
+          "rows": [["Cable"]],
+          "confidence": 0.4,
+          "extractionMode": "unavailable",
+          "shape": {
+            "rows": 1,
+            "columns": 1
+          }
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errorIncludes": "reviewer-safe unavailable mode"
+      }
+    }
+  ]
+}

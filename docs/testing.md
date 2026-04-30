@@ -12,6 +12,12 @@ Run the full repo suite before merge:
 npm test
 ```
 
+Run the capability fixture eval gate when changing contracts, normalization, reviewer-safe extraction behavior, writeback preview/completion, or host capability parity:
+
+```bash
+npm run eval:fixtures
+```
+
 ## High-Signal Focused Suites
 
 ### Planner and normalization
@@ -22,6 +28,10 @@ npm test -- services/gateway/tests/requestTemplate.test.ts
 
 ```bash
 npm test -- services/gateway/tests/structuredBody.test.ts
+```
+
+```bash
+npm test -- services/gateway/tests/fixtureEvalRunner.test.ts
 ```
 
 ### Gateway writeback and execution control
@@ -98,6 +108,7 @@ Run:
 
 - `requestTemplate.test.ts`
 - `structuredBody.test.ts`
+- `fixtureEvalRunner.test.ts`
 - `hermesClient.test.ts`
 - `writebackFlow.test.ts`
 

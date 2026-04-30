@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "@hermes/contracts": ["packages/contracts/src/index.ts"]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["eval_fixtures.ts", "../services/gateway/src/**/*.ts", "../packages/contracts/src/**/*.ts"]
+}
