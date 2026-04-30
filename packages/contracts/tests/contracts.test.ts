@@ -2861,6 +2861,44 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.type).toBe("range_transfer_update");
   });
 
+  it("rejects range_transfer_update envelopes with malformed ranges", () => {
+    const parsed = HermesResponseSchema.safeParse({
+      schemaVersion: "1.0.0",
+      type: "range_transfer_update",
+      requestId: "req_transfer_001",
+      hermesRunId: "run_transfer_001",
+      processedBy: "hermes",
+      serviceLabel: "hermes-gateway-local",
+      environmentLabel: "local-dev",
+      startedAt: "2026-04-20T09:00:00.000Z",
+      completedAt: "2026-04-20T09:00:01.000Z",
+      durationMs: 1000,
+      trace: [
+        { event: "range_transfer_update_ready", timestamp: "2026-04-20T09:00:01.000Z" }
+      ],
+      ui: {
+        displayMode: "structured-preview",
+        showTrace: true,
+        showWarnings: true,
+        showConfidence: true,
+        showRequiresConfirmation: true
+      },
+      data: {
+        operation: "range_transfer_update",
+        sourceSheet: "Sheet1",
+        sourceRange: "selected rows",
+        targetSheet: "Archive",
+        targetRange: "archive top",
+        transferOperation: "copy",
+        pasteMode: "values",
+        transpose: false,
+        summary: "Copy the selected rows into the archive sheet."
+      }
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("restricts attachments to the MVP image set", () => {
     expect(() => {
       AttachmentSchema.parse({

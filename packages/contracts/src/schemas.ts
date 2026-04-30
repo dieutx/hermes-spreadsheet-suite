@@ -2492,9 +2492,9 @@ export const TableUpdateResponseSchema = createResponseSchema(
 export const RangeTransferUpdateDataSchema = strictObject({
   operation: z.literal("range_transfer_update"),
   sourceSheet: z.string().min(1).max(128),
-  sourceRange: z.string().min(1).max(128),
+  sourceRange: A1TargetRangeSchema,
   targetSheet: z.string().min(1).max(128),
-  targetRange: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
   transferOperation: z.enum(["copy", "move", "append"]),
   pasteMode: TransferPasteModeSchema,
   transpose: z.boolean(),
