@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { ImageAttachment } from "@hermes/contracts";
 
 type StoredAttachment = {
@@ -15,6 +15,12 @@ type AttachmentStoreOptions = {
   maxEntries?: number;
   now?: () => number;
 };
+
+const UPLOAD_TOKEN_BYTES = 32;
+
+function createUploadToken(): string {
+  return `upl_${randomBytes(UPLOAD_TOKEN_BYTES).toString("base64url")}`;
+}
 
 export class AttachmentStore {
   private readonly attachments = new Map<string, StoredAttachment>();
@@ -67,7 +73,7 @@ export class AttachmentStore {
     workbookId?: string;
   }): ImageAttachment {
     const id = `att_${randomUUID()}`;
-    const uploadToken = `upl_${randomUUID()}`;
+    const uploadToken = createUploadToken();
     const storageRef = `blob://${id}`;
     const createdAtMs = this.now();
     const metadata: ImageAttachment = {

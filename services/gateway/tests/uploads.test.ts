@@ -431,6 +431,31 @@ describe("upload router", () => {
 });
 
 describe("attachment store", () => {
+  it("generates high-entropy upload tokens for attachment content access", () => {
+    const store = new AttachmentStore();
+
+    const first = store.save({
+      buffer: PNG_SIGNATURE_BYTES,
+      mimeType: "image/png",
+      fileName: "one.png",
+      size: PNG_SIGNATURE_BYTES.length,
+      source: "upload",
+      previewUrl: "http://127.0.0.1:8787/api/uploads/one"
+    });
+    const second = store.save({
+      buffer: PNG_SIGNATURE_BYTES,
+      mimeType: "image/png",
+      fileName: "two.png",
+      size: PNG_SIGNATURE_BYTES.length,
+      source: "upload",
+      previewUrl: "http://127.0.0.1:8787/api/uploads/two"
+    });
+
+    expect(first.uploadToken).toMatch(/^upl_[A-Za-z0-9_-]{43}$/);
+    expect(second.uploadToken).toMatch(/^upl_[A-Za-z0-9_-]{43}$/);
+    expect(first.uploadToken).not.toBe(second.uploadToken);
+  });
+
   it("expires stale attachments on access", () => {
     let nowMs = Date.UTC(2026, 3, 22, 6, 0, 0);
     const store = new AttachmentStore({
