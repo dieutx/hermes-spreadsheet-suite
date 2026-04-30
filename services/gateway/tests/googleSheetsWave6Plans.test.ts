@@ -4172,6 +4172,201 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     });
   });
 
+  it("attaches local undo snapshots for Google Sheets duplicate sheet writes", () => {
+    let copiedSheetName = "Copy of Template";
+    const sourceSheet = {
+      getName: vi.fn(() => "Template"),
+      getIndex: vi.fn(() => sheets.indexOf(sourceSheet) + 1),
+      copyTo: vi.fn(() => {
+        sheets.push(copiedSheet);
+        return copiedSheet;
+      })
+    };
+    const otherSheet = {
+      getName: vi.fn(() => "Summary"),
+      getIndex: vi.fn(() => sheets.indexOf(otherSheet) + 1)
+    };
+    const copiedSheet = {
+      getName: vi.fn(() => copiedSheetName),
+      getIndex: vi.fn(() => sheets.indexOf(copiedSheet) + 1),
+      setName: vi.fn((nextName: string) => {
+        copiedSheetName = nextName;
+      })
+    };
+    const sheets = [sourceSheet, otherSheet];
+    let activeSheet: typeof copiedSheet | null = null;
+    const spreadsheet = {
+      getSheets: vi.fn(() => sheets),
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Template");
+        return sourceSheet;
+      }),
+      setActiveSheet: vi.fn((sheet: typeof copiedSheet) => {
+        activeSheet = sheet;
+      }),
+      moveActiveSheet: vi.fn((position: number) => {
+        if (!activeSheet) {
+          throw new Error("No active sheet");
+        }
+
+        const currentIndex = sheets.indexOf(activeSheet);
+        sheets.splice(currentIndex, 1);
+        sheets.splice(position - 1, 0, activeSheet);
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_duplicate_sheet_snapshot_sheets_001",
+      runId: "run_duplicate_sheet_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_duplicate_sheet_snapshot_sheets_001",
+      plan: {
+        operation: "duplicate_sheet",
+        sheetName: "Template",
+        newSheetName: "Template Copy",
+        position: "end",
+        explanation: "Duplicate the template sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(sheets.map((sheet) => sheet.getName())).toEqual(["Template", "Summary", "Template Copy"]);
+    expect(spreadsheet.moveActiveSheet).toHaveBeenCalledWith(3);
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "duplicate_sheet",
+      sheetName: "Template",
+      newSheetName: "Template Copy",
+      positionResolved: 2,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_duplicate_sheet_snapshot_sheets_001",
+        kind: "workbook_structure",
+        operation: "duplicate_sheet",
+        source: {
+          exists: true,
+          name: "Template",
+          position: 0
+        },
+        before: {
+          exists: false,
+          name: "Template Copy"
+        },
+        after: {
+          exists: true,
+          name: "Template Copy",
+          position: 2
+        }
+      }
+    });
+  });
+
+  it("passes Google Sheets duplicate sheet snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    const source = {
+      exists: true,
+      name: "Template",
+      position: 0
+    };
+    const before = {
+      exists: false,
+      name: "Template Copy"
+    };
+    const after = {
+      exists: true,
+      name: "Template Copy",
+      position: 1
+    };
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_duplicate_sheet_001"],
+      executions: {
+        exec_duplicate_sheet_001: {
+          baseExecutionId: "exec_duplicate_sheet_001"
+        }
+      },
+      bases: {
+        exec_duplicate_sheet_001: {
+          baseExecutionId: "exec_duplicate_sheet_001",
+          kind: "workbook_structure",
+          operation: "duplicate_sheet",
+          source,
+          before,
+          after
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "workbook_structure_update",
+          operation: "duplicate_sheet",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_duplicate_sheet_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "workbook_structure",
+          operation: "duplicate_sheet",
+          source,
+          from: after,
+          to: before
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "workbook_structure",
+          operation: "duplicate_sheet",
+          source,
+          from: after,
+          to: before
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("applies Google Sheets sheet create snapshots on the server", () => {
     const createdSheet = {
       getName: vi.fn(() => "Staging"),
@@ -4213,6 +4408,59 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
 
     expect(sheets.map((sheet) => sheet.getName())).toEqual(["Sheet1"]);
     expect(spreadsheet.deleteSheet).toHaveBeenCalledWith(createdSheet);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("applies Google Sheets duplicate sheet snapshots on the server", () => {
+    const sourceSheet = {
+      getName: vi.fn(() => "Template"),
+      getIndex: vi.fn(() => sheets.indexOf(sourceSheet) + 1)
+    };
+    const copiedSheet = {
+      getName: vi.fn(() => "Template Copy"),
+      getIndex: vi.fn(() => sheets.indexOf(copiedSheet) + 1)
+    };
+    const otherSheet = {
+      getName: vi.fn(() => "Summary"),
+      getIndex: vi.fn(() => sheets.indexOf(otherSheet) + 1)
+    };
+    const sheets = [sourceSheet, copiedSheet, otherSheet];
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Template Copy");
+        return copiedSheet;
+      }),
+      deleteSheet: vi.fn((sheet: typeof copiedSheet) => {
+        const index = sheets.indexOf(sheet);
+        sheets.splice(index, 1);
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "duplicate_sheet",
+      source: {
+        exists: true,
+        name: "Template",
+        position: 0
+      },
+      from: {
+        exists: true,
+        name: "Template Copy",
+        position: 1
+      },
+      to: {
+        exists: false,
+        name: "Template Copy"
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "duplicate_sheet"
+    });
+
+    expect(sheets.map((sheet) => sheet.getName())).toEqual(["Template", "Summary"]);
+    expect(spreadsheet.deleteSheet).toHaveBeenCalledWith(copiedSheet);
     expect(code.flush).toHaveBeenCalled();
   });
 

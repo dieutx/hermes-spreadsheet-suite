@@ -341,6 +341,7 @@
       return {
         kind: "workbook_structure",
         operation: entry.operation,
+        ...(entry.source ? { source: entry.source } : {}),
         from: mode === "undo" ? entry.after : entry.before,
         to: mode === "undo" ? entry.before : entry.after
       };

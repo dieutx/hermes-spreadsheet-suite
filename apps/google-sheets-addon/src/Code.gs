@@ -4067,6 +4067,45 @@ function createWorkbookStructureMoveLocalExecutionSnapshot_(input) {
   };
 }
 
+function createWorkbookStructureDuplicateLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.sourceSheetName ||
+    !input.copiedSheetName
+  ) {
+    return null;
+  }
+
+  const source = {
+    exists: true,
+    name: input.sourceSheetName
+  };
+  if (Number.isInteger(input.sourcePosition)) {
+    source.position = input.sourcePosition;
+  }
+
+  const after = {
+    exists: true,
+    name: input.copiedSheetName
+  };
+  if (Number.isInteger(input.copiedPosition)) {
+    after.position = input.copiedPosition;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'workbook_structure',
+    operation: 'duplicate_sheet',
+    source: source,
+    before: {
+      exists: false,
+      name: input.copiedSheetName
+    },
+    after: after
+  };
+}
+
 function createCompositeLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !Array.isArray(input.entries) || input.entries.length === 0) {
     return null;
@@ -4782,6 +4821,28 @@ function assertWorkbookStructureCreateSnapshotState_(state) {
   }
 }
 
+function assertWorkbookStructureDuplicateSourceSnapshotState_(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== 'string' ||
+    state.name.trim().length === 0
+  ) {
+    throw new Error('That workbook structure history entry is no longer available in this sheet session.');
+  }
+}
+
+function assertWorkbookStructureDuplicatePresenceSnapshotState_(state) {
+  if (
+    !state ||
+    typeof state.exists !== 'boolean' ||
+    typeof state.name !== 'string' ||
+    state.name.trim().length === 0
+  ) {
+    throw new Error('That workbook structure history entry is no longer available in this sheet session.');
+  }
+}
+
 function resolveWorkbookStructureSnapshotTransition_(input) {
   if (
     !input ||
@@ -4789,7 +4850,8 @@ function resolveWorkbookStructureSnapshotTransition_(input) {
       input.operation !== 'rename_sheet' &&
       input.operation !== 'sheet_visibility' &&
       input.operation !== 'move_sheet' &&
-      input.operation !== 'create_sheet'
+      input.operation !== 'create_sheet' &&
+      input.operation !== 'duplicate_sheet'
     )
   ) {
     throw new Error('That workbook structure history entry cannot be restored exactly.');
@@ -4868,6 +4930,49 @@ function resolveWorkbookStructureSnapshotTransition_(input) {
     };
   }
 
+  if (input.operation === 'duplicate_sheet') {
+    assertWorkbookStructureDuplicateSourceSnapshotState_(input.source);
+    assertWorkbookStructureDuplicatePresenceSnapshotState_(input.from);
+    assertWorkbookStructureDuplicatePresenceSnapshotState_(input.to);
+
+    const spreadsheet = SpreadsheetApp.getActive();
+    if (input.from.exists === false) {
+      const sourceSheet = spreadsheet.getSheetByName(input.source.name);
+      if (!sourceSheet) {
+        throw new Error('Target sheet not found: ' + input.source.name);
+      }
+
+      return {
+        spreadsheet: spreadsheet,
+        sheet: null,
+        sourceSheet: sourceSheet,
+        source: input.source,
+        from: input.from,
+        to: input.to
+      };
+    }
+
+    const sheet = spreadsheet.getSheetByName(input.from.name);
+    if (!sheet) {
+      throw new Error('Target sheet not found: ' + input.from.name);
+    }
+
+    if (Number.isInteger(input.from.position)) {
+      const currentPosition = getWorkbookStructureMoveSnapshotPosition_(sheet);
+      if (currentPosition !== input.from.position) {
+        throw new Error('Sheet position changed since this history entry was captured.');
+      }
+    }
+
+    return {
+      spreadsheet: spreadsheet,
+      sheet: sheet,
+      source: input.source,
+      from: input.from,
+      to: input.to
+    };
+  }
+
   assertWorkbookStructureVisibilitySnapshotState_(input.from);
   assertWorkbookStructureVisibilitySnapshotState_(input.to);
 
@@ -4940,6 +5045,54 @@ function applyExecutionWorkbookStructureSnapshot_(input) {
       }
 
       transition.spreadsheet.insertSheet(transition.to.name, transition.to.position);
+      SpreadsheetApp.flush();
+      return {
+        ok: true,
+        operation: input.operation,
+        from: transition.from.name,
+        to: transition.to.name
+      };
+    }
+
+    throw new Error('That workbook structure history entry cannot be restored exactly.');
+  }
+
+  if (input.operation === 'duplicate_sheet') {
+    if (transition.to.exists === false) {
+      if (!transition.sheet || typeof transition.spreadsheet.deleteSheet !== 'function') {
+        throw new Error('Google Sheets host cannot restore the saved sheet duplication.');
+      }
+
+      transition.spreadsheet.deleteSheet(transition.sheet);
+      SpreadsheetApp.flush();
+      return {
+        ok: true,
+        operation: input.operation,
+        from: transition.from.name,
+        to: transition.to.name
+      };
+    }
+
+    if (transition.from.exists === false && transition.to.exists === true) {
+      if (
+        !transition.sourceSheet ||
+        typeof transition.sourceSheet.copyTo !== 'function' ||
+        typeof transition.spreadsheet.setActiveSheet !== 'function' ||
+        typeof transition.spreadsheet.moveActiveSheet !== 'function'
+      ) {
+        throw new Error('Google Sheets host cannot restore the saved sheet duplication.');
+      }
+
+      const copiedSheet = transition.sourceSheet.copyTo(transition.spreadsheet);
+      if (typeof copiedSheet.setName === 'function') {
+        copiedSheet.setName(transition.to.name);
+      }
+      transition.spreadsheet.setActiveSheet(copiedSheet);
+      transition.spreadsheet.moveActiveSheet(
+        Number.isInteger(transition.to.position)
+          ? transition.to.position + 1
+          : getMoveSheetPosition_(transition.spreadsheet, 'end')
+      );
       SpreadsheetApp.flush();
       return {
         ok: true,
@@ -6888,6 +7041,7 @@ function applyWritePlan(input) {
           throw new Error('Target sheet not found: ' + plan.sheetName);
         }
 
+        const sourcePosition = getWorkbookStructureMoveSnapshotPosition_(sourceSheet);
         const copiedSheet = sourceSheet.copyTo(spreadsheet);
         if (plan.newSheetName) {
           copiedSheet.setName(plan.newSheetName);
@@ -6896,16 +7050,24 @@ function applyWritePlan(input) {
         spreadsheet.setActiveSheet(copiedSheet);
         spreadsheet.moveActiveSheet(getMoveSheetPosition_(spreadsheet, plan.position));
         SpreadsheetApp.flush();
-        return {
+        const copiedSheetName = copiedSheet.getName();
+        const copiedPosition = getWorkbookStructureMoveSnapshotPosition_(copiedSheet);
+        return attachLocalExecutionSnapshot_({
           kind: 'workbook_structure_update',
           hostPlatform: 'google_sheets',
           sheetName: plan.sheetName,
           operation: plan.operation,
-          newSheetName: copiedSheet.getName(),
-          positionResolved: copiedSheet.getIndex() - 1,
+          newSheetName: copiedSheetName,
+          positionResolved: copiedPosition,
           sheetCount: spreadsheet.getSheets().length,
           summary: getWorkbookStructureStatusSummary_(plan)
-        };
+        }, createWorkbookStructureDuplicateLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          sourceSheetName: sourceSheet.getName(),
+          copiedSheetName: copiedSheetName,
+          sourcePosition: sourcePosition,
+          copiedPosition: copiedPosition
+        }));
       }
       case 'move_sheet': {
         const sheet = spreadsheet.getSheetByName(plan.sheetName);
