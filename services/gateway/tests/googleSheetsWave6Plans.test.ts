@@ -69,12 +69,38 @@ function loadCodeModule(options: {
       flush,
       newFilterCriteria() {
         let matchedValue: string | null = null;
+        let rawCriteriaType: unknown = null;
+        let rawCriteriaValues: unknown[] = [];
+        let hiddenValues: string[] | null = null;
+        let visibleValues: string[] | null = null;
         return {
           whenTextEqualTo: vi.fn(function() {
             matchedValue = arguments[0] == null ? null : String(arguments[0]);
             return this;
           }),
+          withCriteria: vi.fn(function(type: unknown, values: unknown[]) {
+            rawCriteriaType = type;
+            rawCriteriaValues = Array.isArray(values) ? values : [];
+            return this;
+          }),
+          setHiddenValues: vi.fn(function(values: string[]) {
+            hiddenValues = Array.isArray(values) ? values : [];
+            return this;
+          }),
+          setVisibleValues: vi.fn(function(values: string[]) {
+            visibleValues = Array.isArray(values) ? values : [];
+            return this;
+          }),
           build: vi.fn(function() {
+            if (hiddenValues) {
+              return { type: "hidden_values", values: hiddenValues };
+            }
+            if (visibleValues) {
+              return { type: "visible_values", values: visibleValues };
+            }
+            if (rawCriteriaType) {
+              return { type: rawCriteriaType, values: rawCriteriaValues };
+            }
             return { type: "text_equal_to", value: matchedValue };
           })
         };
@@ -3358,6 +3384,207 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(namedRange.setRange).not.toHaveBeenCalled();
     expect(spreadsheet.setNamedRange).not.toHaveBeenCalled();
     expect(spreadsheet.removeNamedRange).not.toHaveBeenCalled();
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("passes Google Sheets range filter snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    const beforeFilter = {
+      exists: true,
+      targetRange: "A1:F25",
+      criteria: [
+        {
+          criteriaType: "TEXT_EQUAL_TO",
+          criteriaValues: [{ kind: "scalar", value: "Closed" }]
+        },
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    };
+    const afterFilter = {
+      exists: true,
+      targetRange: "A1:F25",
+      criteria: [
+        {
+          criteriaType: "TEXT_EQUAL_TO",
+          criteriaValues: [{ kind: "scalar", value: "Open" }]
+        },
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    };
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_filter_001"],
+      executions: {
+        exec_filter_001: {
+          baseExecutionId: "exec_filter_001"
+        }
+      },
+      bases: {
+        exec_filter_001: {
+          baseExecutionId: "exec_filter_001",
+          kind: "range_filter",
+          targetSheet: "Sales",
+          targetRange: "A1:F25",
+          beforeFilter,
+          afterFilter
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "range_filter",
+          operation: "range_filter",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_filter_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "range_filter",
+          targetSheet: "Sales",
+          targetRange: "A1:F25",
+          filter: beforeFilter
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "range_filter",
+          targetSheet: "Sales",
+          targetRange: "A1:F25",
+          filter: beforeFilter
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies Google Sheets range filter snapshots on the server", () => {
+    const filterCriteriaByColumn = new Map<number, unknown>([
+      [1, { type: "TEXT_EQUAL_TO", values: ["Open"] }]
+    ]);
+    const filter = {
+      getRange() {
+        return {
+          getA1Notation() {
+            return "A1:F25";
+          }
+        };
+      },
+      removeColumnFilterCriteria: vi.fn((columnPosition: number) => {
+        filterCriteriaByColumn.delete(columnPosition);
+      }),
+      setColumnFilterCriteria: vi.fn((columnPosition: number, criteria: unknown) => {
+        filterCriteriaByColumn.set(columnPosition, criteria);
+      })
+    };
+    const targetRange = {
+      getA1Notation() {
+        return "A1:F25";
+      },
+      getNumColumns() {
+        return 6;
+      },
+      getNumRows() {
+        return 25;
+      },
+      createFilter: vi.fn(() => filter)
+    };
+    const sheet = {
+      getFilter: vi.fn(() => filter),
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("A1:F25");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "range_filter",
+      targetSheet: "Sales",
+      targetRange: "A1:F25",
+      filter: {
+        exists: true,
+        targetRange: "A1:F25",
+        criteria: [
+          {
+            criteriaType: "TEXT_EQUAL_TO",
+            criteriaValues: [{ kind: "scalar", value: "Closed" }]
+          },
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    })).toMatchObject({
+      ok: true,
+      targetSheet: "Sales",
+      targetRange: "A1:F25"
+    });
+
+    expect(filter.removeColumnFilterCriteria).toHaveBeenCalledTimes(6);
+    expect(filter.setColumnFilterCriteria).toHaveBeenCalledWith(1, {
+      type: "TEXT_EQUAL_TO",
+      values: ["Closed"]
+    });
+    expect(filterCriteriaByColumn.get(1)).toEqual({
+      type: "TEXT_EQUAL_TO",
+      values: ["Closed"]
+    });
     expect(code.flush).toHaveBeenCalled();
   });
 

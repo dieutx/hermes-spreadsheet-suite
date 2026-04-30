@@ -3752,6 +3752,190 @@ function createRangeFormatLocalExecutionSnapshot_(input) {
   };
 }
 
+function cloneRangeFilterSnapshotValue_(value) {
+  if (value === null || value === undefined || typeof value !== 'object') {
+    return value;
+  }
+
+  if (isDateObject_(value)) {
+    return value.toISOString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(function(entry) {
+      return cloneRangeFilterSnapshotValue_(entry);
+    });
+  }
+
+  const clone = {};
+  Object.keys(value).forEach(function(key) {
+    clone[key] = cloneRangeFilterSnapshotValue_(value[key]);
+  });
+  return clone;
+}
+
+function getFilterCriteriaName_(criteriaType) {
+  const criteriaMap = SpreadsheetApp.BooleanCriteria || {};
+  const criteriaNames = Object.keys(criteriaMap);
+  for (let index = 0; index < criteriaNames.length; index += 1) {
+    const name = criteriaNames[index];
+    if (criteriaMap[name] === criteriaType) {
+      return name;
+    }
+  }
+
+  return criteriaType == null ? '' : String(criteriaType);
+}
+
+function resolveFilterCriteria_(criteriaType) {
+  const criteriaName = criteriaType == null ? '' : String(criteriaType);
+  const criteriaMap = SpreadsheetApp.BooleanCriteria || {};
+  return criteriaMap[criteriaName] || criteriaType;
+}
+
+function serializeRangeFilterCriteriaValue_(value) {
+  return serializeDataValidationCriteriaValue_(value);
+}
+
+function deserializeRangeFilterCriteriaValue_(spreadsheet, sheet, value) {
+  return deserializeDataValidationCriteriaValue_(spreadsheet, sheet, value);
+}
+
+function serializeRangeFilterCriteria_(criteria) {
+  if (!criteria) {
+    return null;
+  }
+
+  if (typeof criteria === 'object') {
+    const hasCriteriaMethods =
+      typeof criteria.getCriteriaType === 'function' ||
+      typeof criteria.getCriteriaValues === 'function' ||
+      typeof criteria.getHiddenValues === 'function' ||
+      typeof criteria.getVisibleValues === 'function';
+
+    if (!hasCriteriaMethods) {
+      return cloneRangeFilterSnapshotValue_(criteria);
+    }
+
+    const snapshot = {};
+    if (typeof criteria.getCriteriaType === 'function') {
+      const criteriaType = getFilterCriteriaName_(criteria.getCriteriaType());
+      if (criteriaType) {
+        snapshot.criteriaType = criteriaType;
+      }
+    }
+
+    if (typeof criteria.getCriteriaValues === 'function') {
+      const rawValues = criteria.getCriteriaValues();
+      const criteriaValues = [];
+      if (Array.isArray(rawValues)) {
+        for (let index = 0; index < rawValues.length; index += 1) {
+          const serializedValue = serializeRangeFilterCriteriaValue_(rawValues[index]);
+          if (!serializedValue) {
+            return null;
+          }
+
+          criteriaValues.push(serializedValue);
+        }
+      }
+      snapshot.criteriaValues = criteriaValues;
+    }
+
+    if (typeof criteria.getHiddenValues === 'function') {
+      const hiddenValues = criteria.getHiddenValues();
+      if (Array.isArray(hiddenValues) && hiddenValues.length > 0) {
+        snapshot.hiddenValues = hiddenValues.map(function(value) {
+          return String(value);
+        });
+      }
+    }
+
+    if (typeof criteria.getVisibleValues === 'function') {
+      const visibleValues = criteria.getVisibleValues();
+      if (Array.isArray(visibleValues) && visibleValues.length > 0) {
+        snapshot.visibleValues = visibleValues.map(function(value) {
+          return String(value);
+        });
+      }
+    }
+
+    return Object.keys(snapshot).length > 0 ? snapshot : null;
+  }
+
+  return null;
+}
+
+function readRangeFilterStateForSnapshot_(sheet, fallbackTarget) {
+  if (!sheet || typeof sheet.getFilter !== 'function') {
+    return null;
+  }
+
+  const filter = sheet.getFilter();
+  if (!filter) {
+    return {
+      exists: false
+    };
+  }
+
+  if (
+    typeof filter.getRange !== 'function' ||
+    typeof filter.getColumnFilterCriteria !== 'function'
+  ) {
+    return null;
+  }
+
+  const filterRange = filter.getRange();
+  if (!filterRange || typeof filterRange.getA1Notation !== 'function') {
+    return null;
+  }
+
+  const targetRange = filterRange.getA1Notation();
+  const columnCount = typeof filterRange.getNumColumns === 'function'
+    ? filterRange.getNumColumns()
+    : fallbackTarget && typeof fallbackTarget.getNumColumns === 'function'
+      ? fallbackTarget.getNumColumns()
+      : 0;
+  if (!columnCount || columnCount < 1) {
+    return null;
+  }
+
+  const criteria = [];
+  for (let columnPosition = 1; columnPosition <= columnCount; columnPosition += 1) {
+    const serializedCriteria = serializeRangeFilterCriteria_(
+      filter.getColumnFilterCriteria(columnPosition)
+    );
+    criteria.push(serializedCriteria || null);
+  }
+
+  return {
+    exists: true,
+    targetRange: targetRange,
+    criteria: criteria
+  };
+}
+
+function createRangeFilterLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.targetSheet ||
+    !input.targetRange ||
+    !input.beforeFilter ||
+    !input.afterFilter
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'range_filter',
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    beforeFilter: input.beforeFilter,
+    afterFilter: input.afterFilter
+  };
+}
+
 function createCompositeLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !Array.isArray(input.entries) || input.entries.length === 0) {
     return null;
@@ -4200,6 +4384,219 @@ function applyExecutionNamedRangeSnapshot_(input) {
   };
 }
 
+function resolveRangeFilterSnapshotState_(input) {
+  if (!input || typeof input !== 'object' || !input.targetSheet || !input.targetRange) {
+    throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+  }
+
+  const filterState = input.filter;
+  if (!filterState || typeof filterState !== 'object') {
+    throw new Error('The saved filter snapshot is malformed.');
+  }
+
+  if (filterState.exists === false) {
+    return {
+      exists: false
+    };
+  }
+
+  if (
+    filterState.exists !== true ||
+    !filterState.targetRange ||
+    !Array.isArray(filterState.criteria)
+  ) {
+    throw new Error('The saved filter snapshot is malformed.');
+  }
+
+  return {
+    exists: true,
+    targetRange: filterState.targetRange,
+    criteria: filterState.criteria
+  };
+}
+
+function resolveExecutionRangeFilterSnapshot_(input) {
+  const filterState = resolveRangeFilterSnapshotState_(input);
+  const spreadsheet = SpreadsheetApp.getActive();
+  const sheet = spreadsheet.getSheetByName(input.targetSheet);
+  if (!sheet) {
+    throw new Error('Target sheet not found: ' + input.targetSheet);
+  }
+
+  const targetRangeA1 = filterState.exists && filterState.targetRange
+    ? filterState.targetRange
+    : input.targetRange;
+  const target = sheet.getRange(targetRangeA1);
+  if (!target || typeof target.getNumColumns !== 'function') {
+    throw new Error('The saved filter snapshot target range is no longer available.');
+  }
+
+  if (
+    filterState.exists &&
+    target.getNumColumns() !== filterState.criteria.length
+  ) {
+    throw new Error('The saved filter snapshot no longer matches the current range shape.');
+  }
+
+  return {
+    spreadsheet: spreadsheet,
+    sheet: sheet,
+    target: target,
+    filterState: filterState
+  };
+}
+
+function buildRangeFilterCriteriaFromSnapshot_(spreadsheet, sheet, snapshot) {
+  if (!snapshot) {
+    return null;
+  }
+
+  if (snapshot.criteriaType || snapshot.hiddenValues || snapshot.visibleValues) {
+    const builder = SpreadsheetApp.newFilterCriteria();
+    if (!builder || typeof builder.build !== 'function') {
+      throw new Error('Google Sheets host cannot rebuild saved filter criteria.');
+    }
+
+    if (snapshot.criteriaType) {
+      if (typeof builder.withCriteria !== 'function') {
+        throw new Error('Google Sheets host cannot rebuild saved filter criteria.');
+      }
+
+      const rawValues = Array.isArray(snapshot.criteriaValues) ? snapshot.criteriaValues : [];
+      builder.withCriteria(
+        resolveFilterCriteria_(snapshot.criteriaType),
+        rawValues.map(function(value) {
+          return deserializeRangeFilterCriteriaValue_(spreadsheet, sheet, value);
+        })
+      );
+    }
+
+    if (Array.isArray(snapshot.hiddenValues) && snapshot.hiddenValues.length > 0) {
+      if (typeof builder.setHiddenValues !== 'function') {
+        throw new Error('Google Sheets host cannot rebuild saved hidden-value filter criteria.');
+      }
+
+      builder.setHiddenValues(snapshot.hiddenValues.map(function(value) {
+        return String(value);
+      }));
+    }
+
+    if (Array.isArray(snapshot.visibleValues) && snapshot.visibleValues.length > 0) {
+      if (typeof builder.setVisibleValues !== 'function') {
+        throw new Error('Google Sheets host cannot rebuild saved visible-value filter criteria.');
+      }
+
+      builder.setVisibleValues(snapshot.visibleValues.map(function(value) {
+        return String(value);
+      }));
+    }
+
+    return builder.build();
+  }
+
+  if (typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+    return cloneRangeFilterSnapshotValue_(snapshot);
+  }
+
+  throw new Error('The saved filter criteria snapshot is malformed.');
+}
+
+function getOrCreateFilterForSnapshot_(sheet, target) {
+  let filter = typeof sheet.getFilter === 'function' ? sheet.getFilter() : null;
+  const targetRangeA1 = target.getA1Notation();
+
+  if (filter) {
+    if (typeof filter.getRange !== 'function') {
+      throw new Error('Google Sheets host cannot inspect the current filter range.');
+    }
+
+    const existingRange = normalizeA1_(filter.getRange().getA1Notation());
+    if (existingRange !== normalizeA1_(targetRangeA1)) {
+      if (typeof filter.remove !== 'function') {
+        throw new Error('Google Sheets host cannot replace the current filter range.');
+      }
+
+      filter.remove();
+      filter = null;
+    }
+  }
+
+  if (!filter) {
+    if (typeof target.createFilter !== 'function') {
+      throw new Error('Google Sheets host cannot recreate the saved filter.');
+    }
+
+    filter = target.createFilter();
+  }
+
+  if (
+    !filter ||
+    typeof filter.removeColumnFilterCriteria !== 'function' ||
+    typeof filter.setColumnFilterCriteria !== 'function'
+  ) {
+    throw new Error('Google Sheets host cannot restore range filter criteria.');
+  }
+
+  return filter;
+}
+
+function clearRangeFilterCriteria_(filter, target) {
+  for (let columnPosition = 1; columnPosition <= target.getNumColumns(); columnPosition += 1) {
+    filter.removeColumnFilterCriteria(columnPosition);
+  }
+}
+
+function validateExecutionRangeFilterSnapshot_(input) {
+  const validated = resolveExecutionRangeFilterSnapshot_(input);
+  return {
+    ok: true,
+    targetSheet: input.targetSheet,
+    targetRange: validated.filterState.exists
+      ? validated.filterState.targetRange
+      : input.targetRange
+  };
+}
+
+function applyExecutionRangeFilterSnapshot_(input) {
+  const validated = resolveExecutionRangeFilterSnapshot_(input);
+  const currentFilter = typeof validated.sheet.getFilter === 'function'
+    ? validated.sheet.getFilter()
+    : null;
+
+  if (!validated.filterState.exists) {
+    if (currentFilter && typeof currentFilter.remove === 'function') {
+      currentFilter.remove();
+    }
+
+    SpreadsheetApp.flush();
+    return {
+      ok: true,
+      targetSheet: input.targetSheet,
+      targetRange: input.targetRange
+    };
+  }
+
+  const filter = getOrCreateFilterForSnapshot_(validated.sheet, validated.target);
+  clearRangeFilterCriteria_(filter, validated.target);
+  validated.filterState.criteria.forEach(function(criteriaSnapshot, index) {
+    const criteria = buildRangeFilterCriteriaFromSnapshot_(
+      validated.spreadsheet,
+      validated.sheet,
+      criteriaSnapshot
+    );
+    if (criteria) {
+      filter.setColumnFilterCriteria(index + 1, criteria);
+    }
+  });
+
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    targetSheet: input.targetSheet,
+    targetRange: validated.filterState.targetRange
+  };
+}
+
 function validateExecutionCellSnapshot(input) {
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
@@ -4211,6 +4608,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'named_range') {
     return validateExecutionNamedRangeSnapshot_(input);
+  }
+
+  if (input && input.kind === 'range_filter') {
+    return validateExecutionRangeFilterSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -4234,6 +4635,10 @@ function applyExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'named_range') {
     return applyExecutionNamedRangeSnapshot_(input);
+  }
+
+  if (input && input.kind === 'range_filter') {
+    return applyExecutionRangeFilterSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -4279,6 +4684,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'named_range') {
     return validateExecutionNamedRangeSnapshot_(input);
+  }
+
+  if (input && input.kind === 'range_filter') {
+    return validateExecutionRangeFilterSnapshot_(input);
   }
 
   if (!input || typeof input !== 'object') {
@@ -6649,18 +7058,26 @@ function applyWritePlan(input) {
       seenColumns[condition.columnPosition] = true;
     });
 
+    const beforeFilter = readRangeFilterStateForSnapshot_(sheet, target);
     const filter = getOrCreateFilter_(sheet, target, plan.clearExistingFilters);
     resolvedConditions.forEach(function(condition) {
       filter.setColumnFilterCriteria(condition.columnPosition, condition.criteria);
     });
 
     SpreadsheetApp.flush();
-    return {
+    const afterFilter = readRangeFilterStateForSnapshot_(sheet, target);
+    return attachLocalExecutionSnapshot_({
       kind: 'range_filter',
       hostPlatform: 'google_sheets',
       ...plan,
       summary: getRangeFilterStatusSummary_(plan)
-    };
+    }, createRangeFilterLocalExecutionSnapshot_({
+      executionId: input.executionId,
+      targetSheet: plan.targetSheet,
+      targetRange: plan.targetRange,
+      beforeFilter: beforeFilter,
+      afterFilter: afterFilter
+    }));
   }
 
   if (isRangeFormatPlan_(plan)) {

@@ -392,6 +392,116 @@ describe("Google Sheets wave 1 helper compilation", () => {
     });
   });
 
+  it("attaches local undo snapshots for Google Sheets range filter writes", () => {
+    const criteriaByColumn = new Map<number, unknown>([
+      [1, { kind: "textEquals", value: "Closed" }]
+    ]);
+    const existingFilter = {
+      getRange() {
+        return {
+          getA1Notation() {
+            return "C1:D4";
+          }
+        };
+      },
+      getColumnFilterCriteria: vi.fn((columnPosition: number) =>
+        criteriaByColumn.get(columnPosition) || null
+      ),
+      removeColumnFilterCriteria: vi.fn((columnPosition: number) => {
+        criteriaByColumn.delete(columnPosition);
+      }),
+      setColumnFilterCriteria: vi.fn((columnPosition: number, criteria: unknown) => {
+        criteriaByColumn.set(columnPosition, criteria);
+      })
+    };
+    const targetRange = {
+      getNumColumns() {
+        return 2;
+      },
+      getNumRows() {
+        return 4;
+      },
+      getColumn() {
+        return 3;
+      },
+      getRow() {
+        return 1;
+      },
+      getA1Notation() {
+        return "C1:D4";
+      },
+      getDisplayValues() {
+        return [
+          ["Status", "Amount"],
+          ["Open", "10"],
+          ["Closed", "12"],
+          ["Open", "7"]
+        ];
+      },
+      createFilter: vi.fn(() => existingFilter)
+    };
+    const sheet = {
+      getFilter() {
+        return existingFilter;
+      },
+      getRange(rangeA1: string) {
+        expect(rangeA1).toBe("C1:D4");
+        return targetRange;
+      }
+    };
+    const spreadsheet = {
+      getSheetByName(sheetName: string) {
+        expect(sheetName).toBe("Sheet1");
+        return sheet;
+      }
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      executionId: "exec_filter_snapshot_sheets_001",
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "C1:D4",
+        hasHeader: true,
+        conditions: [
+          { columnRef: "Status", operator: "equals", value: "Open" }
+        ],
+        combiner: "and",
+        clearExistingFilters: true,
+        explanation: "Keep open work.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_filter",
+      targetSheet: "Sheet1",
+      targetRange: "C1:D4",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_filter_snapshot_sheets_001",
+        kind: "range_filter",
+        targetSheet: "Sheet1",
+        targetRange: "C1:D4",
+        beforeFilter: {
+          exists: true,
+          targetRange: "C1:D4",
+          criteria: [{ kind: "textEquals", value: "Closed" }, null]
+        },
+        afterFilter: {
+          exists: true,
+          targetRange: "C1:D4",
+          criteria: [{ kind: "textEquals", value: "Open" }, null]
+        }
+      }
+    });
+    expect(existingFilter.removeColumnFilterCriteria).toHaveBeenCalledTimes(2);
+    expect(existingFilter.setColumnFilterCriteria).toHaveBeenCalledWith(1, {
+      kind: "textEquals",
+      value: "Open"
+    });
+  });
+
   it("fails safely instead of discarding an existing different-range filter when clearExistingFilters is false", () => {
     const remove = vi.fn();
     const existingFilter = {
