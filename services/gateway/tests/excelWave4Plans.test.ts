@@ -861,7 +861,7 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     ]);
   });
 
-  it("appends values in Excel when targetRange is a one-row full-width anchor", async () => {
+  it("rejects value appends in Excel when targetRange is a one-row anchor", async () => {
     const sourceRange = createRangeStub({
       address: "RawData!A2:B3",
       rowCount: 2,
@@ -930,7 +930,7 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       workbook: { worksheets }
     });
 
-    const result = await taskpane.applyWritePlan({
+    await expect(taskpane.applyWritePlan({
       plan: {
         sourceSheet: "RawData",
         sourceRange: "A2:B3",
@@ -949,29 +949,13 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       requestId: "req_range_transfer_append_anchor_excel_001",
       runId: "run_range_transfer_append_anchor_excel_001",
       approvalToken: "token"
-    });
+    })).rejects.toThrow("Excel host requires append targetRange to match the full destination rectangle.");
 
-    expect(result).toEqual({
-      kind: "range_transfer_update",
-      operation: "range_transfer_update",
-      hostPlatform: "excel_windows",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Report",
-      targetRange: "D5:E6",
-      transferOperation: "append",
-      pasteMode: "values",
-      transpose: false,
-      summary: "Appended RawData!A2:B3 into Report!D5:E6."
-    });
-    expect(anchorRange.getResizedRange).toHaveBeenCalledTimes(1);
-    expect(expandedWriteRange.__appliedValues).toEqual([
-      ["Ada", "Lovelace"],
-      ["Grace", "Hopper"]
-    ]);
+    expect(anchorRange.getResizedRange).not.toHaveBeenCalled();
+    expect(expandedWriteRange.__appliedValues).toBeUndefined();
   });
 
-  it("appends formats in Excel when targetRange is a one-row full-width anchor", async () => {
+  it("rejects format appends in Excel when targetRange is a one-row anchor", async () => {
     const sourceRange = createRangeStub({
       address: "RawData!A2:B3",
       rowCount: 2,
@@ -1039,7 +1023,7 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       workbook: { worksheets }
     });
 
-    const result = await taskpane.applyWritePlan({
+    await expect(taskpane.applyWritePlan({
       plan: {
         sourceSheet: "RawData",
         sourceRange: "A2:B3",
@@ -1058,23 +1042,10 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
       requestId: "req_range_transfer_append_formats_excel_001",
       runId: "run_range_transfer_append_formats_excel_001",
       approvalToken: "token"
-    });
+    })).rejects.toThrow("Excel host requires append targetRange to match the full destination rectangle.");
 
-    expect(result).toEqual({
-      kind: "range_transfer_update",
-      operation: "range_transfer_update",
-      hostPlatform: "excel_windows",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Report",
-      targetRange: "D5:E6",
-      transferOperation: "append",
-      pasteMode: "formats",
-      transpose: false,
-      summary: "Appended RawData!A2:B3 into Report!D5:E6."
-    });
-    expect(anchorRange.getResizedRange).toHaveBeenCalledTimes(1);
-    expect(expandedWriteRange.copyFrom).toHaveBeenCalledTimes(1);
+    expect(anchorRange.getResizedRange).not.toHaveBeenCalled();
+    expect(expandedWriteRange.copyFrom).not.toHaveBeenCalled();
   });
 
   it("rejects non-append transfers in Excel when targetRange is only a single-cell anchor", async () => {
