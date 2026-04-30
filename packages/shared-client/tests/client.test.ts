@@ -383,6 +383,26 @@ describe("shared client render helpers", () => {
     );
   });
 
+  it("sanitizes sensitive JSON gateway errors from shared-client responses", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: "ReferenceError at /root/hermes/src/server.ts:42 HERMES_API_SERVER_KEY=secret_123",
+        userAction: "Inspect http://localhost:8787/debug for stack trace details."
+      }
+    }), {
+      status: 500,
+      headers: {
+        "content-type": "application/json"
+      }
+    })));
+
+    const client = createGatewayClient("http://localhost:18787");
+
+    await expect(client.pollRun("run_123")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
+  });
+
   it("fails closed before fetch when the gateway client base url is invalid or non-http", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
       status: 200,
