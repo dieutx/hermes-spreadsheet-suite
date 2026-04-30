@@ -17,6 +17,7 @@ const MAX_UPLOAD_SESSION_ID_LENGTH = 128;
 const MAX_UPLOAD_WORKBOOK_ID_LENGTH = 256;
 const UPLOAD_CONTENT_ATTACHMENT_ID_MAX_LENGTH = 128;
 const UPLOAD_CONTENT_TOKEN_MAX_LENGTH = 256;
+const PUBLIC_UPLOAD_OWNER_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
 
 function matchesImageMimeType(
   buffer: Buffer,
@@ -127,6 +128,16 @@ function invalidUploadContentCredentials() {
   };
 }
 
+function invalidUploadOwnershipIds() {
+  return {
+    error: {
+      code: "INVALID_REQUEST",
+      message: "Image upload ownership identifiers are invalid.",
+      userAction: "Reload the spreadsheet sidebar or add-in, then try the upload again."
+    }
+  };
+}
+
 export function createUploadRouter(input: {
   attachmentStore: AttachmentStore;
   config: GatewayConfig;
@@ -197,6 +208,10 @@ export function createUploadRouter(input: {
       });
       return;
     }
+    if (!PUBLIC_UPLOAD_OWNER_ID_PATTERN.test(sessionId)) {
+      res.status(400).json(invalidUploadOwnershipIds());
+      return;
+    }
 
     const workbookId = typeof req.body.workbookId === "string" && req.body.workbookId.trim().length > 0
       ? req.body.workbookId.trim()
@@ -219,6 +234,10 @@ export function createUploadRouter(input: {
           userAction: "Reload the spreadsheet, then try the upload again from the workbook where you want to use it."
         }
       });
+      return;
+    }
+    if (!PUBLIC_UPLOAD_OWNER_ID_PATTERN.test(workbookId)) {
+      res.status(400).json(invalidUploadOwnershipIds());
       return;
     }
 
