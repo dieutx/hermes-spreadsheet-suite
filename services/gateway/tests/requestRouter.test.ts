@@ -174,6 +174,30 @@ describe("request router", () => {
     );
   });
 
+  it("requires the matching sessionId to poll a session-scoped request run", async () => {
+    const { router } = createTestRouter();
+    const start = await invokePost(router, validRequestBody());
+    const runId = (start.body as any).runId;
+
+    const missingSessionId = await invokeGet(router, runId, {
+      requestId: "req_route_001"
+    });
+    expect(missingSessionId.statusCode).toBe(404);
+
+    const wrongSessionId = await invokeGet(router, runId, {
+      requestId: "req_route_001",
+      sessionId: "sess_other"
+    });
+    expect(wrongSessionId.statusCode).toBe(404);
+
+    const matchingSessionId = await invokeGet(router, runId, {
+      requestId: "req_route_001",
+      sessionId: "sess_123"
+    });
+    expect(matchingSessionId.statusCode).toBe(200);
+    expect((matchingSessionId.body as any).runId).toBe(runId);
+  });
+
   it("uses the injected TraceBus clock for request trace timestamps", async () => {
     let nowMs = Date.UTC(2026, 3, 23, 1, 2, 3);
     const traceBus = new TraceBus({

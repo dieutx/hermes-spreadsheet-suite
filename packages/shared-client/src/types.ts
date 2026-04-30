@@ -304,8 +304,8 @@ export type GatewayClient = {
     workbookId: string;
   }): Promise<ImageAttachment>;
   startRun(request: HermesRequest): Promise<StartRunAccepted>;
-  pollRun(runId: string, requestId?: string): Promise<RunPollResult>;
-  pollTrace(runId: string, after?: number, requestId?: string): Promise<TracePollResult>;
+  pollRun(runId: string, requestId?: string, sessionId?: string): Promise<RunPollResult>;
+  pollTrace(runId: string, after?: number, requestId?: string, sessionId?: string): Promise<TracePollResult>;
   dryRunPlan(input: {
     requestId: string;
     runId: string;

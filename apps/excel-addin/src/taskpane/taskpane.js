@@ -5444,6 +5444,7 @@ const gateway = {
     if (requestId) {
       params.set("requestId", requestId);
     }
+    params.set("sessionId", sessionId);
 
     return parseJson(await fetch(
       `${gatewayBaseUrl}/api/requests/${runId}${params.size > 0 ? `?${params.toString()}` : ""}`
@@ -5457,6 +5458,7 @@ const gateway = {
     if (requestId) {
       params.set("requestId", requestId);
     }
+    params.set("sessionId", sessionId);
 
     return parseJson(await fetch(`${gatewayBaseUrl}/api/trace/${runId}?${params.toString()}`));
   },

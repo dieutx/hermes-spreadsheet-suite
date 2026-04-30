@@ -158,6 +158,10 @@ function getRequestIdQueryValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+function getSessionIdQueryValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
 function shouldIncludeResponseTrace(value: unknown): boolean {
   if (value === undefined) {
     return true;
@@ -196,6 +200,17 @@ function matchesStoredRunRequestId(
   }
 
   return requestId === run.requestId;
+}
+
+function matchesStoredRunSessionId(
+  run: ReturnType<TraceBus["getRun"]>,
+  sessionId: string | undefined
+): boolean {
+  if (!run?.sessionId) {
+    return true;
+  }
+
+  return sessionId === run.sessionId;
 }
 
 export function createRequestRouter(input: {
@@ -268,7 +283,11 @@ export function createRequestRouter(input: {
     };
 
     const runId = `run_${randomUUID()}`;
-    input.traceBus.ensureRun(runId, requestEnvelopeWithCanonicalAttachments.requestId);
+    input.traceBus.ensureRun(
+      runId,
+      requestEnvelopeWithCanonicalAttachments.requestId,
+      requestEnvelopeWithCanonicalAttachments.source.sessionId
+    );
     input.traceBus.markStatus(runId, "accepted");
 
     input.traceBus.append(runId, {
@@ -327,7 +346,11 @@ export function createRequestRouter(input: {
   router.get("/:runId", (req, res) => {
     const includeTrace = shouldIncludeResponseTrace(req.query.includeTrace);
     const run = input.traceBus.peekRun(req.params.runId);
-    if (!run || !matchesStoredRunRequestId(run, getRequestIdQueryValue(req.query.requestId))) {
+    if (
+      !run ||
+      !matchesStoredRunRequestId(run, getRequestIdQueryValue(req.query.requestId)) ||
+      !matchesStoredRunSessionId(run, getSessionIdQueryValue(req.query.sessionId))
+    ) {
       res.status(404).json({
         error: {
           code: "RUN_NOT_FOUND",
