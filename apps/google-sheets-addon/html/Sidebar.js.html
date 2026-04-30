@@ -863,6 +863,10 @@
       : `${baseUrl}/${normalizedPath}`;
   }
 
+  function encodeGatewayPathSegment(value) {
+    return encodeURIComponent(String(value));
+  }
+
   function proxyGatewayJson(path, options = {}) {
     const hasBody = Object.prototype.hasOwnProperty.call(options, "body");
     return callServer("proxyGatewayJson", {
@@ -4489,7 +4493,7 @@
             traceParams.push(`requestId=${encodeURIComponent(message.requestId)}`);
           }
           traceParams.push(`sessionId=${encodeURIComponent(state.sessionId)}`);
-          const trace = await callGatewayJson(`/api/trace/${message.runId}?${traceParams.join("&")}`, {
+          const trace = await callGatewayJson(`/api/trace/${encodeGatewayPathSegment(message.runId)}?${traceParams.join("&")}`, {
             allowProxyFallback: false
           });
           message.traceIndex = trace.nextIndex;
@@ -4514,7 +4518,7 @@
       if (message.requestId) {
         runParams.push(`requestId=${encodeURIComponent(message.requestId)}`);
       }
-      const run = await callGatewayJson(`/api/requests/${message.runId}?${runParams.join("&")}`, {
+      const run = await callGatewayJson(`/api/requests/${encodeGatewayPathSegment(message.runId)}?${runParams.join("&")}`, {
         allowProxyFallback: false
       });
       if (run.status === "completed" && run.response) {

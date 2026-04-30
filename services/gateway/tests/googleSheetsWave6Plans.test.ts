@@ -1297,6 +1297,38 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(message.response.type).toBe("chat");
   });
 
+  it("encodes Google Sheets run identifiers in request polling paths", async () => {
+    vi.useFakeTimers();
+    const sidebar = loadSidebarContext();
+    sidebar.fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        runId: "run/../unsafe?x=1",
+        requestId: "req_poll_path_001",
+        status: "processing"
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      }));
+
+    const message = {
+      runId: "run/../unsafe?x=1",
+      requestId: "req_poll_path_001",
+      traceIndex: 0,
+      trace: [],
+      statusLine: "Thinking...",
+      content: "Thinking..."
+    };
+
+    void sidebar.__sidebarTestHooks.pollRun(message);
+
+    await vi.advanceTimersByTimeAsync(900);
+
+    expect(sidebar.fetch).toHaveBeenCalledTimes(1);
+    expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain(
+      "/api/requests/run%2F..%2Funsafe%3Fx%3D1?"
+    );
+  });
+
   it("continues polling run status in Google Sheets without any trace call even across repeated attempts", async () => {
     vi.useFakeTimers();
     const sidebar = loadSidebarContext();
