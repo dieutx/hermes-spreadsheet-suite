@@ -913,7 +913,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       }
     });
 
-    await expect(taskpane.applyWritePlan({
+    const result = await taskpane.applyWritePlan({
       plan: {
         sourceSheet: "Sales",
         sourceRange: "A1:C20",
@@ -938,8 +938,11 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       },
       requestId: "req_chart_apply_excel_001",
       runId: "run_chart_apply_excel_001",
-      approvalToken: "token"
-    })).resolves.toMatchObject({
+      approvalToken: "token",
+      executionId: "exec_chart_apply_excel_001"
+    });
+
+    expect(result).toMatchObject({
       kind: "chart_update",
       operation: "chart_update",
       hostPlatform: "excel_windows",
@@ -957,7 +960,28 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       legendPosition: "bottom",
       horizontalAxisTitle: "Month",
       verticalAxisTitle: "USD",
-      summary: "Created line chart on Sales Chart!A1."
+      summary: "Created line chart on Sales Chart!A1.",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_chart_apply_excel_001",
+        kind: "chart",
+        targetSheet: "Sales Chart",
+        chartName: "HermesChart_exec_chart_apply_excel_001",
+        before: {
+          exists: false,
+          name: "HermesChart_exec_chart_apply_excel_001"
+        },
+        after: {
+          exists: true,
+          name: "HermesChart_exec_chart_apply_excel_001"
+        },
+        plan: {
+          sourceSheet: "Sales",
+          sourceRange: "A1:C20",
+          targetSheet: "Sales Chart",
+          targetRange: "A1",
+          chartType: "line"
+        }
+      }
     });
 
     expect(sourceSheet.getRange).toHaveBeenCalledWith("A1:C20");
@@ -974,6 +998,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
     expect(chart.axes.valueAxis.title.text).toBe("USD");
     expect(chart.series.getItemAt).toHaveBeenNthCalledWith(1, 0);
     expect(chart.series.getItemAt).toHaveBeenNthCalledWith(2, 1);
+    expect(chart.name).toBe("HermesChart_exec_chart_apply_excel_001");
     expect(chartSeries).toEqual([
       { name: "Gross Revenue" },
       { name: "Margin %" }

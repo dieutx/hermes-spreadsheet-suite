@@ -1452,6 +1452,37 @@ function createWorkbookStructureDuplicateLocalExecutionSnapshot({
   };
 }
 
+function createExcelChartSnapshotName(executionId) {
+  if (typeof executionId !== "string" || executionId.trim().length === 0) {
+    return null;
+  }
+
+  const suffix = executionId.trim().replace(/[^A-Za-z0-9_]/g, "_").slice(0, 180);
+  return `HermesChart_${suffix}`;
+}
+
+function createChartLocalExecutionSnapshot({ executionId, chartName, targetSheet, plan }) {
+  if (!executionId || !chartName || !targetSheet || !plan) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "chart",
+    targetSheet,
+    chartName,
+    before: {
+      exists: false,
+      name: chartName
+    },
+    after: {
+      exists: true,
+      name: chartName
+    },
+    plan: cloneLocalExecutionSnapshotValue(plan)
+  };
+}
+
 function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
   if (!executionId || !Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -1485,6 +1516,10 @@ function isRangeFilterLocalExecutionSnapshot(snapshot) {
 
 function isWorkbookStructureLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "workbook_structure";
+}
+
+function isChartLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "chart";
 }
 
 function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
@@ -2339,6 +2374,93 @@ async function validateRangeFilterLocalExecutionSnapshotForMode(snapshot, mode) 
   });
 }
 
+function assertChartSnapshotState(state) {
+  if (
+    !state ||
+    typeof state.exists !== "boolean" ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
+function getChartSnapshotTransitionForMode(snapshot, mode) {
+  if (
+    !snapshot ||
+    snapshot.kind !== "chart" ||
+    typeof snapshot.targetSheet !== "string" ||
+    snapshot.targetSheet.trim().length === 0 ||
+    typeof snapshot.chartName !== "string" ||
+    snapshot.chartName.trim().length === 0 ||
+    !snapshot.plan
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  assertChartSnapshotState(snapshot.before);
+  assertChartSnapshotState(snapshot.after);
+
+  return {
+    from: mode === "undo" ? snapshot.after : snapshot.before,
+    to: mode === "undo" ? snapshot.before : snapshot.after
+  };
+}
+
+async function restoreChartLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getChartSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+
+    if (transition.from.exists === true && transition.to.exists === false) {
+      const charts = sheet.charts;
+      const chart = charts?.getItem ? charts.getItem(snapshot.chartName) : null;
+      if (!chart || typeof chart.delete !== "function") {
+        throw new Error("Excel host cannot restore the saved chart creation.");
+      }
+
+      if (typeof chart.load === "function") {
+        chart.load(["name"]);
+        await context.sync();
+      }
+
+      chart.delete();
+      await context.sync();
+      return;
+    }
+
+    if (transition.from.exists === false && transition.to.exists === true) {
+      await createExcelChartFromPlan(context, worksheets, snapshot.plan, snapshot.chartName);
+      return;
+    }
+
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  });
+}
+
+async function validateChartLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getChartSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+
+    if (transition.from.exists === true) {
+      const chart = sheet.charts?.getItem ? sheet.charts.getItem(snapshot.chartName) : null;
+      if (!chart || typeof chart.delete !== "function") {
+        throw new Error("Excel host cannot restore the saved chart creation.");
+      }
+      return;
+    }
+
+    if (!snapshot.plan?.sourceSheet || !snapshot.plan?.sourceRange || !snapshot.plan?.targetSheet || !snapshot.plan?.targetRange) {
+      throw new Error("That history entry is no longer available in this spreadsheet session.");
+    }
+  });
+}
+
 async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
   if (isCompositeLocalExecutionSnapshot(snapshot)) {
     for (const entry of getLocalExecutionSnapshotEntriesForMode(snapshot, mode)) {
@@ -2365,6 +2487,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isWorkbookStructureLocalExecutionSnapshot(snapshot)) {
     return restoreWorkbookStructureLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isChartLocalExecutionSnapshot(snapshot)) {
+    return restoreChartLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -2435,6 +2561,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isWorkbookStructureLocalExecutionSnapshot(snapshot)) {
     return validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isChartLocalExecutionSnapshot(snapshot)) {
+    return validateChartLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -6289,7 +6419,7 @@ function applyExcelChartSeriesLabels(chart, plan) {
   });
 }
 
-async function applyExcelChartPlan(context, worksheets, plan, platform) {
+async function createExcelChartFromPlan(context, worksheets, plan, chartName) {
   assertExcelChartPlanSupport(plan);
 
   const sourceWorksheet = worksheets.getItem(plan.sourceSheet);
@@ -6319,6 +6449,9 @@ async function applyExcelChartPlan(context, worksheets, plan, platform) {
     throw new Error("Excel host does not support exact-safe chart creation yet.");
   }
 
+  if (chartName) {
+    chart.name = chartName;
+  }
   chart.setPosition(targetRange);
   applyExcelChartTitle(chart, plan.title);
   applyExcelChartLegend(chart, plan.legendPosition);
@@ -6326,7 +6459,17 @@ async function applyExcelChartPlan(context, worksheets, plan, platform) {
   applyExcelChartSeriesLabels(chart, plan);
   await context.sync();
 
-  return {
+  return chart;
+}
+
+async function applyExcelChartPlan(context, worksheets, plan, platform, executionId) {
+  const chartName = createExcelChartSnapshotName(executionId);
+  const chart = await createExcelChartFromPlan(context, worksheets, plan, chartName);
+  const appliedChartName = typeof chart?.name === "string" && chart.name.trim().length > 0
+    ? chart.name
+    : chartName;
+
+  return attachLocalExecutionSnapshot({
     kind: "chart_update",
     operation: "chart_update",
     hostPlatform: platform,
@@ -6356,7 +6499,12 @@ async function applyExcelChartPlan(context, worksheets, plan, platform) {
     overwriteRisk: plan.overwriteRisk,
     confirmationLevel: plan.confirmationLevel,
     summary: getChartStatusSummary(plan)
-  };
+  }, createChartLocalExecutionSnapshot({
+    executionId,
+    chartName: appliedChartName,
+    targetSheet: plan.targetSheet,
+    plan
+  }));
 }
 
 function assertExcelTablePlanSupport(plan) {
@@ -9643,7 +9791,7 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
     }
 
     if (isChartPlan(resolvedPlan)) {
-      return applyExcelChartPlan(context, worksheets, resolvedPlan, platform);
+      return applyExcelChartPlan(context, worksheets, resolvedPlan, platform, executionId);
     }
 
     if (isTablePlan(resolvedPlan)) {
