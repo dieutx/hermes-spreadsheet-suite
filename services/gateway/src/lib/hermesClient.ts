@@ -495,11 +495,15 @@ export class HermesAgentClient {
     let payload: unknown;
     const contentType = httpResponse.headers.get("content-type") ?? "";
 
-    if (contentType.includes("application/json")) {
-      payload = await httpResponse.json();
-    } else {
-      const text = await httpResponse.text();
-      payload = { message: text };
+    try {
+      if (contentType.includes("application/json")) {
+        payload = await httpResponse.json();
+      } else {
+        const text = await httpResponse.text();
+        payload = { message: text };
+      }
+    } catch {
+      payload = { message: `Hermes Agent request failed with status ${httpResponse.status}.` };
     }
 
     if (!httpResponse.ok) {
