@@ -429,6 +429,11 @@ export class ExecutionLedger {
       throw new Error("History cursor must be a non-negative integer.");
     }
 
-    return Number(cursor);
+    const parsed = Number(cursor);
+    if (!Number.isSafeInteger(parsed)) {
+      throw new Error("History cursor must be a safe integer.");
+    }
+
+    return parsed;
   }
 }

@@ -209,6 +209,25 @@ describe("execution control routes", () => {
     });
   });
 
+  it("rejects history cursors that exceed safe integer bounds", () => {
+    const history = invokeExecutionRoute({
+      path: "/history",
+      method: "get",
+      query: {
+        workbookSessionKey: "excel_windows::workbook-123",
+        cursor: String(Number.MAX_SAFE_INTEGER + 1)
+      }
+    });
+
+    expect(history.status).toBe(400);
+    expect(history.body).toMatchObject({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "That execution-control request is invalid."
+      }
+    });
+  });
+
   it("returns INTERNAL_ERROR when the ledger throws an unexpected runtime failure", () => {
     const ledger = {
       listHistory() {
