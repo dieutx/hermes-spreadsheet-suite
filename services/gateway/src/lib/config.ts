@@ -31,7 +31,7 @@ const LOCAL_GATEWAY_DEFAULT_ALLOWED_ORIGINS = [
 ] as const;
 const DEFAULT_HERMES_AGENT_TIMEOUT_MS = 45_000;
 const SAFE_PUBLIC_LABEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,79}$/;
-const UNSAFE_PUBLIC_LABEL_PATTERN = /\b(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)\b|(?:^|\s)\/(?:root|srv|home|tmp)\/[^\s]+|https?:\/\/[^\s]+/i;
+const UNSAFE_PUBLIC_LABEL_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt)\/[^\s]+|https?:\/\/[^\s]+/i;
 
 function isLoopbackBaseUrl(value: string): boolean {
   try {
