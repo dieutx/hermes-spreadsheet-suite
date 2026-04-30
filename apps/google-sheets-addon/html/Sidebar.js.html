@@ -1549,6 +1549,7 @@
       headers: { "content-type": "application/json" },
       body: {
         ...input,
+        sessionId: state.sessionId,
         workbookSessionKey
       }
     });
@@ -1557,6 +1558,7 @@
   async function listExecutionHistory(input = {}) {
     const workbookSessionKey = await callServer("getWorkbookSessionKey");
     const params = [`workbookSessionKey=${encodeURIComponent(workbookSessionKey)}`];
+    params.push(`sessionId=${encodeURIComponent(state.sessionId)}`);
     if (typeof input.limit === "number") {
       params.push(`limit=${encodeURIComponent(String(input.limit))}`);
     }
@@ -1584,6 +1586,7 @@
     const request = {
       executionId,
       requestId,
+      sessionId: state.sessionId,
       workbookSessionKey
     };
     await callGatewayJson("/api/execution/undo/prepare", {
@@ -1624,6 +1627,7 @@
     const request = {
       executionId,
       requestId,
+      sessionId: state.sessionId,
       workbookSessionKey
     };
     await callGatewayJson("/api/execution/redo/prepare", {

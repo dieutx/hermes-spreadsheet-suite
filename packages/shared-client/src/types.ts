@@ -309,10 +309,12 @@ export type GatewayClient = {
   dryRunPlan(input: {
     requestId: string;
     runId: string;
+    sessionId?: string;
     plan: CompositeWritePlan;
   }): Promise<DryRunResult>;
   listPlanHistory(input: {
     workbookSessionKey: string;
+    sessionId?: string;
     cursor?: string;
     limit?: number;
   }): Promise<PlanHistoryPage>;

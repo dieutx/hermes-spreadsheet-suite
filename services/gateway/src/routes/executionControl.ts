@@ -17,12 +17,14 @@ import { normalizeCompositePlanForDigest } from "../lib/planNormalization.js";
 const DryRunRequestSchema = z.object({
   requestId: z.string().min(1).max(128),
   runId: z.string().min(1).max(128),
+  sessionId: z.string().min(1).max(128).optional(),
   workbookSessionKey: z.string().min(1).max(256).optional(),
   plan: CompositePlanDataSchema
 });
 
 const HistoryQuerySchema = z.object({
   workbookSessionKey: z.string().min(1).max(256),
+  sessionId: z.string().min(1).max(128).optional(),
   cursor: z.string().min(1).max(256).regex(/^(0|[1-9]\d*)$/).optional(),
   limit: z.coerce.number().int().positive().max(100).optional()
 });
@@ -180,7 +182,10 @@ export function createExecutionControlRouter(input: {
         expiresAt: input.executionLedger.isoTimestamp(5 * 60 * 1000)
       };
 
-      input.executionLedger.storeDryRun(result);
+      input.executionLedger.storeDryRun({
+        ...result,
+        sessionId: parsed.sessionId
+      });
       res.json(result);
     } catch (error) {
       const formatted = formatExecutionControlError(error);
@@ -194,7 +199,8 @@ export function createExecutionControlRouter(input: {
       res.json(input.executionLedger.listHistory(
         parsed.workbookSessionKey,
         parsed.limit,
-        parsed.cursor
+        parsed.cursor,
+        parsed.sessionId
       ));
     } catch (error) {
       const formatted = formatExecutionControlError(error);

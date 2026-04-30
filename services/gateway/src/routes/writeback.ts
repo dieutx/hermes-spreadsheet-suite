@@ -1855,6 +1855,7 @@ export function approveWriteback(input: {
   if ("steps" in input.plan) {
     executionLedger.assertFreshDryRun({
       workbookSessionKey,
+      sessionId: run.sessionId,
       planDigest,
       required: input.plan.dryRunRequired
     });
@@ -1882,6 +1883,7 @@ export function approveWriteback(input: {
   executionLedger.recordApproved({
     executionId,
     workbookSessionKey,
+    sessionId: run.sessionId,
     requestId: input.requestId,
     runId: input.runId,
     planType: getPlanTypeFromResponse(run.response),
@@ -1985,6 +1987,7 @@ export function completeWriteback(input: {
   executionLedger.recordCompleted({
     executionId: writeback.executionId,
     workbookSessionKey: writeback.workbookSessionKey,
+    sessionId: run.sessionId,
     requestId: input.requestId,
     runId: input.runId,
     planType: getPlanTypeFromResponse(run.response),
