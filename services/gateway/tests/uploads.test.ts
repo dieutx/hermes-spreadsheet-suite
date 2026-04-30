@@ -359,6 +359,61 @@ describe("upload router", () => {
     expect(saveSpy).not.toHaveBeenCalled();
   });
 
+  it("rejects unsafe upload ownership ids before saving attachments", async () => {
+    const { uploadRouter, attachmentStore } = createTestApp();
+    const saveSpy = vi.spyOn(attachmentStore, "save");
+
+    const unsafeSession = await invokeUploadImage(uploadRouter, {
+      body: {
+        source: "upload",
+        sessionId: "sess_HERMES_API_SERVER_KEY=secret",
+        workbookId: "sheet_import_demo"
+      },
+      file: {
+        buffer: PNG_SIGNATURE_BYTES,
+        mimetype: "image/png",
+        originalname: "table.png",
+        size: PNG_SIGNATURE_BYTES.length
+      }
+    });
+    expect(unsafeSession.statusCode).toBe(400);
+    expect(unsafeSession.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Image upload ownership identifiers are invalid.",
+        userAction: "Reload the spreadsheet sidebar or add-in, then try the upload again."
+      }
+    });
+    expect(JSON.stringify(unsafeSession.body)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify(unsafeSession.body)).not.toContain("secret");
+
+    const unsafeWorkbook = await invokeUploadImage(uploadRouter, {
+      body: {
+        source: "upload",
+        sessionId: "sess_img_real_001",
+        workbookId: "sheet_APP_SECRET=secret"
+      },
+      file: {
+        buffer: PNG_SIGNATURE_BYTES,
+        mimetype: "image/png",
+        originalname: "table.png",
+        size: PNG_SIGNATURE_BYTES.length
+      }
+    });
+    expect(unsafeWorkbook.statusCode).toBe(400);
+    expect(unsafeWorkbook.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Image upload ownership identifiers are invalid.",
+        userAction: "Reload the spreadsheet sidebar or add-in, then try the upload again."
+      }
+    });
+    expect(JSON.stringify(unsafeWorkbook.body)).not.toContain("APP_SECRET");
+    expect(JSON.stringify(unsafeWorkbook.body)).not.toContain("secret");
+
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
+
   it("returns a JSON upload error when multer rejects an oversized image", async () => {
     const { uploadRouter } = createTestApp();
     const error = new multer.MulterError("LIMIT_FILE_SIZE");
