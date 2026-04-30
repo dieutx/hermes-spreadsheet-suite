@@ -13,6 +13,12 @@ export class UnsupportedExecutionControlError extends Error {}
 
 export class FreshDryRunRequiredError extends Error {}
 
+const SANITIZED_EXECUTION_SUMMARY =
+  "Execution summary hidden because it contained internal details.";
+const UNSAFE_EXECUTION_SUMMARY_PATTERN = /\b(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)\b|(?:^|\s)\/(?:root|srv|home|tmp)\/[^\s]+|https?:\/\/[^\s]+/i;
+
+type StoredDryRunResult = DryRunResult & { sessionId?: string };
+
 type HistoryRecord = {
   workbookSessionKey: string;
   sessionId?: string;
@@ -24,6 +30,63 @@ type ExecutionLedgerOptions = {
   maxDryRuns?: number;
   now?: () => number;
 };
+
+export function sanitizeExecutionSummary(value: string): string {
+  const summary = String(value || "")
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!summary || UNSAFE_EXECUTION_SUMMARY_PATTERN.test(summary)) {
+    return SANITIZED_EXECUTION_SUMMARY;
+  }
+
+  return summary;
+}
+
+function sanitizeExecutionSummaryList(values: string[] | undefined): string[] | undefined {
+  if (!values) {
+    return undefined;
+  }
+
+  return values.map((value) => sanitizeExecutionSummary(value).slice(0, 4000));
+}
+
+function sanitizeHistoryEntry(entry: PlanHistoryEntry): PlanHistoryEntry {
+  return {
+    ...entry,
+    summary: sanitizeExecutionSummary(entry.summary),
+    ...(entry.stepEntries
+      ? {
+          stepEntries: entry.stepEntries.map((step) => ({
+            ...step,
+            summary: sanitizeExecutionSummary(step.summary)
+          }))
+        }
+      : {})
+  };
+}
+
+function sanitizeDryRunResult(result: StoredDryRunResult): StoredDryRunResult {
+  return {
+    ...result,
+    predictedSummaries: sanitizeExecutionSummaryList(result.predictedSummaries) ?? [],
+    ...(result.unsupportedReason
+      ? { unsupportedReason: sanitizeExecutionSummary(result.unsupportedReason).slice(0, 4000) }
+      : {}),
+    ...(result.steps
+      ? {
+          steps: result.steps.map((step) => ({
+            ...step,
+            summary: sanitizeExecutionSummary(step.summary),
+            ...(step.predictedSummaries
+              ? { predictedSummaries: sanitizeExecutionSummaryList(step.predictedSummaries) }
+              : {})
+          }))
+        }
+      : {})
+  };
+}
 
 export class ExecutionLedger {
   private readonly history = new Map<string, PlanHistoryEntry[]>();
@@ -146,29 +209,35 @@ export class ExecutionLedger {
     sessionId?: string;
   } & PlanHistoryEntry): void {
     const { workbookSessionKey, sessionId, ...entry } = input;
+    const sanitizedEntry = sanitizeHistoryEntry(entry);
     const historyKey = this.getHistoryKey(workbookSessionKey, sessionId);
     const bucket = this.history.get(historyKey) ?? [];
     const existingIndex = bucket.findIndex(
-      (candidate) => candidate.executionId === entry.executionId
+      (candidate) => candidate.executionId === sanitizedEntry.executionId
     );
     if (existingIndex >= 0) {
-      bucket[existingIndex] = entry;
+      bucket[existingIndex] = sanitizedEntry;
     } else {
-      bucket.push(entry);
+      bucket.push(sanitizedEntry);
     }
     this.history.set(historyKey, this.pruneWorkbookHistory(workbookSessionKey, sessionId, bucket));
     this.historyByExecutionId.set(this.getExecutionKey(workbookSessionKey, input.executionId, sessionId), {
       workbookSessionKey,
       sessionId,
-      entry
+      entry: sanitizedEntry
     });
   }
 
-  storeDryRun(result: DryRunResult & { sessionId?: string }): void {
+  storeDryRun(result: StoredDryRunResult): void {
+    const sanitizedResult = sanitizeDryRunResult(result);
     this.pruneExpiredDryRuns();
     this.dryRuns.set(
-      this.getDryRunKey(result.workbookSessionKey, result.planDigest, result.sessionId),
-      result
+      this.getDryRunKey(
+        sanitizedResult.workbookSessionKey,
+        sanitizedResult.planDigest,
+        sanitizedResult.sessionId
+      ),
+      sanitizedResult
     );
     this.evictOverflowDryRuns();
   }

@@ -592,6 +592,46 @@ describe("execution control routes", () => {
     expect((dryRun.body as any).steps[0].predictedSummaries[0]).toHaveLength(4000);
   });
 
+  it("sanitizes unsafe dry-run summaries before returning execution-control previews", () => {
+    const unsafeExplanation = "ReferenceError stack trace /srv/hermes/internal.ts HERMES_API_SERVER_KEY=secret";
+    const dryRun = invokeExecutionRoute({
+      path: "/dry-run",
+      method: "post",
+      body: buildDryRunBody({
+        plan: {
+          ...buildDryRunBody().plan,
+          explanation: unsafeExplanation,
+          steps: [
+            {
+              stepId: "step_1",
+              dependsOn: [],
+              continueOnError: false,
+              plan: {
+                operation: "create_sheet",
+                sheetName: "Report",
+                position: "end",
+                explanation: unsafeExplanation,
+                confidence: 0.9,
+                requiresConfirmation: true
+              }
+            }
+          ]
+        }
+      })
+    });
+
+    expect(dryRun.status).toBe(200);
+    expect((dryRun.body as any).predictedSummaries[0]).toBe(
+      "Execution summary hidden because it contained internal details."
+    );
+    expect((dryRun.body as any).steps[0].summary).toBe(
+      "Execution summary hidden because it contained internal details."
+    );
+    expect((dryRun.body as any).steps[0].predictedSummaries[0]).toBe(
+      "Execution summary hidden because it contained internal details."
+    );
+  });
+
   it("rejects composite dry-run plans whose dependencies appear after the step that depends on them", () => {
     const dryRun = invokeExecutionRoute({
       path: "/dry-run",
