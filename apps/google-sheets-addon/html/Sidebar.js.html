@@ -1977,6 +1977,7 @@
       responseType === "chart_plan" ||
       responseType === "table_plan" ||
       responseType === "conditional_format_plan" ||
+      responseType === "range_format_update" ||
       responseType === "range_filter_plan" ||
       responseType === "data_validation_plan" ||
       responseType === "named_range_update" ||
@@ -2728,6 +2729,14 @@
     }
   }
 
+  function getGoogleSheetsRangeFormatSupportError(format) {
+    if (format && format.underline === true && format.strikethrough === true) {
+      return "Google Sheets cannot apply underline and strikethrough together as exact static formatting.";
+    }
+
+    return "";
+  }
+
   function getGoogleSheetsPlanSupportError(preview) {
     if (!preview) {
       return "";
@@ -2736,7 +2745,7 @@
     const kind = inferGoogleSheetsPreviewSupportKind(preview);
 
     if (kind === "pivot_table_plan") {
-      if (typeof preview.targetRange !== "string" || preview.targetRange.trim().length === 0 || preview.targetRange.includes(":")) {
+      if (!isSingleCellA1Anchor(preview.targetRange)) {
         return "Choose one destination cell for the pivot table.";
       }
 
@@ -2951,6 +2960,10 @@
 
     if (kind === "conditional_format_plan") {
       return getGoogleSheetsConditionalFormatSupportError(preview);
+    }
+
+    if (kind === "range_format_update") {
+      return getGoogleSheetsRangeFormatSupportError(preview.format);
     }
 
     if (kind === "range_transfer_plan") {
@@ -3714,6 +3727,7 @@
 
     if (preview.kind === "range_format_update") {
       const formatFields = formatRangeFormatFields(preview.format);
+      const supportError = getGoogleSheetsPlanSupportError(preview);
 
       return `
         <div class="preview">
@@ -3723,7 +3737,8 @@
             ${preview.overwriteRisk ? ` • overwrite ${escapeHtml(preview.overwriteRisk)}` : ""}
           </div>
           <div>${escapeHtml(preview.explanation)}</div>
-          ${getRequiresConfirmation(response) ? `
+          ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
+          ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
               <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
                 Confirm Format Update

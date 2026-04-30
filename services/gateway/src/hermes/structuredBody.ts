@@ -808,12 +808,39 @@ function normalizeCompositePlanStepValue(value: unknown): unknown {
     "plan"
   ]);
 
-  if (hasOwn(value, "dependsOn") && Array.isArray(value.dependsOn)) {
-    normalized.dependsOn = [...value.dependsOn];
+  if (!hasOwn(normalized, "stepId") && hasOwn(value, "id")) {
+    normalized.stepId = value.id;
+  }
+
+  const dependsOnValue = hasOwn(value, "dependsOn")
+    ? value.dependsOn
+    : hasOwn(value, "depends")
+    ? value.depends
+    : value.after;
+
+  if (Array.isArray(dependsOnValue)) {
+    normalized.dependsOn = [...dependsOnValue];
+  } else if (typeof dependsOnValue === "string" && dependsOnValue.trim()) {
+    normalized.dependsOn = [dependsOnValue.trim()];
+  } else if (!hasOwn(normalized, "dependsOn")) {
+    normalized.dependsOn = [];
+  }
+
+  if (!hasOwn(normalized, "continueOnError")) {
+    if (hasOwn(value, "continueOnFailure")) {
+      normalized.continueOnError = value.continueOnFailure;
+    } else {
+      normalized.continueOnError = false;
+    }
   }
 
   if (hasOwn(value, "plan")) {
     normalized.plan = normalizeCompositeStepPlanValue(value.plan);
+  } else if (hasOwn(value, "type") && hasOwn(value, "data")) {
+    normalized.plan = normalizeCompositeStepPlanValue({
+      type: value.type,
+      data: value.data
+    });
   }
 
   return normalized;
@@ -837,8 +864,14 @@ function normalizeCompositePlanData(value: unknown): unknown {
     "dryRunRequired"
   ]);
 
-  if (hasOwn(value, "steps") && Array.isArray(value.steps)) {
-    normalized.steps = value.steps.map((item) => normalizeCompositePlanStepValue(item));
+  const stepsValue = hasOwn(value, "steps")
+    ? value.steps
+    : hasOwn(value, "actions")
+    ? value.actions
+    : value.tasks;
+
+  if (Array.isArray(stepsValue)) {
+    normalized.steps = stepsValue.map((item) => normalizeCompositePlanStepValue(item));
   }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
@@ -858,6 +891,14 @@ function normalizeCompositePlanData(value: unknown): unknown {
   normalized.confirmationLevel = hasDestructiveStep ? "destructive" : "standard";
   // Composite workflows do not have an exact inverse execution path across hosts yet.
   normalized.reversible = false;
+
+  if (!hasOwn(normalized, "dryRunRecommended")) {
+    normalized.dryRunRecommended = true;
+  }
+
+  if (!hasOwn(normalized, "dryRunRequired")) {
+    normalized.dryRunRequired = false;
+  }
 
   return normalized;
 }
@@ -2775,6 +2816,35 @@ function normalizeTableUpdateData(value: unknown): unknown {
   ]);
 }
 
+function getSheetImportRowsMatrix(value: JsonRecord): unknown[][] | undefined {
+  const rowsCandidate = hasOwn(value, "rows")
+    ? value.rows
+    : hasOwn(value, "data")
+    ? value.data
+    : value.table;
+
+  if (
+    !Array.isArray(rowsCandidate) ||
+    rowsCandidate.length === 0 ||
+    !rowsCandidate.every((row) => Array.isArray(row))
+  ) {
+    return undefined;
+  }
+
+  return rowsCandidate as unknown[][];
+}
+
+function normalizeExtractionModeValue(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "real" || normalized === "demo" || normalized === "unavailable"
+    ? normalized
+    : value;
+}
+
 function normalizeSheetImportPlanData(value: unknown): unknown {
   if (!isObject(value)) {
     return value;
@@ -2791,12 +2861,66 @@ function normalizeSheetImportPlanData(value: unknown): unknown {
     "extractionMode"
   ]);
 
+  const rowsMatrix = getSheetImportRowsMatrix(value);
+
+  if (!hasOwn(normalized, "sourceAttachmentId")) {
+    if (hasOwn(value, "attachmentId")) {
+      normalized.sourceAttachmentId = value.attachmentId;
+    } else if (hasOwn(value, "sourceId")) {
+      normalized.sourceAttachmentId = value.sourceId;
+    }
+  }
+
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (hasOwn(value, "sheet")) {
+      normalized.targetSheet = value.sheet;
+    } else if (hasOwn(value, "sheetName")) {
+      normalized.targetSheet = value.sheetName;
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange")) {
+    const rangeValue = hasOwn(value, "range") ? value.range : value.target;
+    const rangeRef = parseQualifiedRangeRef(rangeValue);
+    if (rangeRef) {
+      if (!hasOwn(normalized, "targetSheet") && rangeRef.sheet) {
+        normalized.targetSheet = rangeRef.sheet;
+      }
+      if (rangeRef.range) {
+        normalized.targetRange = rangeRef.range;
+      }
+    }
+  }
+
+  if (!hasOwn(normalized, "headers") && rowsMatrix) {
+    normalized.headers = rowsMatrix[0].map((cell) => String(cell ?? ""));
+  }
+
+  if (!hasOwn(normalized, "values") && rowsMatrix) {
+    normalized.values = rowsMatrix.slice(1);
+  }
+
+  if (!hasOwn(normalized, "extractionMode")) {
+    if (hasOwn(value, "mode")) {
+      normalized.extractionMode = normalizeExtractionModeValue(value.mode);
+    } else if (hasOwn(value, "extraction")) {
+      normalized.extractionMode = normalizeExtractionModeValue(value.extraction);
+    }
+  } else {
+    normalized.extractionMode = normalizeExtractionModeValue(normalized.extractionMode);
+  }
+
   if (hasOwn(value, "warnings")) {
     normalized.warnings = normalizeWarningsValue(value.warnings);
   }
 
   if (hasOwn(value, "shape")) {
     normalized.shape = normalizeShapeValue(value.shape);
+  } else if (Array.isArray(normalized.headers) && Array.isArray(normalized.values)) {
+    normalized.shape = {
+      rows: 1 + normalized.values.length,
+      columns: normalized.headers.length
+    };
   }
 
   return normalized;

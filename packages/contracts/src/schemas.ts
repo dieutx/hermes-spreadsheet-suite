@@ -31,6 +31,9 @@ const StrictA1RangeStringSchema = z.string().min(1).max(128).refine(
 
 const MAX_CONTEXT_CELL_TEXT_LENGTH = 4000;
 const MAX_CONTEXT_FORMULA_TEXT_LENGTH = 16000;
+const MAX_CONTEXT_MATRIX_ROWS = 500;
+const MAX_CONTEXT_MATRIX_COLUMNS = 100;
+const MAX_CONTEXT_MATRIX_CELLS = 5000;
 
 export const CellValueSchema = z.union([
   z.string(),
@@ -86,6 +89,41 @@ function validateMatrixStringLengths(
       }
     });
   });
+}
+
+function validateContextMatrixSize(
+  matrix: unknown[][] | undefined,
+  ctx: z.RefinementCtx,
+  field: string
+): void {
+  if (matrix === undefined) {
+    return;
+  }
+
+  const shape = matrixShape(matrix);
+  if (shape.rows > MAX_CONTEXT_MATRIX_ROWS) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${field} must contain ${MAX_CONTEXT_MATRIX_ROWS} rows or fewer.`,
+      path: [field]
+    });
+  }
+
+  if (shape.columns > MAX_CONTEXT_MATRIX_COLUMNS) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${field} must contain ${MAX_CONTEXT_MATRIX_COLUMNS} columns or fewer.`,
+      path: [field]
+    });
+  }
+
+  if (shape.rows * shape.columns > MAX_CONTEXT_MATRIX_CELLS) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${field} must contain ${MAX_CONTEXT_MATRIX_CELLS} cells or fewer.`,
+      path: [field]
+    });
+  }
 }
 
 export const ShapeSchema = strictObject({
@@ -228,6 +266,8 @@ export const SelectionContextSchema = strictObject({
   const headersLength = data.headers?.length;
   validateMatrixHeaderWidths(data.values, headersLength, ctx, "values");
   validateMatrixHeaderWidths(data.formulas, headersLength, ctx, "formulas");
+  validateContextMatrixSize(data.values, ctx, "values");
+  validateContextMatrixSize(data.formulas, ctx, "formulas");
   validateMatrixStringLengths(data.values, MAX_CONTEXT_CELL_TEXT_LENGTH, ctx, "values");
   validateMatrixStringLengths(data.formulas, MAX_CONTEXT_FORMULA_TEXT_LENGTH, ctx, "formulas");
 
