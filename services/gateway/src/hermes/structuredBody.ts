@@ -2358,6 +2358,44 @@ function normalizeExternalDataProvider(value: unknown): string | undefined {
     : undefined;
 }
 
+function normalizeExternalDataSourceType(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+
+  if (normalized === "market" || normalized === "market_data") {
+    return "market_data";
+  }
+
+  if (
+    normalized === "web" ||
+    normalized === "web_import" ||
+    normalized === "web_table" ||
+    normalized === "web_table_import"
+  ) {
+    return "web_table_import";
+  }
+
+  return undefined;
+}
+
+function normalizeExternalDataSelectorType(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return ["table", "list", "xpath", "direct"].includes(normalized)
+    ? normalized
+    : undefined;
+}
+
 function quoteSpreadsheetFormulaString(value: string): string {
   return `"${value.replace(/"/g, "\"\"")}"`;
 }
@@ -2453,6 +2491,16 @@ function normalizeExternalDataPlanData(value: unknown): unknown {
   const provider = normalizeExternalDataProvider(normalized.provider);
   if (provider) {
     normalized.provider = provider;
+  }
+
+  const sourceType = normalizeExternalDataSourceType(normalized.sourceType);
+  if (sourceType) {
+    normalized.sourceType = sourceType;
+  }
+
+  const selectorType = normalizeExternalDataSelectorType(normalized.selectorType);
+  if (selectorType) {
+    normalized.selectorType = selectorType;
   }
 
   if (!normalized.sourceType && provider === "googlefinance") {
