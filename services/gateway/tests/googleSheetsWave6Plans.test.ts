@@ -3588,6 +3588,191 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("attaches local undo snapshots for Google Sheets sheet rename writes", () => {
+    let sheetName = "OldName";
+    const sheet = {
+      getName: vi.fn(() => sheetName),
+      setName: vi.fn((nextName: string) => {
+        sheetName = nextName;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("OldName");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_rename_sheet_snapshot_sheets_001",
+      runId: "run_rename_sheet_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_rename_sheet_snapshot_sheets_001",
+      plan: {
+        operation: "rename_sheet",
+        sheetName: "OldName",
+        newSheetName: "NewName",
+        explanation: "Rename the staging sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(sheetName).toBe("NewName");
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "rename_sheet",
+      sheetName: "OldName",
+      newSheetName: "NewName",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_rename_sheet_snapshot_sheets_001",
+        kind: "workbook_structure",
+        operation: "rename_sheet",
+        before: {
+          exists: true,
+          name: "OldName"
+        },
+        after: {
+          exists: true,
+          name: "NewName"
+        }
+      }
+    });
+  });
+
+  it("passes Google Sheets sheet rename snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    const before = {
+      exists: true,
+      name: "OldName"
+    };
+    const after = {
+      exists: true,
+      name: "NewName"
+    };
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_rename_sheet_001"],
+      executions: {
+        exec_rename_sheet_001: {
+          baseExecutionId: "exec_rename_sheet_001"
+        }
+      },
+      bases: {
+        exec_rename_sheet_001: {
+          baseExecutionId: "exec_rename_sheet_001",
+          kind: "workbook_structure",
+          operation: "rename_sheet",
+          before,
+          after
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "workbook_structure_update",
+          operation: "rename_sheet",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_rename_sheet_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "workbook_structure",
+          operation: "rename_sheet",
+          from: after,
+          to: before
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "workbook_structure",
+          operation: "rename_sheet",
+          from: after,
+          to: before
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies Google Sheets sheet rename snapshots on the server", () => {
+    let sheetName = "NewName";
+    const sheet = {
+      getName: vi.fn(() => sheetName),
+      setName: vi.fn((nextName: string) => {
+        sheetName = nextName;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("NewName");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "rename_sheet",
+      from: {
+        exists: true,
+        name: "NewName"
+      },
+      to: {
+        exists: true,
+        name: "OldName"
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "rename_sheet"
+    });
+
+    expect(sheetName).toBe("OldName");
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("applies external data plans by anchoring a first-class formula into a single Google Sheets cell", () => {
     const targetRange = createRangeStub({
       a1Notation: "B2",

@@ -3936,6 +3936,32 @@ function createRangeFilterLocalExecutionSnapshot_(input) {
   };
 }
 
+function createWorkbookStructureRenameLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.beforeName ||
+    !input.afterName ||
+    input.beforeName === input.afterName
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'workbook_structure',
+    operation: 'rename_sheet',
+    before: {
+      exists: true,
+      name: input.beforeName
+    },
+    after: {
+      exists: true,
+      name: input.afterName
+    }
+  };
+}
+
 function createCompositeLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !Array.isArray(input.entries) || input.entries.length === 0) {
     return null;
@@ -4597,6 +4623,64 @@ function applyExecutionRangeFilterSnapshot_(input) {
   };
 }
 
+function assertWorkbookStructureRenameSnapshotState_(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== 'string' ||
+    state.name.trim().length === 0
+  ) {
+    throw new Error('That workbook structure history entry is no longer available in this sheet session.');
+  }
+}
+
+function resolveWorkbookStructureRenameSnapshotTransition_(input) {
+  if (!input || input.operation !== 'rename_sheet') {
+    throw new Error('That workbook structure history entry cannot be restored exactly.');
+  }
+
+  assertWorkbookStructureRenameSnapshotState_(input.from);
+  assertWorkbookStructureRenameSnapshotState_(input.to);
+
+  const spreadsheet = SpreadsheetApp.getActive();
+  const sheet = spreadsheet.getSheetByName(input.from.name);
+  if (!sheet) {
+    throw new Error('Target sheet not found: ' + input.from.name);
+  }
+
+  return {
+    sheet: sheet,
+    from: input.from,
+    to: input.to
+  };
+}
+
+function validateExecutionWorkbookStructureSnapshot_(input) {
+  const transition = resolveWorkbookStructureRenameSnapshotTransition_(input);
+  return {
+    ok: true,
+    operation: input.operation,
+    from: transition.from.name,
+    to: transition.to.name
+  };
+}
+
+function applyExecutionWorkbookStructureSnapshot_(input) {
+  const transition = resolveWorkbookStructureRenameSnapshotTransition_(input);
+  if (typeof transition.sheet.setName !== 'function') {
+    throw new Error('Google Sheets host cannot restore the saved sheet rename.');
+  }
+
+  transition.sheet.setName(transition.to.name);
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    operation: input.operation,
+    from: transition.from.name,
+    to: transition.to.name
+  };
+}
+
 function validateExecutionCellSnapshot(input) {
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
@@ -4612,6 +4696,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'range_filter') {
     return validateExecutionRangeFilterSnapshot_(input);
+  }
+
+  if (input && input.kind === 'workbook_structure') {
+    return validateExecutionWorkbookStructureSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -4639,6 +4727,10 @@ function applyExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'range_filter') {
     return applyExecutionRangeFilterSnapshot_(input);
+  }
+
+  if (input && input.kind === 'workbook_structure') {
+    return applyExecutionWorkbookStructureSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -4688,6 +4780,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'range_filter') {
     return validateExecutionRangeFilterSnapshot_(input);
+  }
+
+  if (input && input.kind === 'workbook_structure') {
+    return validateExecutionWorkbookStructureSnapshot_(input);
   }
 
   if (!input || typeof input !== 'object') {
@@ -6443,16 +6539,22 @@ function applyWritePlan(input) {
           throw new Error('Target sheet not found: ' + plan.sheetName);
         }
 
+        const beforeName = sheet.getName();
         sheet.setName(plan.newSheetName);
         SpreadsheetApp.flush();
-        return {
+        const afterName = sheet.getName();
+        return attachLocalExecutionSnapshot_({
           kind: 'workbook_structure_update',
           hostPlatform: 'google_sheets',
           sheetName: plan.sheetName,
           operation: plan.operation,
           newSheetName: sheet.getName(),
           summary: getWorkbookStructureStatusSummary_(plan)
-        };
+        }, createWorkbookStructureRenameLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          beforeName: beforeName,
+          afterName: afterName
+        }));
       }
       case 'duplicate_sheet': {
         const sourceSheet = spreadsheet.getSheetByName(plan.sheetName);
