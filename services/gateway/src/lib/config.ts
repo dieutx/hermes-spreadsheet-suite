@@ -122,7 +122,7 @@ export function getConfig(): GatewayConfig {
   }
 
   return {
-    port: Number(process.env.PORT ?? 8787),
+    port: parseRequiredPositiveIntegerEnv("PORT", process.env.PORT, 8787),
     environmentLabel: process.env.HERMES_ENVIRONMENT_LABEL ?? "local-dev",
     serviceLabel: process.env.HERMES_SERVICE_LABEL ?? "hermes-gateway-local",
     gatewayPublicBaseUrl,
