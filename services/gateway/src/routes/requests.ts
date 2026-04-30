@@ -21,6 +21,7 @@ const NULL_OPTIONAL_PATHS = new Set([
 ]);
 const REQUEST_STATUS_ID_MAX_LENGTH = 128;
 const MAX_REQUEST_ID_LENGTH = 128;
+const PUBLIC_REQUEST_STATUS_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
 
 function isObject(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null;
@@ -166,7 +167,11 @@ function parseRequiredStatusIdentifier(value: unknown): string | undefined {
   }
 
   const normalized = value.trim();
-  if (normalized.length === 0 || normalized.length > REQUEST_STATUS_ID_MAX_LENGTH) {
+  if (
+    normalized.length === 0 ||
+    normalized.length > REQUEST_STATUS_ID_MAX_LENGTH ||
+    !PUBLIC_REQUEST_STATUS_ID_PATTERN.test(normalized)
+  ) {
     return undefined;
   }
 
@@ -187,7 +192,10 @@ function parseOptionalStatusIdentifier(value: unknown): { ok: true; value?: stri
     return { ok: true };
   }
 
-  if (normalized.length > REQUEST_STATUS_ID_MAX_LENGTH) {
+  if (
+    normalized.length > REQUEST_STATUS_ID_MAX_LENGTH ||
+    !PUBLIC_REQUEST_STATUS_ID_PATTERN.test(normalized)
+  ) {
     return { ok: false };
   }
 
