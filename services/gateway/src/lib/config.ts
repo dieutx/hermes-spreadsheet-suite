@@ -46,11 +46,6 @@ function parseBooleanEnv(value: string | undefined): boolean {
   return value === "true" || value === "1";
 }
 
-function parsePositiveIntegerEnv(value: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 function parseRequiredPositiveIntegerEnv(name: string, value: string | undefined, fallback: number): number {
   const raw = String(value ?? fallback).trim();
   if (!/^[1-9]\d*$/.test(raw)) {
@@ -182,7 +177,8 @@ export function getConfig(): GatewayConfig {
       "http://127.0.0.1:8642/v1",
     hermesAgentApiKey: process.env.HERMES_API_SERVER_KEY ?? process.env.HERMES_AGENT_API_KEY,
     hermesAgentModel: process.env.HERMES_AGENT_MODEL ?? process.env.HERMES_AGENT_ID,
-    hermesAgentTimeoutMs: parsePositiveIntegerEnv(
+    hermesAgentTimeoutMs: parseRequiredPositiveIntegerEnv(
+      "HERMES_AGENT_TIMEOUT_MS",
       process.env.HERMES_AGENT_TIMEOUT_MS,
       DEFAULT_HERMES_AGENT_TIMEOUT_MS
     ),

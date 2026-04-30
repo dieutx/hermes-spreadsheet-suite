@@ -82,6 +82,14 @@ describe("gateway config", () => {
     });
   });
 
+  it("fails closed when the Hermes Agent timeout is invalid", () => {
+    for (const value of ["0", "-1", "not-a-number", "1.5"]) {
+      process.env.HERMES_AGENT_TIMEOUT_MS = value;
+
+      expect(() => getConfig()).toThrow("HERMES_AGENT_TIMEOUT_MS must be a positive integer.");
+    }
+  });
+
   it("uses the configured approval secret on a loopback gateway base url", () => {
     process.env.GATEWAY_PUBLIC_BASE_URL = "http://127.0.0.1:8787";
 
