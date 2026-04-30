@@ -794,6 +794,122 @@ describe("writeback confirmation flow", () => {
     });
   });
 
+  it("rejects oversized writeback approval identifiers at request validation", () => {
+    const traceBus = new TraceBus();
+    const longRequestId = `req_${"x".repeat(256)}`;
+    const longRunId = `run_${"x".repeat(256)}`;
+    const plan = {
+      sourceAttachmentId: "att_oversized_ids",
+      targetRange: "B4:C5",
+      targetSheet: "Sheet3",
+      headers: ["Region", "Revenue"],
+      values: [["North", 100]],
+      confidence: 0.94,
+      warnings: [],
+      requiresConfirmation: true,
+      extractionMode: "real" as const,
+      shape: {
+        rows: 2,
+        columns: 2
+      }
+    };
+
+    setRunResponse(traceBus, {
+      runId: longRunId,
+      requestId: longRequestId,
+      type: "sheet_import_plan",
+      traceEvent: "sheet_import_plan_ready",
+      plan
+    });
+
+    const response = invokeWritebackRoute({
+      traceBus,
+      path: "/approve",
+      body: {
+        requestId: longRequestId,
+        runId: longRunId,
+        plan
+      }
+    });
+
+    expectRouteError(
+      response,
+      400,
+      "INVALID_REQUEST",
+      "That writeback approval request is invalid."
+    );
+    expect((response.body as any).error.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: "requestId" }),
+        expect.objectContaining({ path: "runId" })
+      ])
+    );
+  });
+
+  it("rejects oversized writeback completion credentials at request validation", () => {
+    const traceBus = new TraceBus();
+    const plan = {
+      sourceAttachmentId: "att_oversized_credentials",
+      targetRange: "B4:C5",
+      targetSheet: "Sheet3",
+      headers: ["Region", "Revenue"],
+      values: [["North", 100]],
+      confidence: 0.94,
+      warnings: [],
+      requiresConfirmation: true,
+      extractionMode: "real" as const,
+      shape: {
+        rows: 2,
+        columns: 2
+      }
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_credential_bounds",
+      requestId: "req_credential_bounds",
+      type: "sheet_import_plan",
+      traceEvent: "sheet_import_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      path: "/approve",
+      body: {
+        requestId: "req_credential_bounds",
+        runId: "run_credential_bounds",
+        plan
+      }
+    });
+
+    expect(approval.status).toBe(200);
+
+    const response = invokeWritebackRoute({
+      traceBus,
+      path: "/complete",
+      body: {
+        requestId: "req_credential_bounds",
+        runId: "run_credential_bounds",
+        approvalToken: `tok_${"x".repeat(2048)}`,
+        planDigest: `digest_${"x".repeat(2048)}`,
+        result: buildRangeWriteResult(plan)
+      }
+    });
+
+    expectRouteError(
+      response,
+      400,
+      "INVALID_REQUEST",
+      "That writeback completion request is invalid."
+    );
+    expect((response.body as any).error.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: "approvalToken" }),
+        expect.objectContaining({ path: "planDigest" })
+      ])
+    );
+  });
+
   it("approves a preview plan and records the confirmed write application", async () => {
     const traceBus = new TraceBus();
     traceBus.ensureRun("run_1", "req_1");
