@@ -591,6 +591,35 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes range transfer aliases and required defaults before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_transfer_plan",
+      data: {
+        sourceSheet: "Raw",
+        sourceRange: "A1:B3",
+        targetSheet: "Archive",
+        targetRange: "D1:E3",
+        transferOperation: "copy",
+        pasteMode: "values",
+        explanation: "Copy the raw values into the archive.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "range_transfer_plan",
+      data: {
+        operation: "copy",
+        transpose: false,
+        affectedRanges: ["Raw!A1:B3", "Archive!D1:E3"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes table plans before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "table_plan",
