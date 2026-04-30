@@ -653,6 +653,43 @@ describe("request router", () => {
     expect((validRequestId.body as any).response?.data?.message).toBe("Done");
   });
 
+  it("rejects oversized request status route identifiers", async () => {
+    const { router } = createTestRouter();
+
+    const response = await invokeGet(router, `run_${"x".repeat(256)}`, {
+      requestId: "req_status_oversized"
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Run status identifiers are invalid.",
+        userAction: "Retry status polling from the current Hermes session."
+      }
+    });
+  });
+
+  it("rejects oversized request status identity query values", async () => {
+    const { router, traceBus } = createTestRouter();
+    traceBus.ensureRun("run_status_query_bounds", "req_status_query_bounds");
+    (traceBus.peekRun("run_status_query_bounds") as any).sessionId = "sess_status_query_bounds";
+
+    const response = await invokeGet(router, "run_status_query_bounds", {
+      requestId: `req_${"x".repeat(256)}`,
+      sessionId: `sess_${"x".repeat(256)}`
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Run status identifiers are invalid.",
+        userAction: "Retry status polling from the current Hermes session."
+      }
+    });
+  });
+
   it("can omit response trace from stored run payloads when includeTrace=0 is requested", async () => {
     const { router, traceBus } = createTestRouter();
     traceBus.setResponse("run_status_trimmed_001", {
