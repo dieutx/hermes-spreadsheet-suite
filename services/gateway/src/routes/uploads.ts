@@ -15,6 +15,8 @@ type UploadRouteErrorPayload = {
 
 const MAX_UPLOAD_SESSION_ID_LENGTH = 128;
 const MAX_UPLOAD_WORKBOOK_ID_LENGTH = 256;
+const UPLOAD_CONTENT_ATTACHMENT_ID_MAX_LENGTH = 128;
+const UPLOAD_CONTENT_TOKEN_MAX_LENGTH = 256;
 
 function matchesImageMimeType(
   buffer: Buffer,
@@ -92,6 +94,37 @@ function formatUploadRouterError(error: unknown, maxUploadBytes: number): {
 
 function getQueryString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function getBoundUploadContentString(value: unknown, maxLength: number): { ok: true; value?: string } | { ok: false } {
+  if (value === undefined) {
+    return { ok: true };
+  }
+
+  if (typeof value !== "string") {
+    return { ok: false };
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return { ok: true };
+  }
+
+  if (normalized.length > maxLength) {
+    return { ok: false };
+  }
+
+  return { ok: true, value: normalized };
+}
+
+function invalidUploadContentCredentials() {
+  return {
+    error: {
+      code: "INVALID_REQUEST",
+      message: "Upload content credentials are invalid.",
+      userAction: "Upload the file again if you still need it."
+    }
+  };
 }
 
 export function createUploadRouter(input: {
@@ -218,15 +251,25 @@ export function createUploadRouter(input: {
   });
 
   router.get("/:attachmentId/content", (req, res) => {
-    const attachment = input.attachmentStore.get(req.params.attachmentId);
-    const uploadToken = typeof req.query.uploadToken === "string"
-      ? req.query.uploadToken
-      : undefined;
+    const attachmentId = getBoundUploadContentString(
+      req.params.attachmentId,
+      UPLOAD_CONTENT_ATTACHMENT_ID_MAX_LENGTH
+    );
+    const uploadToken = getBoundUploadContentString(
+      req.query.uploadToken,
+      UPLOAD_CONTENT_TOKEN_MAX_LENGTH
+    );
+    if (!attachmentId.ok || !attachmentId.value || !uploadToken.ok) {
+      res.status(400).json(invalidUploadContentCredentials());
+      return;
+    }
+
+    const attachment = input.attachmentStore.get(attachmentId.value);
     const sessionId = getQueryString(req.query.sessionId);
     const workbookId = getQueryString(req.query.workbookId);
     if (
       !attachment ||
-      uploadToken !== attachment.metadata.uploadToken ||
+      uploadToken.value !== attachment.metadata.uploadToken ||
       (attachment.sessionId && sessionId !== attachment.sessionId) ||
       (attachment.workbookId && workbookId !== attachment.workbookId)
     ) {
