@@ -49,6 +49,9 @@ type ContractSafeErrorCode =
   | "INTERNAL_ERROR";
 const INVALID_HERMES_DEBUG_PREFIX = path.join(tmpdir(), "hermes-spreadsheet-invalid");
 const INTERNAL_ERROR_LANGUAGE_PATTERN = /\b(contract|schema|structured body|validation|json|payload|parse|parser|normaliz(?:e|ation))\b/i;
+const CLIENT_UNSAFE_INTERNAL_WORDING_PATTERN = /\b(?:contract schema|structured body|validation issue|parser error|raw json|raw payload|zod)\b/i;
+const CLIENT_UNSAFE_DIAGNOSTIC_PATTERN = /\b(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)\b|(?:^|\s)\/(?:root|srv|home|tmp)\/[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})[^\s]*/i;
+const SANITIZED_WARNING_MESSAGE = "A gateway warning was hidden because it contained internal diagnostic details.";
 const MAX_GATEWAY_RESPONSE_TRACE_EVENTS = 200;
 const DEFAULT_HERMES_AGENT_TIMEOUT_MS = 45_000;
 
@@ -67,6 +70,51 @@ function hasExplicitDemoWarning(warnings: Warning[] | undefined): boolean {
   return (warnings ?? []).some((warning) =>
     /demo/i.test(warning.code) || /demo/i.test(warning.message)
   );
+}
+
+function containsClientUnsafeDiagnostic(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  return CLIENT_UNSAFE_INTERNAL_WORDING_PATTERN.test(value) || CLIENT_UNSAFE_DIAGNOSTIC_PATTERN.test(value);
+}
+
+function sanitizeGatewayWarning(warning: Warning): Warning {
+  const codeUnsafe = containsClientUnsafeDiagnostic(warning.code);
+  const messageUnsafe = containsClientUnsafeDiagnostic(warning.message);
+  const fieldUnsafe = containsClientUnsafeDiagnostic(warning.field);
+  const sanitized: Warning = {
+    code: codeUnsafe ? "INTERNAL_WARNING" : warning.code,
+    message: codeUnsafe || messageUnsafe || fieldUnsafe
+      ? SANITIZED_WARNING_MESSAGE
+      : warning.message
+  };
+
+  if (warning.severity) {
+    sanitized.severity = warning.severity;
+  }
+
+  if (warning.field && !fieldUnsafe) {
+    sanitized.field = warning.field;
+  }
+
+  return sanitized;
+}
+
+function sanitizeGatewayWarnings(warnings: Warning[] | undefined): Warning[] {
+  return (warnings ?? []).map((warning) => sanitizeGatewayWarning(warning));
+}
+
+function sanitizeResponseDataWarnings<T>(data: T): T {
+  if (!isObject(data) || !Array.isArray(data.warnings)) {
+    return data;
+  }
+
+  return {
+    ...data,
+    warnings: sanitizeGatewayWarnings(data.warnings as Warning[])
+  } as T;
 }
 
 function getAssistantContent(payload: unknown): string | undefined {
@@ -724,7 +772,7 @@ export class HermesAgentClient {
       durationMs: Math.max(0, Date.parse(completedAt) - Date.parse(startedAt)),
       skillsUsed: input.baseEnvelope?.skillsUsed ?? [],
       downstreamProvider: input.baseEnvelope?.downstreamProvider ?? null,
-      warnings: input.baseEnvelope?.warnings ?? [],
+      warnings: sanitizeGatewayWarnings(input.baseEnvelope?.warnings),
       trace: this.capGatewayTrace(input.trace),
       ui: {
         displayMode: "error",
@@ -973,10 +1021,10 @@ export class HermesAgentClient {
       durationMs: Math.max(0, Date.parse(completedAt) - Date.parse(input.startedAt)),
       skillsUsed: input.body.skillsUsed ?? [],
       downstreamProvider: input.body.downstreamProvider ?? null,
-      warnings: input.body.warnings ?? [],
+      warnings: sanitizeGatewayWarnings(input.body.warnings),
       trace: this.buildResponseTrace(input.body.type, input.trace, completedAt),
       ui: this.buildUiContract(input.body),
-      data: input.body.data
+      data: sanitizeResponseDataWarnings(input.body.data)
     };
 
     return HermesResponseSchema.parse(envelope);
