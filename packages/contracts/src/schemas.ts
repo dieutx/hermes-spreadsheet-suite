@@ -485,7 +485,7 @@ const sheetStructureRowColumnOperationFields = {
 } satisfies z.ZodRawShape;
 
 const sheetStructureRangeOperationFields = {
-  targetRange: z.string().min(1).max(128)
+  targetRange: StrictA1RangeStringSchema
 } satisfies z.ZodRawShape;
 
 const sheetStructureFreezeOperationFields = {

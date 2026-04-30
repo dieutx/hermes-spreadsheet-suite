@@ -1137,6 +1137,20 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.targetRange).toBe("A1:C1");
   });
 
+  it("rejects malformed sheet structure target ranges", () => {
+    const parsed = SheetStructureUpdateDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      operation: "merge_cells",
+      targetRange: "title row",
+      explanation: "Merge the title row across the table.",
+      confidence: 0.89,
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects numeric formula cells in set_formulas updates", () => {
     const parsed = SheetUpdateDataSchema.safeParse({
       targetSheet: "Sheet1",
