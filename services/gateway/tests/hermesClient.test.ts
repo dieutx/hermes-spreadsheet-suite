@@ -2031,6 +2031,41 @@ describe("HermesAgentClient", () => {
     expect(JSON.stringify(response)).not.toContain("/root/hermes/provider.ts");
   });
 
+  it("bounds provider error text before returning gateway error responses", async () => {
+    process.env.HERMES_AGENT_BASE_URL = "http://agent.test/v1";
+    const client = new HermesAgentClient(getConfig());
+    const traceBus = new TraceBus();
+    const oversizedProviderMessage = "A".repeat(12001);
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: oversizedProviderMessage
+      }
+    }), {
+      status: 503,
+      headers: { "content-type": "application/json" }
+    })));
+
+    await client.processRequest({
+      runId: "run_provider_error_bound_001",
+      request: baseRequest({
+        requestId: "req_provider_error_bound_001",
+        userMessage: "Explain this workbook."
+      }),
+      traceBus
+    });
+
+    const response = traceBus.getRun("run_provider_error_bound_001")?.response;
+    expect(response?.type).toBe("error");
+    expect(response?.data).toMatchObject({
+      code: "PROVIDER_ERROR",
+      message: "The Hermes service couldn't complete that request right now.",
+      retryable: true,
+      userAction: "Retry the request after the remote Hermes Agent service recovers."
+    });
+    expect(JSON.stringify(response)).not.toContain(oversizedProviderMessage);
+  });
+
   it("sanitizes internal warning text before returning gateway envelopes", async () => {
     process.env.HERMES_AGENT_BASE_URL = "http://agent.test/v1";
     const client = new HermesAgentClient(getConfig());
