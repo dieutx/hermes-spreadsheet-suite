@@ -1145,6 +1145,135 @@ function createDataValidationLocalExecutionSnapshot({
   };
 }
 
+function normalizeExcelNamedRangeReference(reference) {
+  const resolvedReference = typeof reference === "string" ? reference.trim() : "";
+  return resolvedReference.length > 0 ? resolvedReference : undefined;
+}
+
+function readExcelNamedRangeSnapshotState(namedRange, fallbackName) {
+  if (!namedRange || namedRange.isNullObject === true) {
+    return {
+      exists: false,
+      name: fallbackName
+    };
+  }
+
+  const reference = normalizeExcelNamedRangeReference(namedRange.reference);
+  return {
+    exists: true,
+    name: typeof namedRange.name === "string" && namedRange.name.length > 0 ? namedRange.name : fallbackName,
+    ...(reference ? { reference } : {})
+  };
+}
+
+async function readExcelNamedRangeSnapshotStateForName(context, collection, name) {
+  if (!collection || !name) {
+    return null;
+  }
+
+  let namedRange;
+  if (typeof collection.getItemOrNullObject === "function") {
+    namedRange = collection.getItemOrNullObject(name);
+  } else if (typeof collection.getItem === "function") {
+    namedRange = collection.getItem(name);
+  }
+
+  if (!namedRange) {
+    return {
+      exists: false,
+      name
+    };
+  }
+
+  if (typeof namedRange.load === "function") {
+    namedRange.load(["name", "reference"]);
+    await context.sync();
+  }
+
+  return readExcelNamedRangeSnapshotState(namedRange, name);
+}
+
+async function createNamedRangeLocalExecutionSnapshot({
+  context,
+  collection,
+  executionId,
+  plan,
+  resolvedReference
+}) {
+  if (!executionId || !plan?.name || !plan?.scope) {
+    return null;
+  }
+
+  const normalizedReference = normalizeExcelNamedRangeReference(resolvedReference);
+  let before;
+  let after;
+
+  switch (plan.operation) {
+    case "create":
+      if (!normalizedReference) {
+        return null;
+      }
+      before = {
+        exists: false,
+        name: plan.name
+      };
+      after = {
+        exists: true,
+        name: plan.name,
+        reference: normalizedReference
+      };
+      break;
+    case "retarget":
+      if (!normalizedReference) {
+        return null;
+      }
+      before = await readExcelNamedRangeSnapshotStateForName(context, collection, plan.name);
+      if (!before?.exists || !before.reference) {
+        return null;
+      }
+      after = {
+        exists: true,
+        name: before.name || plan.name,
+        reference: normalizedReference
+      };
+      break;
+    case "rename":
+      before = await readExcelNamedRangeSnapshotStateForName(context, collection, plan.name);
+      if (!before?.exists || !before.reference || !plan.newName) {
+        return null;
+      }
+      after = {
+        exists: true,
+        name: plan.newName,
+        reference: before.reference
+      };
+      break;
+    case "delete":
+      before = await readExcelNamedRangeSnapshotStateForName(context, collection, plan.name);
+      if (!before?.exists || !before.reference) {
+        return null;
+      }
+      after = {
+        exists: false,
+        name: before.name || plan.name
+      };
+      break;
+    default:
+      return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "named_range",
+    scope: plan.scope,
+    ...(plan.scope === "sheet" && (plan.sheetName || plan.targetSheet)
+      ? { sheetName: plan.sheetName || plan.targetSheet }
+      : {}),
+    before,
+    after
+  };
+}
+
 function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
   if (!executionId || !Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -1166,6 +1295,10 @@ function isRangeFormatLocalExecutionSnapshot(snapshot) {
 
 function isDataValidationLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "data_validation";
+}
+
+function isNamedRangeLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "named_range";
 }
 
 function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
@@ -1515,6 +1648,142 @@ async function validateDataValidationLocalExecutionSnapshotForMode(snapshot, mod
   });
 }
 
+function getNamedRangeSnapshotTransitionForMode(snapshot, mode) {
+  return mode === "undo"
+    ? {
+      from: snapshot?.after,
+      to: snapshot?.before
+    }
+    : {
+      from: snapshot?.before,
+      to: snapshot?.after
+    };
+}
+
+function assertNamedRangeSnapshotState(state) {
+  if (!state || typeof state.name !== "string" || state.name.length === 0) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  if (state.exists === true && !normalizeExcelNamedRangeReference(state.reference)) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
+function getNamedRangeCollectionForSnapshot(context, snapshot) {
+  if (!snapshot || (snapshot.scope !== "workbook" && snapshot.scope !== "sheet")) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  if (snapshot.scope === "sheet") {
+    if (!snapshot.sheetName) {
+      throw new Error("That history entry is no longer available in this spreadsheet session.");
+    }
+
+    const worksheet = context.workbook.worksheets.getItem(snapshot.sheetName);
+    if (!worksheet?.names) {
+      throw new Error("Excel host does not support named ranges on this scope.");
+    }
+    return worksheet.names;
+  }
+
+  if (!context.workbook.names) {
+    throw new Error("Excel host does not support named ranges on this scope.");
+  }
+  return context.workbook.names;
+}
+
+async function resolveExcelNamedRangeForSnapshotRestore(context, collection, name) {
+  if (!collection || !name) {
+    return undefined;
+  }
+
+  let namedRange;
+  if (typeof collection.getItemOrNullObject === "function") {
+    namedRange = collection.getItemOrNullObject(name);
+  } else if (typeof collection.getItem === "function") {
+    namedRange = collection.getItem(name);
+  }
+
+  if (!namedRange) {
+    return undefined;
+  }
+
+  if (typeof namedRange.load === "function") {
+    namedRange.load(["name", "reference"]);
+    await context.sync();
+  }
+
+  return namedRange.isNullObject === true ? undefined : namedRange;
+}
+
+async function applyNamedRangeSnapshotTransition(context, collection, from, to) {
+  assertNamedRangeSnapshotState(from);
+  assertNamedRangeSnapshotState(to);
+
+  if (from.exists === false && to.exists === false) {
+    return;
+  }
+
+  if (from.exists === false && to.exists === true) {
+    if (typeof collection.add !== "function") {
+      throw new Error("Excel host does not support creating named ranges on this scope.");
+    }
+
+    collection.add(to.name, to.reference);
+    return;
+  }
+
+  const namedRange = await resolveExcelNamedRangeForSnapshotRestore(context, collection, from.name);
+  if (!namedRange) {
+    throw new Error(`Named range not found: ${from.name}`);
+  }
+
+  if (from.exists === true && to.exists === false) {
+    if (typeof namedRange.delete !== "function") {
+      throw new Error("Excel host does not support deleting named ranges on this scope.");
+    }
+
+    namedRange.delete();
+    return;
+  }
+
+  if (from.name !== to.name) {
+    namedRange.name = to.name;
+  }
+
+  if (normalizeExcelNamedRangeReference(namedRange.reference) !== normalizeExcelNamedRangeReference(to.reference)) {
+    namedRange.reference = to.reference;
+  }
+}
+
+async function restoreNamedRangeLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getNamedRangeSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const collection = getNamedRangeCollectionForSnapshot(context, snapshot);
+    await applyNamedRangeSnapshotTransition(context, collection, transition.from, transition.to);
+    await context.sync();
+  });
+}
+
+async function validateNamedRangeLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getNamedRangeSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const collection = getNamedRangeCollectionForSnapshot(context, snapshot);
+    assertNamedRangeSnapshotState(transition.from);
+    assertNamedRangeSnapshotState(transition.to);
+
+    if (transition.from.exists === true) {
+      const namedRange = await resolveExcelNamedRangeForSnapshotRestore(context, collection, transition.from.name);
+      if (!namedRange) {
+        throw new Error(`Named range not found: ${transition.from.name}`);
+      }
+    }
+  });
+}
+
 async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
   if (isCompositeLocalExecutionSnapshot(snapshot)) {
     for (const entry of getLocalExecutionSnapshotEntriesForMode(snapshot, mode)) {
@@ -1529,6 +1798,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isDataValidationLocalExecutionSnapshot(snapshot)) {
     return restoreDataValidationLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isNamedRangeLocalExecutionSnapshot(snapshot)) {
+    return restoreNamedRangeLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -1587,6 +1860,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isDataValidationLocalExecutionSnapshot(snapshot)) {
     return validateDataValidationLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isNamedRangeLocalExecutionSnapshot(snapshot)) {
+    return validateNamedRangeLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -8548,6 +8825,15 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         await assertExcelNamedRangeCreateDoesNotCollide(context, namedRangeCollection, plan.name);
       }
       const target = plan.targetRange && worksheet ? worksheet.getRange(plan.targetRange) : undefined;
+      const resolvedReference = target?.address ||
+        (namedRangeWorksheetName && plan.targetRange ? `${namedRangeWorksheetName}!${plan.targetRange}` : "");
+      const localSnapshot = await createNamedRangeLocalExecutionSnapshot({
+        context,
+        collection: namedRangeCollection,
+        executionId,
+        plan,
+        resolvedReference
+      });
       await applyExcelNamedRangeUpdate(
         context,
         context.workbook,
@@ -8556,12 +8842,12 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         target || { address: namedRangeWorksheetName && plan.targetRange ? `${namedRangeWorksheetName}!${plan.targetRange}` : "" }
       );
       await context.sync();
-      return {
+      return attachLocalExecutionSnapshot({
         kind: "named_range_update",
         hostPlatform: platform,
         ...plan,
         summary: getNamedRangeStatusSummary(plan)
-      };
+      }, localSnapshot);
     }
 
     if (isRangeTransferPlan(plan)) {
