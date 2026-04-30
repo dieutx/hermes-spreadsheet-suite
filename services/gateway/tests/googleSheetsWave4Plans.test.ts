@@ -803,6 +803,125 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).not.toHaveBeenCalled();
   });
 
+  it("attaches composite undo snapshots for Google Sheets value move transfers", () => {
+    const sourceRange = createRangeStub({
+      a1Notation: "A2:B3",
+      row: 2,
+      column: 1,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["Ada", "Lovelace"],
+        ["Grace", "Hopper"]
+      ]
+    });
+    const targetRange = createRangeStub({
+      a1Notation: "D5:E6",
+      row: 5,
+      column: 4,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["Old", "Target"],
+        ["Keep", "Safe"]
+      ]
+    });
+
+    const sourceSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("A2:B3");
+        return sourceRange;
+      })
+    };
+    const targetSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("D5:E6");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return sourceSheet;
+        }
+
+        expect(sheetName).toBe("Archive");
+        return targetSheet;
+      })
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Archive",
+        targetRange: "D5:E6",
+        operation: "move",
+        pasteMode: "values",
+        transpose: false,
+        explanation: "Move finalized rows into the archive block.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Archive!D5:E6"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      executionId: "exec_range_transfer_move_undo_sheets_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      hostPlatform: "google_sheets",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Archive",
+      targetRange: "D5:E6",
+      transferOperation: "move",
+      pasteMode: "values",
+      transpose: false,
+      summary: "Moved RawData!A2:B3 to Archive!D5:E6.",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_move_undo_sheets_001",
+        entries: [
+          {
+            baseExecutionId: "exec_range_transfer_move_undo_sheets_001",
+            targetSheet: "RawData",
+            targetRange: "A2:B3",
+            beforeCells: [
+              [{ kind: "value", value: { type: "string", value: "Ada" } }, { kind: "value", value: { type: "string", value: "Lovelace" } }],
+              [{ kind: "value", value: { type: "string", value: "Grace" } }, { kind: "value", value: { type: "string", value: "Hopper" } }]
+            ],
+            afterCells: [
+              [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }],
+              [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+            ]
+          },
+          {
+            baseExecutionId: "exec_range_transfer_move_undo_sheets_001",
+            targetSheet: "Archive",
+            targetRange: "D5:E6",
+            beforeCells: [
+              [{ kind: "value", value: { type: "string", value: "Old" } }, { kind: "value", value: { type: "string", value: "Target" } }],
+              [{ kind: "value", value: { type: "string", value: "Keep" } }, { kind: "value", value: { type: "string", value: "Safe" } }]
+            ],
+            afterCells: [
+              [{ kind: "value", value: { type: "string", value: "Ada" } }, { kind: "value", value: { type: "string", value: "Lovelace" } }],
+              [{ kind: "value", value: { type: "string", value: "Grace" } }, { kind: "value", value: { type: "string", value: "Hopper" } }]
+            ]
+          }
+        ]
+      }
+    });
+    expect(targetRange.setValues).toHaveBeenCalledWith([
+      ["Ada", "Lovelace"],
+      ["Grace", "Hopper"]
+    ]);
+    expect(sourceRange.clearContent).toHaveBeenCalledTimes(1);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
   it("uses Google Sheets copy semantics for formula-mode transfers so relative references can rebase", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:C3",
