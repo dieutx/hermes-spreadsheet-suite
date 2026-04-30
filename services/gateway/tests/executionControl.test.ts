@@ -209,6 +209,78 @@ describe("execution control routes", () => {
     });
   });
 
+  it("rejects unsafe execution-control identifiers before returning dry-run, history, undo, or redo payloads", () => {
+    const unsafeWorkbookSessionKey = "excel_windows::APPROVAL_SECRET=secret";
+
+    const dryRun = invokeExecutionRoute({
+      path: "/dry-run",
+      method: "post",
+      body: buildDryRunBody({
+        workbookSessionKey: unsafeWorkbookSessionKey
+      })
+    });
+    expect(dryRun.status).toBe(400);
+    expect(dryRun.body).toMatchObject({
+      error: {
+        code: "INVALID_REQUEST"
+      }
+    });
+    expect(JSON.stringify(dryRun.body)).not.toContain("APPROVAL_SECRET");
+    expect(JSON.stringify(dryRun.body)).not.toContain("secret");
+
+    const history = invokeExecutionRoute({
+      path: "/history",
+      method: "get",
+      query: {
+        workbookSessionKey: unsafeWorkbookSessionKey
+      }
+    });
+    expect(history.status).toBe(400);
+    expect(history.body).toMatchObject({
+      error: {
+        code: "INVALID_REQUEST"
+      }
+    });
+    expect(JSON.stringify(history.body)).not.toContain("APPROVAL_SECRET");
+    expect(JSON.stringify(history.body)).not.toContain("secret");
+
+    const undo = invokeExecutionRoute({
+      path: "/undo",
+      method: "post",
+      body: {
+        requestId: "req_undo_001",
+        workbookSessionKey: unsafeWorkbookSessionKey,
+        executionId: "exec_001"
+      }
+    });
+    expect(undo.status).toBe(400);
+    expect(undo.body).toMatchObject({
+      error: {
+        code: "INVALID_REQUEST"
+      }
+    });
+    expect(JSON.stringify(undo.body)).not.toContain("APPROVAL_SECRET");
+    expect(JSON.stringify(undo.body)).not.toContain("secret");
+
+    const redo = invokeExecutionRoute({
+      path: "/redo",
+      method: "post",
+      body: {
+        requestId: "req_redo_001",
+        workbookSessionKey: unsafeWorkbookSessionKey,
+        executionId: "exec_001"
+      }
+    });
+    expect(redo.status).toBe(400);
+    expect(redo.body).toMatchObject({
+      error: {
+        code: "INVALID_REQUEST"
+      }
+    });
+    expect(JSON.stringify(redo.body)).not.toContain("APPROVAL_SECRET");
+    expect(JSON.stringify(redo.body)).not.toContain("secret");
+  });
+
   it("rejects history cursors that exceed safe integer bounds", () => {
     const history = invokeExecutionRoute({
       path: "/history",

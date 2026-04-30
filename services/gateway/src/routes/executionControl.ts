@@ -16,11 +16,23 @@ import {
 import { normalizeCompositePlanForDigest } from "../lib/planNormalization.js";
 import { formatClientIssuePath, sanitizeClientIssueMessage } from "../lib/publicErrors.js";
 
+const PUBLIC_EXECUTION_IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]+$/;
+const UNSAFE_EXECUTION_IDENTIFIER_MESSAGE = "Identifier contains unsupported characters.";
+const executionIdentifierSchema = (max: number) =>
+  z.string()
+    .min(1)
+    .max(max)
+    .regex(PUBLIC_EXECUTION_IDENTIFIER_PATTERN, {
+      message: UNSAFE_EXECUTION_IDENTIFIER_MESSAGE
+    });
+const RequestIdentifierSchema = executionIdentifierSchema(128);
+const WorkbookSessionKeySchema = executionIdentifierSchema(256);
+
 const DryRunRequestSchema = z.object({
-  requestId: z.string().min(1).max(128),
-  runId: z.string().min(1).max(128),
-  sessionId: z.string().min(1).max(128).optional(),
-  workbookSessionKey: z.string().min(1).max(256).optional(),
+  requestId: RequestIdentifierSchema,
+  runId: RequestIdentifierSchema,
+  sessionId: RequestIdentifierSchema.optional(),
+  workbookSessionKey: WorkbookSessionKeySchema.optional(),
   plan: CompositePlanDataSchema
 });
 
@@ -33,10 +45,45 @@ const HistoryCursorSchema = z.string()
   });
 
 const HistoryQuerySchema = z.object({
-  workbookSessionKey: z.string().min(1).max(256),
-  sessionId: z.string().min(1).max(128).optional(),
+  workbookSessionKey: WorkbookSessionKeySchema,
+  sessionId: RequestIdentifierSchema.optional(),
   cursor: HistoryCursorSchema.optional(),
   limit: z.coerce.number().int().positive().max(100).optional()
+});
+
+function addUnsafeIdentifierIssue(
+  ctx: z.RefinementCtx,
+  path: Array<string | number>
+): void {
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path,
+    message: UNSAFE_EXECUTION_IDENTIFIER_MESSAGE
+  });
+}
+
+function validateRouteIdentifier(
+  value: string | undefined,
+  ctx: z.RefinementCtx,
+  path: Array<string | number>
+): void {
+  if (value !== undefined && !PUBLIC_EXECUTION_IDENTIFIER_PATTERN.test(value)) {
+    addUnsafeIdentifierIssue(ctx, path);
+  }
+}
+
+const UndoRouteRequestSchema = UndoRequestSchema.superRefine((data, ctx) => {
+  validateRouteIdentifier(data.requestId, ctx, ["requestId"]);
+  validateRouteIdentifier(data.executionId, ctx, ["executionId"]);
+  validateRouteIdentifier(data.workbookSessionKey, ctx, ["workbookSessionKey"]);
+  validateRouteIdentifier(data.sessionId, ctx, ["sessionId"]);
+});
+
+const RedoRouteRequestSchema = RedoRequestSchema.superRefine((data, ctx) => {
+  validateRouteIdentifier(data.requestId, ctx, ["requestId"]);
+  validateRouteIdentifier(data.executionId, ctx, ["executionId"]);
+  validateRouteIdentifier(data.workbookSessionKey, ctx, ["workbookSessionKey"]);
+  validateRouteIdentifier(data.sessionId, ctx, ["sessionId"]);
 });
 
 type RouteErrorPayload = {
@@ -223,7 +270,7 @@ export function createExecutionControlRouter(input: {
 
   router.post("/undo", (req, res) => {
     try {
-      const parsed = UndoRequestSchema.parse(req.body);
+      const parsed = UndoRouteRequestSchema.parse(req.body);
       res.json(input.executionLedger.undoExecution(parsed));
     } catch (error) {
       const formatted = formatExecutionControlError(error);
@@ -233,7 +280,7 @@ export function createExecutionControlRouter(input: {
 
   router.post("/undo/prepare", (req, res) => {
     try {
-      const parsed = UndoRequestSchema.parse(req.body);
+      const parsed = UndoRouteRequestSchema.parse(req.body);
       res.json(input.executionLedger.prepareUndoExecution(parsed));
     } catch (error) {
       const formatted = formatExecutionControlError(error);
@@ -243,7 +290,7 @@ export function createExecutionControlRouter(input: {
 
   router.post("/redo", (req, res) => {
     try {
-      const parsed = RedoRequestSchema.parse(req.body);
+      const parsed = RedoRouteRequestSchema.parse(req.body);
       res.json(input.executionLedger.redoExecution(parsed));
     } catch (error) {
       const formatted = formatExecutionControlError(error);
@@ -253,7 +300,7 @@ export function createExecutionControlRouter(input: {
 
   router.post("/redo/prepare", (req, res) => {
     try {
-      const parsed = RedoRequestSchema.parse(req.body);
+      const parsed = RedoRouteRequestSchema.parse(req.body);
       res.json(input.executionLedger.prepareRedoExecution(parsed));
     } catch (error) {
       const formatted = formatExecutionControlError(error);
