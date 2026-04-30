@@ -4112,6 +4112,110 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("attaches local undo snapshots for Google Sheets sheet create writes", () => {
+    const existingSheet = {
+      getName: vi.fn(() => "Sheet1"),
+      getIndex: vi.fn(() => sheets.indexOf(existingSheet) + 1)
+    };
+    const createdSheet = {
+      getName: vi.fn(() => "Staging"),
+      getIndex: vi.fn(() => sheets.indexOf(createdSheet) + 1)
+    };
+    const sheets = [existingSheet];
+    const spreadsheet = {
+      getSheets: vi.fn(() => sheets),
+      insertSheet: vi.fn((name: string, position: number) => {
+        expect(name).toBe("Staging");
+        sheets.splice(position, 0, createdSheet);
+        return createdSheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_create_sheet_snapshot_sheets_001",
+      runId: "run_create_sheet_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_create_sheet_snapshot_sheets_001",
+      plan: {
+        operation: "create_sheet",
+        sheetName: "Staging",
+        position: 0,
+        explanation: "Create a staging sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(sheets.map((sheet) => sheet.getName())).toEqual(["Staging", "Sheet1"]);
+    expect(spreadsheet.insertSheet).toHaveBeenCalledWith("Staging", 0);
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "create_sheet",
+      sheetName: "Staging",
+      positionResolved: 0,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_create_sheet_snapshot_sheets_001",
+        kind: "workbook_structure",
+        operation: "create_sheet",
+        before: {
+          exists: false,
+          name: "Staging"
+        },
+        after: {
+          exists: true,
+          name: "Staging",
+          position: 0
+        }
+      }
+    });
+  });
+
+  it("applies Google Sheets sheet create snapshots on the server", () => {
+    const createdSheet = {
+      getName: vi.fn(() => "Staging"),
+      getIndex: vi.fn(() => sheets.indexOf(createdSheet) + 1)
+    };
+    const otherSheet = {
+      getName: vi.fn(() => "Sheet1"),
+      getIndex: vi.fn(() => sheets.indexOf(otherSheet) + 1)
+    };
+    const sheets = [createdSheet, otherSheet];
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Staging");
+        return createdSheet;
+      }),
+      deleteSheet: vi.fn((sheet: typeof createdSheet) => {
+        const index = sheets.indexOf(sheet);
+        sheets.splice(index, 1);
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "create_sheet",
+      from: {
+        exists: true,
+        name: "Staging",
+        position: 0
+      },
+      to: {
+        exists: false,
+        name: "Staging"
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "create_sheet"
+    });
+
+    expect(sheets.map((sheet) => sheet.getName())).toEqual(["Sheet1"]);
+    expect(spreadsheet.deleteSheet).toHaveBeenCalledWith(createdSheet);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("applies external data plans by anchoring a first-class formula into a single Google Sheets cell", () => {
     const targetRange = createRangeStub({
       a1Notation: "B2",
