@@ -2742,9 +2742,9 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       numRows: 50,
       numColumns: 6
     });
-    targetRange.applyRowBanding = vi.fn();
-    targetRange.applyColumnBanding = vi.fn();
-    targetRange.createFilter = vi.fn();
+    targetRange.applyRowBanding = undefined;
+    targetRange.applyColumnBanding = undefined;
+    targetRange.createFilter = undefined;
     const sheet = {
       getRange: vi.fn((rangeA1: string) => {
         expect(rangeA1).toBe("A1:F50");
@@ -2791,9 +2791,6 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       name: "SalesTable",
       hasHeaders: true
     });
-    expect(targetRange.applyRowBanding).not.toHaveBeenCalled();
-    expect(targetRange.applyColumnBanding).not.toHaveBeenCalled();
-    expect(targetRange.createFilter).not.toHaveBeenCalled();
     expect(spreadsheet.setNamedRange).toHaveBeenCalledWith("SalesTable", targetRange);
     expect(code.flush).toHaveBeenCalled();
   });

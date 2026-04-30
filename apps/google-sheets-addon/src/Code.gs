@@ -1889,7 +1889,7 @@ function preflightGoogleSheetsTablePlanExecution_(spreadsheet, targetRange, plan
     throw new Error('Google Sheets host does not support exact table-like range naming.');
   }
 
-  if (plan.showBandedRows !== false && typeof targetRange.applyRowBanding !== 'function') {
+  if (plan.showBandedRows === true && typeof targetRange.applyRowBanding !== 'function') {
     throw new Error('Google Sheets host does not support exact table-like row banding.');
   }
 
@@ -1897,7 +1897,7 @@ function preflightGoogleSheetsTablePlanExecution_(spreadsheet, targetRange, plan
     throw new Error('Google Sheets host does not support exact table-like column banding.');
   }
 
-  if (plan.showFilterButton !== false && typeof targetRange.createFilter !== 'function') {
+  if (plan.showFilterButton === true && typeof targetRange.createFilter !== 'function') {
     throw new Error('Google Sheets host does not support exact table-like filter buttons.');
   }
 }
