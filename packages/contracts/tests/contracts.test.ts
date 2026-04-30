@@ -2282,6 +2282,22 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects list validation plans with invalid sourceRange", () => {
+    const parsed = DataValidationPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      ruleType: "list",
+      sourceRange: "status options",
+      allowBlank: false,
+      invalidDataBehavior: "reject",
+      explanation: "Invalid dropdown source range string.",
+      confidence: 0.61,
+      requiresConfirmation: true
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects date validation plans with invalid date literals", () => {
     const parsed = DataValidationPlanDataSchema.safeParse({
       targetSheet: "Sheet1",
