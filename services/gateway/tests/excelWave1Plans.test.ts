@@ -367,7 +367,7 @@ describe("Excel wave 1 plan helpers", () => {
       getSort: () => sortApi
     };
     const worksheet = {
-      getRange: vi.fn(() => targetRange),
+      getRange: vi.fn((address?: string) => address === "5:6" ? insertedRows : targetRange),
       getRangeByIndexes: vi.fn(() => insertedRows),
       autoFilter: filterApi
     };
@@ -537,6 +537,88 @@ describe("Excel wave 1 plan helpers", () => {
       1,
       { filterOn: "custom", criterion1: ">5" }
     );
+  });
+
+  it("uses full row and column address ranges for Excel sheet structure mutations", async () => {
+    const rowRange = { insert: vi.fn() };
+    const columnRange = { delete: vi.fn() };
+    const indexedRange = {
+      insert: vi.fn(),
+      delete: vi.fn()
+    };
+    const worksheet = {
+      getRange: vi.fn((address: string) => {
+        if (address === "5:6") {
+          return rowRange;
+        }
+
+        if (address === "B:D") {
+          return columnRange;
+        }
+
+        throw new Error(`Unexpected Excel range address: ${address}`);
+      }),
+      getRangeByIndexes: vi.fn(() => indexedRange)
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        operation: "insert_rows",
+        startIndex: 4,
+        count: 2,
+        explanation: "Insert two full worksheet rows.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_insert_full_rows_excel_001",
+      runId: "run_insert_full_rows_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "insert_rows",
+      startIndex: 4,
+      count: 2
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        operation: "delete_columns",
+        startIndex: 1,
+        count: 3,
+        explanation: "Delete three full worksheet columns.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_delete_full_columns_excel_001",
+      runId: "run_delete_full_columns_excel_001",
+      approvalToken: "token"
+    })).resolves.toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "delete_columns",
+      startIndex: 1,
+      count: 3
+    });
+
+    expect(worksheet.getRange).toHaveBeenCalledWith("5:6");
+    expect(worksheet.getRange).toHaveBeenCalledWith("B:D");
+    expect(rowRange.insert).toHaveBeenCalledWith("down");
+    expect(columnRange.delete).toHaveBeenCalledWith("left");
+    expect(worksheet.getRangeByIndexes).not.toHaveBeenCalled();
+    expect(indexedRange.insert).not.toHaveBeenCalled();
+    expect(indexedRange.delete).not.toHaveBeenCalled();
   });
 
   it("fails closed when Excel cannot expose freeze pane operations", async () => {

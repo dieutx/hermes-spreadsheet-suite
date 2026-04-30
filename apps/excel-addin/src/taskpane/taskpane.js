@@ -3368,6 +3368,30 @@ function buildA1RangeFromBounds(bounds) {
   return startCell === endCell ? startCell : `${startCell}:${endCell}`;
 }
 
+function buildExcelFullRowOrColumnAddress(startIndex, count, isRowOperation) {
+  const start = Number(startIndex) + 1;
+  const span = Number(count);
+
+  if (!Number.isInteger(start) || !Number.isInteger(span) || start < 1 || span < 1) {
+    throw new Error("Sheet structure row or column operation requires a valid startIndex and count.");
+  }
+
+  const end = start + span - 1;
+  if (isRowOperation) {
+    return `${start}:${end}`;
+  }
+
+  return `${columnNumberToLetters(start)}:${columnNumberToLetters(end)}`;
+}
+
+function getExcelFullRowOrColumnRange(sheet, plan, isRowOperation) {
+  if (typeof sheet.getRange !== "function") {
+    throw new Error("Excel host does not support full row or column sheet structure ranges.");
+  }
+
+  return sheet.getRange(buildExcelFullRowOrColumnAddress(plan.startIndex, plan.count, isRowOperation));
+}
+
 function buildSizedA1RangeFromAnchor(anchorRange, rowCount, columnCount) {
   const bounds = parseA1RangeReference(anchorRange);
   return buildA1RangeFromBounds({
@@ -7470,46 +7494,45 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
 
     if (isSheetStructurePlan(plan)) {
       const sheet = worksheets.getItem(plan.targetSheet);
-      const getIndexedRange = (isRowOperation) => isRowOperation
-        ? sheet.getRangeByIndexes(plan.startIndex, 0, plan.count, 1)
-        : sheet.getRangeByIndexes(0, plan.startIndex, 1, plan.count);
+      const getDimensionRange = (isRowOperation) =>
+        getExcelFullRowOrColumnRange(sheet, plan, isRowOperation);
 
       switch (plan.operation) {
         case "insert_rows":
-          getIndexedRange(true).insert(Excel.InsertShiftDirection.down);
+          getDimensionRange(true).insert(Excel.InsertShiftDirection.down);
           break;
         case "delete_rows":
-          getIndexedRange(true).delete(Excel.DeleteShiftDirection.up);
+          getDimensionRange(true).delete(Excel.DeleteShiftDirection.up);
           break;
         case "hide_rows":
-          getIndexedRange(true).rowHidden = true;
+          getDimensionRange(true).rowHidden = true;
           break;
         case "unhide_rows":
-          getIndexedRange(true).rowHidden = false;
+          getDimensionRange(true).rowHidden = false;
           break;
         case "group_rows":
-          getIndexedRange(true).group(Excel.GroupOption.byRows);
+          getDimensionRange(true).group(Excel.GroupOption.byRows);
           break;
         case "ungroup_rows":
-          getIndexedRange(true).ungroup(Excel.GroupOption.byRows);
+          getDimensionRange(true).ungroup(Excel.GroupOption.byRows);
           break;
         case "insert_columns":
-          getIndexedRange(false).insert(Excel.InsertShiftDirection.right);
+          getDimensionRange(false).insert(Excel.InsertShiftDirection.right);
           break;
         case "delete_columns":
-          getIndexedRange(false).delete(Excel.DeleteShiftDirection.left);
+          getDimensionRange(false).delete(Excel.DeleteShiftDirection.left);
           break;
         case "hide_columns":
-          getIndexedRange(false).columnHidden = true;
+          getDimensionRange(false).columnHidden = true;
           break;
         case "unhide_columns":
-          getIndexedRange(false).columnHidden = false;
+          getDimensionRange(false).columnHidden = false;
           break;
         case "group_columns":
-          getIndexedRange(false).group(Excel.GroupOption.byColumns);
+          getDimensionRange(false).group(Excel.GroupOption.byColumns);
           break;
         case "ungroup_columns":
-          getIndexedRange(false).ungroup(Excel.GroupOption.byColumns);
+          getDimensionRange(false).ungroup(Excel.GroupOption.byColumns);
           break;
         case "merge_cells":
           sheet.getRange(plan.targetRange).merge(false);
