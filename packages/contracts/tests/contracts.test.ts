@@ -7,6 +7,7 @@ import {
   DryRunResultSchema,
   DataValidationPlanDataSchema,
   ConditionalFormatPlanDataSchema,
+  ConditionalFormatUpdateDataSchema,
   DataCleanupPlanDataSchema,
   DataCleanupPlanResponseSchema,
   DataCleanupUpdateDataSchema,
@@ -21,6 +22,7 @@ import {
   RangeTransferPlanDataSchema,
   RangeTransferPlanResponseSchema,
   RangeFilterPlanDataSchema,
+  RangeFormatUpdateDataSchema,
   RangeSortPlanDataSchema,
   RedoRequestSchema,
   PivotTablePlanDataSchema,
@@ -1851,6 +1853,22 @@ describe("Hermes spreadsheet contracts", () => {
     expect((parsed.data as any).format.border.outer.style).toBe("solid");
   });
 
+  it("rejects malformed static range format target ranges", () => {
+    const parsed = RangeFormatUpdateDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "selected range",
+      format: {
+        bold: true
+      },
+      explanation: "Apply bold formatting.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      overwriteRisk: "low"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a replace-all single-color conditional format plan", () => {
     const parsed = ConditionalFormatPlanDataSchema.parse({
       targetSheet: "Sheet1",
@@ -1934,6 +1952,36 @@ describe("Hermes spreadsheet contracts", () => {
     });
 
     expect(parsed.points).toHaveLength(3);
+  });
+
+  it("rejects malformed conditional format target ranges", () => {
+    const plan = ConditionalFormatPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "current selection",
+      managementMode: "add",
+      ruleType: "number_compare",
+      comparator: "greater_than",
+      value: 10,
+      style: {
+        backgroundColor: "#ffdddd"
+      },
+      explanation: "Highlight values above 10.",
+      confidence: 0.96,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:B20"],
+      replacesExistingRules: false
+    });
+
+    const update = ConditionalFormatUpdateDataSchema.safeParse({
+      operation: "conditional_format_update",
+      targetSheet: "Sheet1",
+      targetRange: "current selection",
+      managementMode: "add",
+      summary: "Added conditional formatting."
+    });
+
+    expect(plan.success).toBe(false);
+    expect(update.success).toBe(false);
   });
 
   it("accepts a conditional_format_plan response envelope", () => {
