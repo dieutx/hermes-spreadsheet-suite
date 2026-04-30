@@ -1927,12 +1927,16 @@ describe("Hermes spreadsheet contracts", () => {
         explanation: "Apply the requested square-table formatting.",
         confidence: 0.9,
         requiresConfirmation: true,
+        affectedRanges: ["Sheet1!A1:J10"],
+        confirmationLevel: "standard",
         overwriteRisk: "low"
       }
     } as any);
 
     expect(parsed.type).toBe("range_format_update");
     expect((parsed.data as any).targetRange).toBe("A1:J10");
+    expect((parsed.data as any).affectedRanges).toEqual(["Sheet1!A1:J10"]);
+    expect((parsed.data as any).confirmationLevel).toBe("standard");
     expect((parsed.data as any).format.bold).toBe(true);
     expect((parsed.data as any).format.border.outer.style).toBe("solid");
   });

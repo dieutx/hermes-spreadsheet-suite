@@ -1574,6 +1574,8 @@ export const RangeFormatUpdateDataSchema = strictObject({
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
+  affectedRanges: z.array(z.string().min(1).max(128)).min(1).max(10),
+  confirmationLevel: z.literal("standard"),
   overwriteRisk: OverwriteRiskSchema.optional()
 });
 

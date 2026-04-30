@@ -372,6 +372,8 @@ describe("structured body normalization", () => {
       data: {
         targetSheet: "Sheet1",
         targetRange: "A1:B2",
+        affectedRanges: ["Sheet1!A1:B2"],
+        confirmationLevel: "standard",
         format: {
           backgroundColor: "#ffeeaa",
           textColor: "#112233",
@@ -381,6 +383,27 @@ describe("structured body normalization", () => {
       }
     });
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("preserves range format affected range and confirmation metadata during normalization", () => {
+    const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
+      type: "range_format_update",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:D8",
+        affectedRanges: ["Sheet1!B2:D8"],
+        confirmationLevel: "standard",
+        explanation: "Apply static formatting.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        format: {
+          backgroundColor: "#eeeeee"
+        }
+      }
+    }));
+
+    expect(parsed.data.affectedRanges).toEqual(["Sheet1!B2:D8"]);
+    expect(parsed.data.confirmationLevel).toBe("standard");
   });
 
   it("normalizes workbook structure action and sheet-name aliases before validation", () => {

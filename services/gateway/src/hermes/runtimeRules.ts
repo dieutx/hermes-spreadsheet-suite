@@ -114,6 +114,8 @@ For type="range_format_update":
 - data.explanation is required
 - data.confidence is required
 - data.requiresConfirmation must be true
+- data.affectedRanges is required and must include the full target range
+- data.confirmationLevel is required and must be standard
 - data.overwriteRisk is optional
 - data.format must contain at least one supported formatting field
 - supported formatting fields are: numberFormat, backgroundColor, textColor, fontFamily, fontSize, bold, italic, underline, strikethrough, horizontalAlignment, verticalAlignment, wrapStrategy, border, columnWidth, rowHeight
