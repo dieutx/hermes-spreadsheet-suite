@@ -43,6 +43,19 @@ describe("shared client trace helpers", () => {
     expect(proof).not.toContain("/srv/hermes");
   });
 
+  it("rejects non-public proof identifier characters", () => {
+    const proof = formatProofLine(responseWithIds({
+      requestId: "req_PASSWORD=secret",
+      hermesRunId: "run unsafe\nnext"
+    }));
+
+    expect(proof).toContain("requestId unavailable");
+    expect(proof).toContain("hermesRunId unavailable");
+    expect(proof).not.toContain("PASSWORD");
+    expect(proof).not.toContain("secret");
+    expect(proof).not.toContain("unsafe");
+  });
+
   it("keeps safe proof identifiers visible", () => {
     const proof = formatProofLine(responseWithIds({
       requestId: "req_safe_001",
