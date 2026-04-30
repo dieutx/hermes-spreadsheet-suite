@@ -351,6 +351,68 @@ describe("structured body normalization", () => {
     expect(parsed).toEqual(expectedBody);
   });
 
+  it("synthesizes external data formulas from provider fields before validation", () => {
+    const marketData = normalizeHermesStructuredBodyInput({
+      type: "external_data_plan",
+      data: {
+        provider: "GOOGLEFINANCE",
+        query: {
+          symbol: "NASDAQ:GOOG",
+          attribute: "price",
+          startDate: "2026-01-01",
+          endDate: "2026-04-01",
+          interval: "DAILY"
+        },
+        targetSheet: "Market Data",
+        targetRange: "B2",
+        explanation: "Anchor GOOG history in B2.",
+        confidence: 0.92,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(marketData).toMatchObject({
+      type: "external_data_plan",
+      data: {
+        sourceType: "market_data",
+        provider: "googlefinance",
+        formula: '=GOOGLEFINANCE("NASDAQ:GOOG","price","2026-01-01","2026-04-01","DAILY")',
+        affectedRanges: ["Market Data!B2"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(marketData)).not.toThrow();
+
+    const webImport = normalizeHermesStructuredBodyInput({
+      type: "external_data_plan",
+      data: {
+        provider: "IMPORTHTML",
+        sourceUrl: "https://example.com/markets",
+        selectorType: "table",
+        selector: 1,
+        targetSheet: "Imports",
+        targetRange: "A1",
+        explanation: "Import the first market table.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(webImport).toMatchObject({
+      type: "external_data_plan",
+      data: {
+        sourceType: "web_table_import",
+        provider: "importhtml",
+        formula: '=IMPORTHTML("https://example.com/markets","table",1)',
+        affectedRanges: ["Imports!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(webImport)).not.toThrow();
+  });
+
   it("normalizes chart legendPosition none to the contract-safe hidden alias", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "chart_plan",
@@ -428,6 +490,74 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes chart creation aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "chart_plan",
+      data: {
+        dataRange: "Sales!A1:C20",
+        targetSheet: "Sales Chart",
+        insertAt: "D2",
+        chartType: "column",
+        categoryField: "Month",
+        series: [{ field: "Revenue", label: "Revenue" }],
+        chartTitle: "Quarterly Revenue",
+        explanation: "Chart quarterly revenue.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:C20",
+        targetSheet: "Sales Chart",
+        targetRange: "D2",
+        title: "Quarterly Revenue",
+        affectedRanges: ["Sales!A1:C20", "Sales Chart!D2"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes pivot rows columns and values aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "pivot_table_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        targetSheet: "Pivot",
+        targetRange: "A1",
+        rows: ["Region"],
+        columns: ["Quarter"],
+        values: ["Revenue", "Deals"],
+        aggregation: "sum",
+        explanation: "Build a sales pivot.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Pivot!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "pivot_table_plan",
+      data: {
+        rowGroups: ["Region"],
+        columnGroups: ["Quarter"],
+        valueAggregations: [
+          { field: "Revenue", aggregation: "sum" },
+          { field: "Deals", aggregation: "sum" }
+        ]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes range sort aliases and affected ranges before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "range_sort_plan",
@@ -489,6 +619,124 @@ describe("structured body normalization", () => {
         inputMessage: "Choose a valid status.",
         errorTitle: "Invalid status",
         errorMessage: "Pick a value from the dropdown."
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes range transfer aliases and required defaults before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_transfer_plan",
+      data: {
+        sourceSheet: "Raw",
+        sourceRange: "A1:B3",
+        targetSheet: "Archive",
+        targetRange: "D1:E3",
+        transferOperation: "copy",
+        pasteMode: "values",
+        explanation: "Copy the raw values into the archive.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "range_transfer_plan",
+      data: {
+        operation: "copy",
+        transpose: false,
+        affectedRanges: ["Raw!A1:B3", "Archive!D1:E3"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes range filter condition aliases and defaults before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_filter_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        hasHeader: true,
+        conditions: [
+          { field: "Status", operator: "equal_to", value: "Open" },
+          { column: "Revenue", operator: "greater_than_or_equal_to", value: 1000 }
+        ],
+        explanation: "Filter to open high-value rows.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "range_filter_plan",
+      data: {
+        combiner: "and",
+        clearExistingFilters: true,
+        conditions: [
+          { columnRef: "Status", operator: "equals", value: "Open" },
+          { columnRef: "Revenue", operator: "greaterThanOrEqual", value: 1000 }
+        ],
+        affectedRanges: ["Sales!A1:F50"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes dropdown validation aliases and defaults before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "data_validation_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "C2:C20",
+        ruleType: "dropdown",
+        options: ["Open", "Closed", "Paused"],
+        promptMessage: "Choose a status.",
+        explanation: "Restrict status values.",
+        confidence: 0.94,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "data_validation_plan",
+      data: {
+        ruleType: "list",
+        values: ["Open", "Closed", "Paused"],
+        showDropdown: true,
+        allowBlank: true,
+        invalidDataBehavior: "reject",
+        inputMessage: "Choose a status.",
+        affectedRanges: ["Sheet1!C2:C20"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes named range define aliases and qualified references before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "named_range_update",
+      data: {
+        operation: "define",
+        rangeName: "SalesData",
+        refersTo: "Sales!A1:D20",
+        explanation: "Define a named range for the sales table.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "named_range_update",
+      data: {
+        operation: "create",
+        scope: "workbook",
+        name: "SalesData",
+        targetSheet: "Sales",
+        targetRange: "A1:D20",
+        affectedRanges: ["Sales!A1:D20"]
       }
     });
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
