@@ -458,6 +458,15 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       "This validation setup cannot be represented safely here.\n\n" +
       "Try a simpler dropdown, checkbox, or date rule, then retry."
     );
+
+    expect(sidebar.sanitizeHostExecutionError(
+      new Error("Unhandled failure at /srv/hermes/apps/google-sheets-addon/src/Code.gs:42 refresh_token=refresh_123"),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
+    expect(code.sanitizeHostExecutionError(
+      new Error("Request failed at https://internal.example/api with HERMES_API_SERVER_KEY=secret_123")
+    )).toBe("Write-back failed.");
   });
 
   it("fails fast when Google Sheets image upload is pointed at a loopback gateway", () => {
