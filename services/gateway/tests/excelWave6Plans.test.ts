@@ -552,6 +552,23 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
   });
 
+  it("sanitizes malformed successful gateway JSON before display in Excel", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    });
+
+    await expect(taskpane.parseGatewayJsonResponse({
+      ok: true,
+      status: 200,
+      async json() {
+        throw new Error("Unexpected token at /srv/hermes/services/gateway/src/app.ts:99");
+      }
+    })).rejects.toThrow(
+      "The Hermes service returned a response Excel could not use.\n\n" +
+      "Retry the request, then reload the client if it keeps happening."
+    );
+  });
+
   it("routes natural-language undo prompts to execution control instead of sending them through the model", async () => {
     const workbookSessionId = "workbook-123";
     const workbookSessionKey = `excel_windows::${workbookSessionId}`;
