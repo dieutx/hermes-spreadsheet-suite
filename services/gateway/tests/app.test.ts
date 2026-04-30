@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   allowPrivateNetworkPreflight,
   createApp,
+  enforceAllowedOrigin,
   handleGatewayAppError,
   isCorsOriginAllowed
 } from "../src/app.ts";
@@ -49,6 +50,55 @@ describe("gateway app", () => {
 
     expect(res.header).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects API requests from disallowed browser origins", () => {
+    const req = {
+      headers: {
+        origin: "https://evil.example"
+      }
+    } as any;
+    let statusCode = 200;
+    let jsonBody: unknown;
+    const res = {
+      status(code: number) {
+        statusCode = code;
+        return this;
+      },
+      json(payload: unknown) {
+        jsonBody = payload;
+        return this;
+      }
+    } as any;
+    const next = vi.fn();
+
+    enforceAllowedOrigin(["https://docs.google.com"])(req, res, next);
+
+    expect(statusCode).toBe(403);
+    expect(jsonBody).toEqual({
+      error: {
+        code: "ORIGIN_NOT_ALLOWED",
+        message: "This Hermes gateway origin is not allowed.",
+        userAction: "Open Hermes from an approved Excel or Google Sheets host, then retry."
+      }
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("allows API requests without a browser Origin header", () => {
+    const req = {
+      headers: {}
+    } as any;
+    const res = {
+      status: vi.fn(),
+      json: vi.fn()
+    } as any;
+    const next = vi.fn();
+
+    enforceAllowedOrigin(["https://docs.google.com"])(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalled();
   });
 
   it("mounts the execution control route surface under /api/execution", () => {
