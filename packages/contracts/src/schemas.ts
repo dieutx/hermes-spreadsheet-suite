@@ -1399,7 +1399,7 @@ export const RangeTransferPlanDataSchema = z.discriminatedUnion("operation", [
 
 const dataCleanupPlanSharedFields = {
   targetSheet: z.string().min(1).max(128),
-  targetRange: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),

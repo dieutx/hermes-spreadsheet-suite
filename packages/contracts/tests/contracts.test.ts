@@ -2571,6 +2571,22 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.mode).toBe("sentence");
   });
 
+  it("rejects malformed cleanup target ranges", () => {
+    const parsed = DataCleanupPlanDataSchema.safeParse({
+      targetSheet: "Contacts",
+      targetRange: "current table",
+      operation: "trim_whitespace",
+      explanation: "Trim whitespace before publishing.",
+      confidence: 0.87,
+      requiresConfirmation: true,
+      confirmationLevel: "standard",
+      affectedRanges: ["Contacts!A2:A50"],
+      overwriteRisk: "low"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects a data cleanup update with an unsupported cleanup operation", () => {
     const parsed = DataCleanupUpdateDataSchema.safeParse({
       operation: "data_cleanup_update",
