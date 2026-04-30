@@ -17,9 +17,50 @@ type AttachmentStoreOptions = {
 };
 
 const UPLOAD_TOKEN_BYTES = 32;
+const MAX_ATTACHMENT_FILE_NAME_LENGTH = 128;
+const UNSAFE_ATTACHMENT_FILE_NAME_PATTERN = /\b(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)\b|(?:^|\s)\/(?:root|srv|home|tmp)\/[^\s]+|https?:\/\/[^\s]+/i;
+const ATTACHMENT_FILE_EXTENSION_BY_MIME: Record<ImageAttachment["mimeType"], string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/webp": ".webp"
+};
 
 function createUploadToken(): string {
   return `upl_${randomBytes(UPLOAD_TOKEN_BYTES).toString("base64url")}`;
+}
+
+function getDefaultAttachmentFileName(mimeType: ImageAttachment["mimeType"]): string {
+  return `uploaded-image${ATTACHMENT_FILE_EXTENSION_BY_MIME[mimeType] ?? ""}`;
+}
+
+function sanitizeAttachmentFileName(
+  fileName: string,
+  mimeType: ImageAttachment["mimeType"]
+): string {
+  const fallback = getDefaultAttachmentFileName(mimeType);
+  const original = String(fileName || "")
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!original || UNSAFE_ATTACHMENT_FILE_NAME_PATTERN.test(original)) {
+    return fallback;
+  }
+
+  const pathParts = original.split(/[\\/]+/).filter(Boolean);
+  const baseName = pathParts.length > 0 ? pathParts[pathParts.length - 1] : original;
+  const sanitized = baseName
+    .replace(/[^A-Za-z0-9._ ()+-]/g, "_")
+    .replace(/_+/g, "_")
+    .trim()
+    .slice(0, MAX_ATTACHMENT_FILE_NAME_LENGTH);
+
+  if (!sanitized || sanitized === "." || sanitized === ".." || UNSAFE_ATTACHMENT_FILE_NAME_PATTERN.test(sanitized)) {
+    return fallback;
+  }
+
+  return sanitized;
 }
 
 export class AttachmentStore {
@@ -80,7 +121,7 @@ export class AttachmentStore {
       id,
       type: "image",
       mimeType: input.mimeType,
-      fileName: input.fileName,
+      fileName: sanitizeAttachmentFileName(input.fileName, input.mimeType),
       size: input.size,
       source: input.source,
       previewUrl: input.previewUrl,

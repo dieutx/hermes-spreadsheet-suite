@@ -406,6 +406,28 @@ describe("upload router", () => {
     expect(validOwnership.headers.get("content-type")).toBe("image/png");
   });
 
+  it("sanitizes unsafe uploaded file names before returning attachment metadata", async () => {
+    const { uploadRouter, attachmentStore } = createTestApp();
+
+    const uploadResponse = await invokeUploadImage(uploadRouter, {
+      body: { source: "upload", sessionId: "sess_img_real_001", workbookId: "sheet_import_demo" },
+      file: {
+        buffer: PNG_SIGNATURE_BYTES,
+        mimetype: "image/png",
+        originalname: "/home/alice/HERMES_API_SERVER_KEY=secret.png",
+        size: PNG_SIGNATURE_BYTES.length
+      }
+    });
+
+    const attachment = (uploadResponse.body as any).attachment;
+
+    expect(uploadResponse.statusCode).toBe(201);
+    expect(attachment.fileName).toBe("uploaded-image.png");
+    expect(attachment.fileName).not.toContain("HERMES_API_SERVER_KEY");
+    expect(attachment.fileName).not.toContain("/home/alice");
+    expect(attachmentStore.get(attachment.id)?.metadata.fileName).toBe("uploaded-image.png");
+  });
+
   it("rejects image uploads without a Hermes session id", async () => {
     const { uploadRouter } = createTestApp();
 
