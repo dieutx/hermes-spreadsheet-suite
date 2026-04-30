@@ -1,5 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getConfig } from "../src/lib/config.ts";
+
+beforeEach(() => {
+  process.env.APPROVAL_SECRET = "test-approval-secret";
+});
 
 afterEach(() => {
   delete process.env.HERMES_DEBUG_INVALID_RESPONSES;
@@ -64,11 +68,11 @@ describe("gateway config", () => {
     });
   });
 
-  it("allows the development fallback approval secret on a loopback gateway base url", () => {
+  it("uses the configured approval secret on a loopback gateway base url", () => {
     process.env.GATEWAY_PUBLIC_BASE_URL = "http://127.0.0.1:8787";
 
     expect(getConfig()).toMatchObject({
-      approvalSecret: "change-me",
+      approvalSecret: "test-approval-secret",
       gatewayPublicBaseUrl: "http://127.0.0.1:8787",
       allowedCorsOrigins: [
         "https://docs.google.com",
@@ -80,11 +84,30 @@ describe("gateway config", () => {
     });
   });
 
+  it("fails closed when the approval secret is missing even on a loopback gateway base url", () => {
+    delete process.env.APPROVAL_SECRET;
+    process.env.GATEWAY_PUBLIC_BASE_URL = "http://127.0.0.1:8787";
+
+    expect(() => getConfig()).toThrow(
+      "APPROVAL_SECRET must be configured before the gateway can approve writeback plans."
+    );
+  });
+
+  it("fails closed when the approval secret is blank", () => {
+    process.env.APPROVAL_SECRET = "   ";
+    process.env.GATEWAY_PUBLIC_BASE_URL = "http://127.0.0.1:8787";
+
+    expect(() => getConfig()).toThrow(
+      "APPROVAL_SECRET must be configured before the gateway can approve writeback plans."
+    );
+  });
+
   it("fails closed when the default approval secret would be exposed on a non-local base url", () => {
+    delete process.env.APPROVAL_SECRET;
     process.env.GATEWAY_PUBLIC_BASE_URL = "https://gateway.example.test/hermes-gateway";
 
     expect(() => getConfig()).toThrow(
-      "APPROVAL_SECRET must be configured before exposing the gateway on a non-local base URL."
+      "APPROVAL_SECRET must be configured before the gateway can approve writeback plans."
     );
   });
 
@@ -116,5 +139,15 @@ describe("gateway config", () => {
         "https://excel.officeapps.live.com"
       ]
     });
+  });
+
+  it("rejects wildcard CORS allowlists for public gateway base urls", () => {
+    process.env.GATEWAY_PUBLIC_BASE_URL = "https://gateway.example.test/hermes-gateway";
+    process.env.GATEWAY_ALLOWED_ORIGINS = "*";
+    process.env.APPROVAL_SECRET = "secret";
+
+    expect(() => getConfig()).toThrow(
+      "GATEWAY_ALLOWED_ORIGINS must not contain * when the gateway public base URL is not local."
+    );
   });
 });

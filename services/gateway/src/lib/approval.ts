@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 type ApprovalTokenInput = {
   requestId: string;
@@ -23,6 +23,8 @@ function signPayload(payload: string, secret: string): string {
 }
 
 const TOKEN_DELIMITER = ".";
+const APPROVAL_TOKEN_NONCE_BYTES = 16;
+const APPROVAL_TOKEN_NONCE_BASE64URL_LENGTH = 22;
 
 export function canonicalizePlan(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -54,7 +56,8 @@ export function createApprovalToken(input: ApprovalTokenInput): string {
     requestId: input.requestId,
     runId: input.runId,
     planDigest: input.planDigest,
-    issuedAt: input.issuedAt
+    issuedAt: input.issuedAt,
+    nonce: randomBytes(APPROVAL_TOKEN_NONCE_BYTES).toString("base64url")
   });
   const encodedPayload = Buffer.from(payload).toString("base64url");
   const signature = signPayload(encodedPayload, input.secret);
@@ -94,6 +97,7 @@ export function verifyApprovalToken(input: VerifyApprovalTokenInput): {
         runId: string;
         planDigest: string;
         issuedAt: string;
+        nonce?: string;
       }
     | undefined;
   try {
@@ -106,7 +110,11 @@ export function verifyApprovalToken(input: VerifyApprovalTokenInput): {
     return { valid: false };
   }
 
-  const { requestId, runId, planDigest, issuedAt } = parsedPayload;
+  const { requestId, runId, planDigest, issuedAt, nonce } = parsedPayload;
+
+  if (typeof nonce !== "string" || nonce.length < APPROVAL_TOKEN_NONCE_BASE64URL_LENGTH) {
+    return { valid: false };
+  }
 
   if (typeof input.maxAgeMs === "number") {
     const issuedAtMs = Date.parse(issuedAt);
