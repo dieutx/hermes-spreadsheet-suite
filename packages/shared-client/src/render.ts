@@ -25,6 +25,8 @@ import type {
   DataCleanupPlanResponse,
   DataCleanupUpdateData,
   DocumentSummaryResponse,
+  ExternalDataPlanData,
+  ExternalDataPlanResponse,
   ExtractedTableResponse,
   FormulaResponse,
   DryRunResult,
@@ -170,6 +172,12 @@ export type StructuredPreview =
   | {
       kind: "table_plan";
     } & TablePlanData & {
+      summary: string;
+      details: string[];
+    }
+  | {
+      kind: "external_data_plan";
+    } & ExternalDataPlanData & {
       summary: string;
       details: string[];
     }
@@ -870,6 +878,66 @@ function buildTablePreview(
   };
 }
 
+function buildExternalDataDetails(plan: ExternalDataPlanData): string[] {
+  const details = [
+    `Source type: ${plan.sourceType}.`,
+    `Provider: ${plan.provider}.`,
+    `Target sheet: ${plan.targetSheet}.`,
+    `Target range: ${plan.targetRange}.`
+  ];
+
+  if (plan.sourceType === "market_data") {
+    details.push(`Symbol: ${plan.query.symbol}.`);
+    if (plan.query.attribute) {
+      details.push(`Attribute: ${plan.query.attribute}.`);
+    }
+    if (plan.query.startDate) {
+      details.push(`Start date: ${plan.query.startDate}.`);
+    }
+    if (plan.query.endDate) {
+      details.push(`End date: ${plan.query.endDate}.`);
+    }
+    if (plan.query.interval) {
+      details.push(`Interval: ${plan.query.interval}.`);
+    }
+  } else {
+    details.push(`Source URL: ${plan.sourceUrl}.`);
+    details.push(`Selector type: ${plan.selectorType}.`);
+    if (plan.selector !== undefined) {
+      details.push(`Selector: ${String(plan.selector)}.`);
+    }
+  }
+
+  details.push(`Formula: ${plan.formula}.`);
+  details.push(`Affected ranges: ${plan.affectedRanges.join(", ")}.`);
+  details.push(`Overwrite risk: ${plan.overwriteRisk}.`);
+  details.push(`Confirmation level: ${plan.confirmationLevel}.`);
+
+  return details;
+}
+
+function formatExternalDataSummary(plan: ExternalDataPlanData): string {
+  const provider = plan.provider.toUpperCase();
+  const target = `${plan.targetSheet}!${plan.targetRange}`;
+
+  if (plan.sourceType === "market_data") {
+    return `Will anchor ${provider} market data for ${plan.query.symbol} at ${target}.`;
+  }
+
+  return `Will anchor ${provider} import at ${target}.`;
+}
+
+function buildExternalDataPreview(
+  plan: ExternalDataPlanData
+): Extract<StructuredPreview, { kind: "external_data_plan" }> {
+  return {
+    kind: "external_data_plan",
+    ...plan,
+    summary: formatExternalDataSummary(plan),
+    details: buildExternalDataDetails(plan)
+  };
+}
+
 function formatRangeTransferSummary(plan: RangeTransferPlanData): string {
   const action = plan.operation === "copy"
     ? "copy"
@@ -1265,6 +1333,8 @@ export function getStructuredPreview(response: HermesResponse): StructuredPrevie
       return buildChartPreview(response.data);
     case "table_plan":
       return buildTablePreview(response.data);
+    case "external_data_plan":
+      return buildExternalDataPreview(response.data);
     case "conditional_format_plan":
       return buildConditionalFormatPreview(response.data);
     case "range_sort_plan":
@@ -1394,6 +1464,8 @@ export function getResponseBodyText(response: HermesResponse): string {
       return buildChartPreview(response.data).summary;
     case "table_plan":
       return buildTablePreview(response.data).summary;
+    case "external_data_plan":
+      return buildExternalDataPreview(response.data).summary;
     case "workbook_structure_update":
       switch (response.data.operation) {
         case "create_sheet":
@@ -1486,6 +1558,7 @@ export function getResponseConfidence(response: HermesResponse): number | undefi
     case "pivot_table_plan":
     case "chart_plan":
     case "table_plan":
+    case "external_data_plan":
       return response.data.confidence;
     default:
       return undefined;
@@ -1519,6 +1592,7 @@ export function getRequiresConfirmation(response: HermesResponse): boolean {
     case "pivot_table_plan":
     case "chart_plan":
     case "table_plan":
+    case "external_data_plan":
       return response.data.requiresConfirmation;
     case "analysis_report_plan":
       return response.data.outputMode === "materialize_report";
@@ -1599,7 +1673,9 @@ export function isWritePlanResponse(
   | NamedRangeUpdateResponse
   | Extract<AnalysisReportPlanResponse, { data: AnalysisReportWritePlanData }>
   | PivotTablePlanResponse
-  | ChartPlanResponse {
+  | ChartPlanResponse
+  | TablePlanResponse
+  | ExternalDataPlanResponse {
   return response.type === "sheet_import_plan" ||
     response.type === "composite_plan" ||
     response.type === "sheet_update" ||
@@ -1616,5 +1692,6 @@ export function isWritePlanResponse(
     response.type === "pivot_table_plan" ||
     response.type === "chart_plan" ||
     response.type === "table_plan" ||
+    response.type === "external_data_plan" ||
     (response.type === "analysis_report_plan" && response.data.outputMode === "materialize_report");
 }

@@ -926,6 +926,76 @@ describe("shared client render helpers", () => {
     expect(isWritePlanResponse(response)).toBe(true);
   });
 
+  it("renders external data plans as confirmable write previews", () => {
+    const response = baseResponse({
+      type: "external_data_plan",
+      ui: {
+        displayMode: "structured-preview",
+        showTrace: true,
+        showWarnings: true,
+        showConfidence: true,
+        showRequiresConfirmation: true
+      },
+      data: {
+        sourceType: "market_data",
+        provider: "googlefinance",
+        query: {
+          symbol: "CURRENCY:BTCUSD",
+          attribute: "price"
+        },
+        targetSheet: "Market Data",
+        targetRange: "B2",
+        formula: '=GOOGLEFINANCE("CURRENCY:BTCUSD","price")',
+        explanation: "Anchor the latest BTC price in B2.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Market Data!B2"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    } satisfies ResponseFixture<"external_data_plan">);
+
+    expect(getStructuredPreview(response)).toEqual({
+      kind: "external_data_plan",
+      sourceType: "market_data",
+      provider: "googlefinance",
+      query: {
+        symbol: "CURRENCY:BTCUSD",
+        attribute: "price"
+      },
+      targetSheet: "Market Data",
+      targetRange: "B2",
+      formula: '=GOOGLEFINANCE("CURRENCY:BTCUSD","price")',
+      explanation: "Anchor the latest BTC price in B2.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Market Data!B2"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      summary: "Will anchor GOOGLEFINANCE market data for CURRENCY:BTCUSD at Market Data!B2.",
+      details: [
+        "Source type: market_data.",
+        "Provider: googlefinance.",
+        "Target sheet: Market Data.",
+        "Target range: B2.",
+        "Symbol: CURRENCY:BTCUSD.",
+        "Attribute: price.",
+        "Formula: =GOOGLEFINANCE(\"CURRENCY:BTCUSD\",\"price\").",
+        "Affected ranges: Market Data!B2.",
+        "Overwrite risk: low.",
+        "Confirmation level: standard."
+      ]
+    });
+    expect(getResponseBodyText(response)).toBe(
+      "Will anchor GOOGLEFINANCE market data for CURRENCY:BTCUSD at Market Data!B2."
+    );
+    expect(getResponseConfidence(response)).toBe(0.92);
+    expect(getRequiresConfirmation(response)).toBe(true);
+    expect(isWritePlanResponse(response)).toBe(true);
+    expect(getResponseMetaLine(response)).toContain("confidence 92%");
+    expect(getResponseMetaLine(response)).toContain("confirmation required");
+  });
+
   it("renders chart update body text directly from the summary", () => {
     const response = baseResponse({
       type: "chart_update",
