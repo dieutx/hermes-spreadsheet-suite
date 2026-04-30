@@ -1051,10 +1051,110 @@ function normalizeSheetStructureUpdateData(value: unknown): unknown {
     return value;
   }
 
-  const normalized: JsonRecord = { ...value };
+  const knownInputFields = new Set([
+    "targetSheet",
+    "operation",
+    "startIndex",
+    "count",
+    "targetRange",
+    "frozenRows",
+    "frozenColumns",
+    "color",
+    "explanation",
+    "confidence",
+    "requiresConfirmation",
+    "confirmationLevel",
+    "affectedRanges",
+    "overwriteRisk",
+    "sheet",
+    "sheetName",
+    "action",
+    "op",
+    "range"
+  ]);
+  const normalized = pickFields(value, [
+    "targetSheet",
+    "operation",
+    "startIndex",
+    "count",
+    "targetRange",
+    "frozenRows",
+    "frozenColumns",
+    "color",
+    "explanation",
+    "confidence",
+    "requiresConfirmation",
+    "confirmationLevel",
+    "affectedRanges",
+    "overwriteRisk"
+  ]);
+
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "operation")) {
+    if (typeof value.action === "string" && value.action.trim()) {
+      normalized.operation = value.action.trim();
+    } else if (typeof value.op === "string" && value.op.trim()) {
+      normalized.operation = value.op.trim();
+    }
+  }
+
+  if (typeof normalized.operation === "string") {
+    const operation = normalized.operation.trim().toLowerCase();
+    normalized.operation =
+      operation === "merge"
+        ? "merge_cells"
+        : operation === "unmerge"
+        ? "unmerge_cells"
+        : operation === "freeze"
+        ? "freeze_panes"
+        : operation === "unfreeze"
+        ? "unfreeze_panes"
+        : operation;
+  }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel =
+      normalized.operation === "delete_rows" || normalized.operation === "delete_columns"
+        ? "destructive"
+        : "standard";
+  }
+
+  if (hasOwn(normalized, "overwriteRisk")) {
+    normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+  }
+
+  for (const key of Object.keys(value)) {
+    if (!knownInputFields.has(key) && !hasOwn(normalized, key)) {
+      normalized[key] = value[key];
+    }
   }
 
   return normalized;
