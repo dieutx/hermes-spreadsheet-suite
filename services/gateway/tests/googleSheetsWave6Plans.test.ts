@@ -2702,6 +2702,260 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(sidebar.fetch).not.toHaveBeenCalled();
   });
 
+  it("attaches local undo snapshots for Google Sheets range format writes", () => {
+    let backgrounds = [["#ffffff"]];
+    let fontWeights = [["normal"]];
+    let numberFormats = [["General"]];
+    const cloneMatrix = (matrix: string[][]) => matrix.map((row) => [...row]);
+    const targetRange = {
+      getNumRows: vi.fn(() => 1),
+      getNumColumns: vi.fn(() => 1),
+      getRow: vi.fn(() => 2),
+      getColumn: vi.fn(() => 2),
+      getBackgrounds: vi.fn(() => cloneMatrix(backgrounds)),
+      setBackground: vi.fn((value: string) => {
+        backgrounds = [[value]];
+      }),
+      getFontWeights: vi.fn(() => cloneMatrix(fontWeights)),
+      setFontWeight: vi.fn((value: string) => {
+        fontWeights = [[value]];
+      }),
+      getNumberFormats: vi.fn(() => cloneMatrix(numberFormats)),
+      setNumberFormat: vi.fn((value: string) => {
+        numberFormats = [[value]];
+      })
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_range_format_snapshot_sheets_001",
+      runId: "run_range_format_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_range_format_snapshot_sheets_001",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "B2",
+        format: {
+          backgroundColor: "#fff2cc",
+          bold: true,
+          numberFormat: "$#,##0"
+        },
+        explanation: "Format revenue.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_format_update",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_format_snapshot_sheets_001",
+        kind: "range_format",
+        targetSheet: "Sales",
+        targetRange: "B2",
+        shape: {
+          rows: 1,
+          columns: 1
+        },
+        beforeFormat: {
+          backgrounds: [["#ffffff"]],
+          fontWeights: [["normal"]],
+          numberFormats: [["General"]]
+        },
+        afterFormat: {
+          backgrounds: [["#fff2cc"]],
+          fontWeights: [["bold"]],
+          numberFormats: [["$#,##0"]]
+        }
+      }
+    });
+  });
+
+  it("passes Google Sheets range format snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_range_format_001"],
+      executions: {
+        exec_range_format_001: {
+          baseExecutionId: "exec_range_format_001"
+        }
+      },
+      bases: {
+        exec_range_format_001: {
+          baseExecutionId: "exec_range_format_001",
+          kind: "range_format",
+          targetSheet: "Sales",
+          targetRange: "B2",
+          shape: {
+            rows: 1,
+            columns: 1
+          },
+          beforeFormat: {
+            backgrounds: [["#ffffff"]],
+            fontWeights: [["normal"]],
+            numberFormats: [["General"]]
+          },
+          afterFormat: {
+            backgrounds: [["#fff2cc"]],
+            fontWeights: [["bold"]],
+            numberFormats: [["$#,##0"]]
+          }
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "range_format_update",
+          operation: "range_format_update",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_range_format_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "range_format",
+          targetSheet: "Sales",
+          targetRange: "B2",
+          shape: {
+            rows: 1,
+            columns: 1
+          },
+          format: {
+            backgrounds: [["#ffffff"]],
+            fontWeights: [["normal"]],
+            numberFormats: [["General"]]
+          }
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "range_format",
+          targetSheet: "Sales",
+          targetRange: "B2",
+          shape: {
+            rows: 1,
+            columns: 1
+          },
+          format: {
+            backgrounds: [["#ffffff"]],
+            fontWeights: [["normal"]],
+            numberFormats: [["General"]]
+          }
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies Google Sheets range format snapshots on the server", () => {
+    let backgrounds = [["#fff2cc"]];
+    let fontWeights = [["bold"]];
+    let numberFormats = [["$#,##0"]];
+    const cloneMatrix = (matrix: string[][]) => matrix.map((row) => [...row]);
+    const targetRange = {
+      getNumRows: vi.fn(() => 1),
+      getNumColumns: vi.fn(() => 1),
+      setBackgrounds: vi.fn((nextBackgrounds: string[][]) => {
+        backgrounds = cloneMatrix(nextBackgrounds);
+      }),
+      setFontWeights: vi.fn((nextFontWeights: string[][]) => {
+        fontWeights = cloneMatrix(nextFontWeights);
+      }),
+      setNumberFormats: vi.fn((nextNumberFormats: string[][]) => {
+        numberFormats = cloneMatrix(nextNumberFormats);
+      })
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "range_format",
+      targetSheet: "Sales",
+      targetRange: "B2",
+      shape: {
+        rows: 1,
+        columns: 1
+      },
+      format: {
+        backgrounds: [["#ffffff"]],
+        fontWeights: [["normal"]],
+        numberFormats: [["General"]]
+      }
+    })).toMatchObject({
+      ok: true,
+      targetSheet: "Sales",
+      targetRange: "B2"
+    });
+
+    expect(backgrounds).toEqual([["#ffffff"]]);
+    expect(fontWeights).toEqual([["normal"]]);
+    expect(numberFormats).toEqual([["General"]]);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("applies external data plans by anchoring a first-class formula into a single Google Sheets cell", () => {
     const targetRange = createRangeStub({
       a1Notation: "B2",
