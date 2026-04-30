@@ -150,14 +150,14 @@ function buildQualifiedRangeRef(sheet: unknown, range: unknown): string | undefi
   return `${sheet.trim()}!${range.trim()}`;
 }
 
-function parseQualifiedRangeRef(value: unknown): { sheet?: string; range?: string } {
+function parseQualifiedRangeRef(value: unknown): { sheet?: string; range?: string } | undefined {
   if (typeof value !== "string") {
-    return {};
+    return undefined;
   }
 
   const trimmed = value.trim();
   if (!trimmed) {
-    return {};
+    return undefined;
   }
 
   const separatorIndex = trimmed.lastIndexOf("!");
@@ -1304,8 +1304,64 @@ function normalizeNamedRangeUpdateData(value: unknown): unknown {
     "overwriteRisk"
   ]);
 
+  if (typeof normalized.operation === "string") {
+    const operation = normalized.operation.trim().toLowerCase();
+    normalized.operation =
+      operation === "define" || operation === "add"
+        ? "create"
+        : operation === "update" || operation === "change_range" || operation === "set_range"
+        ? "retarget"
+        : operation === "remove"
+        ? "delete"
+        : operation;
+  }
+
+  if (!hasOwn(normalized, "scope")) {
+    normalized.scope = typeof normalized.sheetName === "string" && normalized.sheetName.trim()
+      ? "sheet"
+      : "workbook";
+  }
+
+  if (!hasOwn(normalized, "name")) {
+    if (typeof value.rangeName === "string" && value.rangeName.trim()) {
+      normalized.name = value.rangeName.trim();
+    } else if (typeof value.namedRangeName === "string" && value.namedRangeName.trim()) {
+      normalized.name = value.namedRangeName.trim();
+    } else if (typeof value.namedRange === "string" && value.namedRange.trim()) {
+      normalized.name = value.namedRange.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "newName")) {
+    if (typeof value.newRangeName === "string" && value.newRangeName.trim()) {
+      normalized.newName = value.newRangeName.trim();
+    } else if (typeof value.new_name === "string" && value.new_name.trim()) {
+      normalized.newName = value.new_name.trim();
+    }
+  }
+
+  const qualifiedRef =
+    parseQualifiedRangeRef(value.refersTo) ??
+    parseQualifiedRangeRef(value.range) ??
+    parseQualifiedRangeRef(value.target);
+  if (qualifiedRef) {
+    if (!hasOwn(normalized, "targetSheet")) {
+      normalized.targetSheet = qualifiedRef.sheet;
+    }
+    if (!hasOwn(normalized, "targetRange")) {
+      normalized.targetRange = qualifiedRef.range;
+    }
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {
@@ -1510,20 +1566,20 @@ function normalizeChartPlanData(value: unknown): unknown {
 
   if (!hasOwn(normalized, "sourceRange") && hasOwn(value, "dataRange")) {
     const dataRange = parseQualifiedRangeRef(value.dataRange);
-    if (!hasOwn(normalized, "sourceSheet") && dataRange.sheet) {
+    if (!hasOwn(normalized, "sourceSheet") && dataRange?.sheet) {
       normalized.sourceSheet = dataRange.sheet;
     }
-    if (dataRange.range) {
+    if (dataRange?.range) {
       normalized.sourceRange = dataRange.range;
     }
   }
 
   if (!hasOwn(normalized, "targetRange") && hasOwn(value, "insertAt")) {
     const insertAt = parseQualifiedRangeRef(value.insertAt);
-    if (!hasOwn(normalized, "targetSheet") && insertAt.sheet) {
+    if (!hasOwn(normalized, "targetSheet") && insertAt?.sheet) {
       normalized.targetSheet = insertAt.sheet;
     }
-    if (insertAt.range) {
+    if (insertAt?.range) {
       normalized.targetRange = insertAt.range;
     }
   }
