@@ -1452,6 +1452,29 @@ function createWorkbookStructureDuplicateLocalExecutionSnapshot({
   };
 }
 
+function createPivotTableLocalExecutionSnapshot({ executionId, pivotTableName, targetSheet, targetRange, plan }) {
+  if (!executionId || !pivotTableName || !targetSheet || !targetRange || !plan) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "pivot_table",
+    targetSheet,
+    targetRange,
+    pivotTableName,
+    before: {
+      exists: false,
+      name: pivotTableName
+    },
+    after: {
+      exists: true,
+      name: pivotTableName
+    },
+    plan: cloneLocalExecutionSnapshotValue(plan)
+  };
+}
+
 function createExcelChartSnapshotName(executionId) {
   if (typeof executionId !== "string" || executionId.trim().length === 0) {
     return null;
@@ -1516,6 +1539,10 @@ function isRangeFilterLocalExecutionSnapshot(snapshot) {
 
 function isWorkbookStructureLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "workbook_structure";
+}
+
+function isPivotTableLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "pivot_table";
 }
 
 function isChartLocalExecutionSnapshot(snapshot) {
@@ -2374,6 +2401,99 @@ async function validateRangeFilterLocalExecutionSnapshotForMode(snapshot, mode) 
   });
 }
 
+function assertPivotTableSnapshotState(state) {
+  if (
+    !state ||
+    typeof state.exists !== "boolean" ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
+function getPivotTableSnapshotTransitionForMode(snapshot, mode) {
+  if (
+    !snapshot ||
+    snapshot.kind !== "pivot_table" ||
+    typeof snapshot.targetSheet !== "string" ||
+    snapshot.targetSheet.trim().length === 0 ||
+    typeof snapshot.targetRange !== "string" ||
+    snapshot.targetRange.trim().length === 0 ||
+    typeof snapshot.pivotTableName !== "string" ||
+    snapshot.pivotTableName.trim().length === 0 ||
+    !snapshot.plan
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  assertPivotTableSnapshotState(snapshot.before);
+  assertPivotTableSnapshotState(snapshot.after);
+
+  return {
+    from: mode === "undo" ? snapshot.after : snapshot.before,
+    to: mode === "undo" ? snapshot.before : snapshot.after
+  };
+}
+
+async function restorePivotTableLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getPivotTableSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+
+    if (transition.from.exists === true && transition.to.exists === false) {
+      const pivotTable = sheet.pivotTables?.getItem ? sheet.pivotTables.getItem(snapshot.pivotTableName) : null;
+      if (!pivotTable || typeof pivotTable.delete !== "function") {
+        throw new Error("Excel host cannot restore the saved pivot table creation.");
+      }
+
+      if (typeof pivotTable.load === "function") {
+        pivotTable.load(["name"]);
+        await context.sync();
+      }
+
+      pivotTable.delete();
+      await context.sync();
+      return;
+    }
+
+    if (transition.from.exists === false && transition.to.exists === true) {
+      await createExcelPivotTableFromPlan({
+        context,
+        worksheets,
+        plan: snapshot.plan,
+        pivotTableName: snapshot.pivotTableName
+      });
+      return;
+    }
+
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  });
+}
+
+async function validatePivotTableLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getPivotTableSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+
+    if (transition.from.exists === true) {
+      const pivotTable = sheet.pivotTables?.getItem ? sheet.pivotTables.getItem(snapshot.pivotTableName) : null;
+      if (!pivotTable || typeof pivotTable.delete !== "function") {
+        throw new Error("Excel host cannot restore the saved pivot table creation.");
+      }
+      return;
+    }
+
+    if (!snapshot.plan?.sourceSheet || !snapshot.plan?.sourceRange || !snapshot.plan?.targetSheet || !snapshot.plan?.targetRange) {
+      throw new Error("That history entry is no longer available in this spreadsheet session.");
+    }
+  });
+}
+
 function assertChartSnapshotState(state) {
   if (
     !state ||
@@ -2489,6 +2609,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
     return restoreWorkbookStructureLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
+  if (isPivotTableLocalExecutionSnapshot(snapshot)) {
+    return restorePivotTableLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
   if (isChartLocalExecutionSnapshot(snapshot)) {
     return restoreChartLocalExecutionSnapshotForMode(snapshot, mode);
   }
@@ -2561,6 +2685,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isWorkbookStructureLocalExecutionSnapshot(snapshot)) {
     return validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isPivotTableLocalExecutionSnapshot(snapshot)) {
+    return validatePivotTableLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   if (isChartLocalExecutionSnapshot(snapshot)) {
@@ -5846,7 +5974,7 @@ function createExcelPivotTableName(plan) {
   return `HermesPivot_${normalizedSheet || "Pivot"}_${normalizedTarget || "A1"}_${uniqueSuffix}`.slice(0, 128);
 }
 
-async function applyExcelPivotTablePlan({ context, worksheets, platform, plan }) {
+async function createExcelPivotTableFromPlan({ context, worksheets, plan, pivotTableName }) {
   const planState = preflightExcelPivotTableStructure(plan);
   const sourceWorksheet = worksheets.getItem(plan.sourceSheet);
   const targetWorksheet = worksheets.getItem(plan.targetSheet);
@@ -5874,7 +6002,7 @@ async function applyExcelPivotTablePlan({ context, worksheets, platform, plan })
   }
 
   const pivotTable = pivotTableCollection.add(
-    createExcelPivotTableName(plan),
+    pivotTableName,
     sourceRange,
     anchorRange
   );
@@ -5903,13 +6031,31 @@ async function applyExcelPivotTablePlan({ context, worksheets, platform, plan })
 
   await context.sync();
 
-  return {
+  return pivotTable;
+}
+
+async function applyExcelPivotTablePlan({ context, worksheets, platform, plan, executionId }) {
+  const pivotTableName = createExcelPivotTableName(plan);
+  await createExcelPivotTableFromPlan({
+    context,
+    worksheets,
+    plan,
+    pivotTableName
+  });
+
+  return attachLocalExecutionSnapshot({
     kind: "pivot_table_update",
     operation: "pivot_table_update",
     hostPlatform: platform,
     ...plan,
     summary: getPivotTableStatusSummary(plan)
-  };
+  }, createPivotTableLocalExecutionSnapshot({
+    executionId,
+    pivotTableName,
+    targetSheet: plan.targetSheet,
+    targetRange: normalizeA1(plan.targetRange),
+    plan
+  }));
 }
 
 function getActualAppendTargetRange(targetRangeAddress, startRowOffset, rowCount, columnCount) {
@@ -9786,7 +9932,8 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         context,
         worksheets,
         platform,
-        plan: resolvedPlan
+        plan: resolvedPlan,
+        executionId
       });
     }
 

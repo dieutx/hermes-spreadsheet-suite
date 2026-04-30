@@ -628,7 +628,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       }
     });
 
-    await expect(taskpane.applyWritePlan({
+    const result = await taskpane.applyWritePlan({
       plan: {
         sourceSheet: "Sales",
         sourceRange: "A1:F50",
@@ -652,8 +652,12 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       },
       requestId: "req_pivot_apply_excel_001",
       runId: "run_pivot_apply_excel_001",
-      approvalToken: "token"
-    })).resolves.toMatchObject({
+      approvalToken: "token",
+      executionId: "exec_pivot_apply_excel_001"
+    });
+    const pivotTableName = targetWorksheet.pivotTables.add.mock.calls[0][0];
+
+    expect(result).toMatchObject({
       kind: "pivot_table_update",
       operation: "pivot_table_update",
       hostPlatform: "excel_windows",
@@ -670,7 +674,32 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         { field: "Status", operator: "equal_to", value: "Closed Won" }
       ],
       sort: { field: "Revenue", direction: "desc", sortOn: "aggregated_value" },
-      summary: "Created pivot table on Sales Pivot!A1."
+      summary: "Created pivot table on Sales Pivot!A1.",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_pivot_apply_excel_001",
+        kind: "pivot_table",
+        targetSheet: "Sales Pivot",
+        targetRange: "A1",
+        pivotTableName,
+        before: {
+          exists: false,
+          name: pivotTableName
+        },
+        after: {
+          exists: true,
+          name: pivotTableName
+        },
+        plan: {
+          sourceSheet: "Sales",
+          sourceRange: "A1:F50",
+          targetSheet: "Sales Pivot",
+          targetRange: "A1",
+          rowGroups: ["Region", "Rep"],
+          valueAggregations: [
+            { field: "Revenue", aggregation: "sum" }
+          ]
+        }
+      }
     });
 
     expect(pivotTable.rowHierarchies.add).toHaveBeenCalledTimes(2);

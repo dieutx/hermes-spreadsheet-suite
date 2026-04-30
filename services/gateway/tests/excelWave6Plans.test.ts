@@ -3059,6 +3059,105 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(chart.delete).toHaveBeenCalledTimes(1);
   });
 
+  it("restores Excel pivot table snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_pivot_001"],
+      executions: {
+        exec_pivot_001: {
+          baseExecutionId: "exec_pivot_001"
+        }
+      },
+      bases: {
+        exec_pivot_001: {
+          baseExecutionId: "exec_pivot_001",
+          kind: "pivot_table",
+          targetSheet: "Sales Pivot",
+          targetRange: "A1",
+          pivotTableName: "HermesPivot_Sales_Pivot_A1_test",
+          before: {
+            exists: false,
+            name: "HermesPivot_Sales_Pivot_A1_test"
+          },
+          after: {
+            exists: true,
+            name: "HermesPivot_Sales_Pivot_A1_test"
+          },
+          plan: {
+            sourceSheet: "Sales",
+            sourceRange: "A1:F50",
+            targetSheet: "Sales Pivot",
+            targetRange: "A1",
+            rowGroups: ["Region"],
+            columnGroups: [],
+            valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+            filters: [],
+            explanation: "Build a pivot.",
+            confidence: 0.91,
+            requiresConfirmation: true,
+            affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+            overwriteRisk: "low",
+            confirmationLevel: "standard"
+          }
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "pivot_table_update",
+          operation: "pivot_table_update",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    const pivotTable = {
+      name: "HermesPivot_Sales_Pivot_A1_test",
+      load: vi.fn(),
+      delete: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("Sales Pivot");
+              return {
+                pivotTables: {
+                  getItem(pivotTableName: string) {
+                    expect(pivotTableName).toBe("HermesPivot_Sales_Pivot_A1_test");
+                    return pivotTable;
+                  }
+                }
+              };
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_pivot_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(pivotTable.delete).toHaveBeenCalledTimes(1);
+  });
+
   it("renders and applies native Excel table plans", async () => {
     const table = {
       name: "",
