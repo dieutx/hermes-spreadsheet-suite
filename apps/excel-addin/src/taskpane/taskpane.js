@@ -1329,6 +1329,39 @@ function createWorkbookStructureRenameLocalExecutionSnapshot({
   };
 }
 
+function createWorkbookStructureVisibilityLocalExecutionSnapshot({
+  executionId,
+  sheetName,
+  beforeVisibility,
+  afterVisibility
+}) {
+  if (
+    !executionId ||
+    !sheetName ||
+    !beforeVisibility ||
+    !afterVisibility ||
+    beforeVisibility === afterVisibility
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "workbook_structure",
+    operation: "sheet_visibility",
+    before: {
+      exists: true,
+      name: sheetName,
+      visibility: beforeVisibility
+    },
+    after: {
+      exists: true,
+      name: sheetName,
+      visibility: afterVisibility
+    }
+  };
+}
+
 function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
   if (!executionId || !Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -1858,21 +1891,48 @@ function assertWorkbookStructureRenameSnapshotState(state) {
   }
 }
 
+function assertWorkbookStructureVisibilitySnapshotState(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0 ||
+    typeof state.visibility !== "string" ||
+    state.visibility.trim().length === 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
 function getWorkbookStructureSnapshotTransitionForMode(snapshot, mode) {
-  if (snapshot?.operation !== "rename_sheet") {
+  if (snapshot?.operation !== "rename_sheet" && snapshot?.operation !== "sheet_visibility") {
     throw new Error("That workbook structure history entry cannot be restored exactly.");
   }
 
   return {
+    operation: snapshot.operation,
     from: mode === "undo" ? snapshot.after : snapshot.before,
     to: mode === "undo" ? snapshot.before : snapshot.after
   };
 }
 
 async function applyWorkbookStructureSnapshotTransition(context, transition) {
+  if (transition.operation === "sheet_visibility") {
+    assertWorkbookStructureVisibilitySnapshotState(transition.from);
+    assertWorkbookStructureVisibilitySnapshotState(transition.to);
+
+    const sheet = context.workbook.worksheets.getItem(transition.from.name);
+    if (typeof sheet.load === "function") {
+      sheet.load(["name", "visibility"]);
+      await context.sync();
+    }
+
+    sheet.visibility = transition.to.visibility;
+    return;
+  }
+
   assertWorkbookStructureRenameSnapshotState(transition.from);
   assertWorkbookStructureRenameSnapshotState(transition.to);
-
   const sheet = context.workbook.worksheets.getItem(transition.from.name);
   if (typeof sheet.load === "function") {
     sheet.load(["name"]);
@@ -1895,11 +1955,17 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
   const transition = getWorkbookStructureSnapshotTransitionForMode(snapshot, mode);
 
   return Excel.run(async (context) => {
-    assertWorkbookStructureRenameSnapshotState(transition.from);
-    assertWorkbookStructureRenameSnapshotState(transition.to);
+    if (transition.operation === "sheet_visibility") {
+      assertWorkbookStructureVisibilitySnapshotState(transition.from);
+      assertWorkbookStructureVisibilitySnapshotState(transition.to);
+    } else {
+      assertWorkbookStructureRenameSnapshotState(transition.from);
+      assertWorkbookStructureRenameSnapshotState(transition.to);
+    }
+
     const sheet = context.workbook.worksheets.getItem(transition.from.name);
     if (typeof sheet.load === "function") {
-      sheet.load(["name"]);
+      sheet.load(transition.operation === "sheet_visibility" ? ["name", "visibility"] : ["name"]);
       await context.sync();
     }
   });
@@ -8571,15 +8637,22 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             throw new Error("Cannot hide the only visible worksheet.");
           }
 
+          const beforeVisibility = sheet.visibility;
           sheet.visibility = Excel.SheetVisibility.hidden;
           await context.sync();
-          return {
+          const afterVisibility = sheet.visibility;
+          return attachLocalExecutionSnapshot({
             kind: "workbook_structure_update",
             hostPlatform: platform,
             sheetName: resolvedPlan.sheetName,
             operation: resolvedPlan.operation,
             summary: getWorkbookStructureStatusSummary(resolvedPlan)
-          };
+          }, createWorkbookStructureVisibilityLocalExecutionSnapshot({
+            executionId,
+            sheetName: resolvedPlan.sheetName,
+            beforeVisibility,
+            afterVisibility
+          }));
         }
         case "unhide_sheet": {
           const sheet = findSheet(resolvedPlan.sheetName);
@@ -8587,15 +8660,22 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             throw new Error(`Target sheet not found: ${resolvedPlan.sheetName}`);
           }
 
+          const beforeVisibility = sheet.visibility;
           sheet.visibility = Excel.SheetVisibility.visible;
           await context.sync();
-          return {
+          const afterVisibility = sheet.visibility;
+          return attachLocalExecutionSnapshot({
             kind: "workbook_structure_update",
             hostPlatform: platform,
             sheetName: resolvedPlan.sheetName,
             operation: resolvedPlan.operation,
             summary: getWorkbookStructureStatusSummary(resolvedPlan)
-          };
+          }, createWorkbookStructureVisibilityLocalExecutionSnapshot({
+            executionId,
+            sheetName: resolvedPlan.sheetName,
+            beforeVisibility,
+            afterVisibility
+          }));
         }
         default:
           throw new Error("Unsupported workbook structure update.");
