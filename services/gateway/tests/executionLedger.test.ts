@@ -64,6 +64,40 @@ describe("ExecutionLedger", () => {
     );
   });
 
+  it("sanitizes embedded secret markers in execution history summaries", () => {
+    const ledger = new ExecutionLedger();
+
+    ledger.recordCompleted({
+      executionId: "exec_embedded_unsafe",
+      workbookSessionKey: "excel_windows::workbook-123",
+      requestId: "req_embedded_unsafe",
+      runId: "run_embedded_unsafe",
+      planType: "sheet_update",
+      planDigest: "digest_embedded_unsafe",
+      status: "completed",
+      timestamp: "2026-04-20T13:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "Updated_sales_HERMES_API_SERVER_KEY",
+      stepEntries: [
+        {
+          stepId: "step_embedded_unsafe",
+          planType: "sheet_update",
+          status: "completed",
+          summary: "Checked_qa_APPROVAL_SECRET"
+        }
+      ]
+    });
+
+    const entry = ledger.listHistory("excel_windows::workbook-123").entries[0];
+
+    expect(entry.summary).toBe("Execution summary hidden because it contained internal details.");
+    expect(entry.stepEntries?.[0]?.summary).toBe(
+      "Execution summary hidden because it contained internal details."
+    );
+  });
+
   it("rejects invalid pagination cursors instead of silently paging from the wrong index", () => {
     const ledger = new ExecutionLedger();
 
