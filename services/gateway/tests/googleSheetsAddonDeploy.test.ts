@@ -92,6 +92,35 @@ describe("Google Sheets add-on deploy helpers", () => {
     ).resolves.toBe("access_123");
   });
 
+  it("sanitizes OAuth refresh failure messages", async () => {
+    const fetchMock = async () =>
+      ({
+        ok: false,
+        status: 401,
+        text: async () =>
+          "invalid_grant refresh_token=refresh_123 client_secret=secret_123 stack=/srv/internal"
+      }) as Response;
+
+    let message = "";
+    try {
+      await refreshClaspAccessToken(
+        {
+          client_id: "client_123",
+          client_secret: "secret_123",
+          refresh_token: "refresh_123"
+        },
+        fetchMock
+      );
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toBe("Failed to refresh clasp OAuth access token (401).");
+    expect(message).not.toContain("refresh_123");
+    expect(message).not.toContain("secret_123");
+    expect(message).not.toContain("/srv/internal");
+  });
+
   it("creates a bound Apps Script project for the target spreadsheet through the official API", async () => {
     const fetchMock = async (url: string, init?: RequestInit) => {
       expect(url).toBe("https://script.googleapis.com/v1/projects");
@@ -118,6 +147,34 @@ describe("Google Sheets add-on deploy helpers", () => {
         fetchImpl: fetchMock
       })
     ).resolves.toEqual({ scriptId: "script_123" });
+  });
+
+  it("sanitizes Apps Script project creation failure messages", async () => {
+    const spreadsheetId = "1Smz8ctI5gpahOuAP-p0l8VTE7oGeppnMsSVnzVU1YmA";
+    const fetchMock = async () =>
+      ({
+        ok: false,
+        status: 403,
+        text: async () =>
+          `denied parentId=${spreadsheetId} access_token=access_123 stack=/srv/internal`
+      }) as Response;
+
+    let message = "";
+    try {
+      await createBoundGoogleSheetsScriptProject({
+        accessToken: "access_123",
+        spreadsheetId,
+        title: "Hermes Agent",
+        fetchImpl: fetchMock
+      });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toBe("Failed to create a bound Apps Script project (403).");
+    expect(message).not.toContain(spreadsheetId);
+    expect(message).not.toContain("access_123");
+    expect(message).not.toContain("/srv/internal");
   });
 
   it("stages the add-on project with repo files, generated deployment config, and clasp config", async () => {
