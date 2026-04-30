@@ -207,6 +207,13 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     );
 
     expect(taskpane.sanitizeHostExecutionError(
+      new Error("Excel host requires append targetRange to match the full destination rectangle.")
+    )).toBe(
+      "The chosen destination range cannot accept this write safely.\n\n" +
+      "Choose a clean target range or ask Hermes to write into a blank area."
+    );
+
+    expect(taskpane.sanitizeHostExecutionError(
       new Error("Target sheet not found: Sales Pivot")
     )).toBe(
       "Sheet \"Sales Pivot\" was not found.\n\nCreate or select that sheet, then retry."

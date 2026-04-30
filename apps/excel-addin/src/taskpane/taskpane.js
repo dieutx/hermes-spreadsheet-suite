@@ -2170,6 +2170,7 @@ function sanitizeHostExecutionError(error, fallbackMessage = "Write-back failed.
   if (
     /cannot append exactly when the approved target range contains internal gaps/i.test(message) ||
     /cannot append exactly within the approved target range/i.test(message) ||
+    /requires append targetRange to match the full destination rectangle/i.test(message) ||
     /cannot split this column exactly within the approved target range/i.test(message)
   ) {
     return formatUserFacingErrorText(
@@ -3453,20 +3454,12 @@ function resolveFullMatrixTargetRange(targetRange, expectedRows, expectedColumns
   throw new Error(`The approved targetRange does not match the ${shapeLabel}.`);
 }
 
-function resolveAppendMatrixTargetRange(targetRange, expectedRows, expectedColumns, shapeLabel) {
+function resolveAppendMatrixTargetRange(targetRange, expectedRows, expectedColumns) {
   if (targetRange.rowCount === expectedRows && targetRange.columnCount === expectedColumns) {
     return targetRange;
   }
 
-  if (
-    targetRange.rowCount === 1 &&
-    targetRange.columnCount === expectedColumns &&
-    typeof targetRange.getResizedRange === "function"
-  ) {
-    return targetRange.getResizedRange(expectedRows - 1, 0);
-  }
-
-  throw new Error(`The approved targetRange does not match the ${shapeLabel}.`);
+  throw new Error("Excel host requires append targetRange to match the full destination rectangle.");
 }
 
 function normalizeTransferMatrix(matrix, plan) {
@@ -7932,8 +7925,7 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         ? resolveAppendMatrixTargetRange(
             targetRange,
             resolvedShape.rows,
-            resolvedShape.columns,
-            "transfer shape"
+            resolvedShape.columns
           )
         : resolveFullMatrixTargetRange(
             targetRange,
