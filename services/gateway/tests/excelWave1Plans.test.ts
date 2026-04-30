@@ -807,6 +807,70 @@ describe("Excel wave 1 plan helpers", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel sheet create writes", async () => {
+    const existingWorksheet = {
+      name: "Sheet1",
+      position: 0,
+      visibility: "visible"
+    };
+    const createdWorksheet = {
+      name: "Staging",
+      position: 1,
+      visibility: "visible",
+      load: vi.fn()
+    };
+    const worksheets = {
+      items: [existingWorksheet],
+      load: vi.fn(),
+      add: vi.fn(() => createdWorksheet)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "create_sheet",
+        sheetName: "Staging",
+        position: 0,
+        explanation: "Create a staging sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_create_sheet_snapshot_excel_001",
+      runId: "run_create_sheet_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_create_sheet_snapshot_excel_001"
+    });
+
+    expect(worksheets.add).toHaveBeenCalledWith("Staging");
+    expect(createdWorksheet.position).toBe(0);
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "create_sheet",
+      sheetName: "Staging",
+      positionResolved: 0,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_create_sheet_snapshot_excel_001",
+        kind: "workbook_structure",
+        operation: "create_sheet",
+        before: {
+          exists: false,
+          name: "Staging"
+        },
+        after: {
+          exists: true,
+          name: "Staging",
+          position: 0
+        }
+      }
+    });
+  });
+
   it("attaches local undo snapshots for Excel sheet move writes", async () => {
     const firstWorksheet = {
       name: "Sheet1",
