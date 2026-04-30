@@ -793,7 +793,7 @@ function isLikelyExplicitWriteIntent(
 }
 
 function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
-  const supportsNoteWrites = request.capabilities.supportsNoteWrites !== false;
+  const supportsNoteWrites = request.capabilities.supportsNoteWrites === true;
   const helperSheetLine = [
     "- helper_sheet_scaffolding: supported.",
     "Use composite_plan for lookup tools, trackers, helper-sheet flows, and other user-facing input/output workflows.",
@@ -978,7 +978,7 @@ export function buildHermesSpreadsheetRequestPrompt(request: HermesRequest): str
     "If you include warnings, warnings must be an array of objects. Each warning object must include code and message, and may include severity and field.",
     "Do not answer explicit confirmation phrasing with a chat acknowledgement when the user is still naming a workbook or spreadsheet action. If the message says things like \"confirm create sheet ...\" or \"confirm delete rows ...\" and the action maps to a contract plan type, return that plan type instead of chat.",
     "For the chosen response type, data must contain only contract-defined fields. Do not add extra keys.",
-    "If capabilities.supportsNoteWrites is false, do not propose note-based sheet updates.",
+    "If capabilities.supportsNoteWrites is not true, do not propose note-based sheet updates.",
     "Do not include external Step 1 envelope fields such as schemaVersion, requestId, hermesRunId, processedBy, serviceLabel, environmentLabel, startedAt, completedAt, durationMs, trace, or ui.",
     "Preserve contract-safe public fields only in data, warnings, skillsUsed, and downstreamProvider.",
     preferredResponseType === "composite_plan"
