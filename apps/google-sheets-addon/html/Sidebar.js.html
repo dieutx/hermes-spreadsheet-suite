@@ -251,6 +251,10 @@
     return snapshot && snapshot.kind === "range_filter";
   }
 
+  function isWorkbookStructureLocalExecutionSnapshot(snapshot) {
+    return snapshot && snapshot.kind === "workbook_structure";
+  }
+
   function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
     if (!isCompositeLocalExecutionSnapshot(snapshot)) {
       return [snapshot];
@@ -330,6 +334,15 @@
         targetSheet: entry.targetSheet,
         targetRange: entry.targetRange,
         filter: mode === "undo" ? entry.beforeFilter : entry.afterFilter
+      };
+    }
+
+    if (isWorkbookStructureLocalExecutionSnapshot(entry)) {
+      return {
+        kind: "workbook_structure",
+        operation: entry.operation,
+        from: mode === "undo" ? entry.after : entry.before,
+        to: mode === "undo" ? entry.before : entry.after
       };
     }
 
