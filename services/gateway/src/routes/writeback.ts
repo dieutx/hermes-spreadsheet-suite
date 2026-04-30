@@ -162,7 +162,8 @@ const sheetStructureOperations = [
   "set_sheet_tab_color"
 ] as const satisfies readonly SheetStructureUpdateData["operation"][];
 const SheetStructureOperationSchema = z.enum(sheetStructureOperations);
-const A1ResultRangeSchema = z.string().min(1).refine(
+const CompletionSheetNameSchema = z.string().min(1).max(128);
+const A1ResultRangeSchema = z.string().min(1).max(128).refine(
   (value) => parseA1Range(value) !== null,
   { message: "targetRange must be a valid A1 range." }
 );
@@ -205,7 +206,7 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("create_sheet"),
-    sheetName: z.string().min(1),
+    sheetName: CompletionSheetNameSchema,
     ...WorkbookPositionResolutionFields,
     summary: CompletionSummarySchema,
     ...WorkbookStructureUndoReadinessFields
@@ -214,7 +215,7 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("delete_sheet"),
-    sheetName: z.string().min(1),
+    sheetName: CompletionSheetNameSchema,
     summary: CompletionSummarySchema,
     ...WorkbookStructureUndoReadinessFields
   }),
@@ -222,8 +223,8 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("rename_sheet"),
-    sheetName: z.string().min(1),
-    newSheetName: z.string().min(1),
+    sheetName: CompletionSheetNameSchema,
+    newSheetName: CompletionSheetNameSchema,
     summary: CompletionSummarySchema,
     ...WorkbookStructureUndoReadinessFields
   }),
@@ -231,8 +232,8 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("duplicate_sheet"),
-    sheetName: z.string().min(1),
-    newSheetName: z.string().min(1),
+    sheetName: CompletionSheetNameSchema,
+    newSheetName: CompletionSheetNameSchema,
     ...WorkbookPositionResolutionFields,
     summary: CompletionSummarySchema,
     ...WorkbookStructureUndoReadinessFields
@@ -241,7 +242,7 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("move_sheet"),
-    sheetName: z.string().min(1),
+    sheetName: CompletionSheetNameSchema,
     ...WorkbookPositionResolutionFields,
     summary: CompletionSummarySchema,
     ...WorkbookStructureUndoReadinessFields
@@ -250,7 +251,7 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("hide_sheet"),
-    sheetName: z.string().min(1),
+    sheetName: CompletionSheetNameSchema,
     summary: CompletionSummarySchema,
     ...WorkbookStructureUndoReadinessFields
   }),
@@ -258,7 +259,7 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
     kind: z.literal("workbook_structure_update"),
     hostPlatform: HostPlatformSchema,
     operation: z.literal("unhide_sheet"),
-    sheetName: z.string().min(1),
+    sheetName: CompletionSheetNameSchema,
     summary: CompletionSummarySchema,
     ...WorkbookStructureUndoReadinessFields
   })
@@ -267,7 +268,7 @@ const WorkbookStructureWritebackResultSchema = z.discriminatedUnion("operation",
 const SheetStructureWritebackResultSchema = z.object({
   kind: z.literal("sheet_structure_update"),
   hostPlatform: HostPlatformSchema,
-  targetSheet: z.string().min(1),
+  targetSheet: CompletionSheetNameSchema,
   operation: SheetStructureOperationSchema,
   startIndex: z.number().int().min(0).optional(),
   count: z.number().int().min(1).optional(),
