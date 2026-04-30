@@ -117,6 +117,28 @@ function sanitizeResponseDataWarnings<T>(data: T): T {
   } as T;
 }
 
+function sanitizeSkillsUsed(skillsUsed: string[] | undefined): string[] {
+  return (skillsUsed ?? []).filter((skill) => !containsClientUnsafeDiagnostic(skill));
+}
+
+function sanitizeDownstreamProvider(
+  provider: HermesResponse["downstreamProvider"] | undefined
+): HermesResponse["downstreamProvider"] {
+  if (!provider) {
+    return null;
+  }
+
+  if (containsClientUnsafeDiagnostic(provider.label)) {
+    return null;
+  }
+
+  if (provider.model && containsClientUnsafeDiagnostic(provider.model)) {
+    return { label: provider.label };
+  }
+
+  return provider;
+}
+
 function getAssistantContent(payload: unknown): string | undefined {
   if (!isObject(payload) || !Array.isArray(payload.choices) || payload.choices.length === 0) {
     return undefined;
@@ -770,8 +792,8 @@ export class HermesAgentClient {
       startedAt,
       completedAt,
       durationMs: Math.max(0, Date.parse(completedAt) - Date.parse(startedAt)),
-      skillsUsed: input.baseEnvelope?.skillsUsed ?? [],
-      downstreamProvider: input.baseEnvelope?.downstreamProvider ?? null,
+      skillsUsed: sanitizeSkillsUsed(input.baseEnvelope?.skillsUsed),
+      downstreamProvider: sanitizeDownstreamProvider(input.baseEnvelope?.downstreamProvider),
       warnings: sanitizeGatewayWarnings(input.baseEnvelope?.warnings),
       trace: this.capGatewayTrace(input.trace),
       ui: {
@@ -1019,8 +1041,8 @@ export class HermesAgentClient {
       startedAt: input.startedAt,
       completedAt,
       durationMs: Math.max(0, Date.parse(completedAt) - Date.parse(input.startedAt)),
-      skillsUsed: input.body.skillsUsed ?? [],
-      downstreamProvider: input.body.downstreamProvider ?? null,
+      skillsUsed: sanitizeSkillsUsed(input.body.skillsUsed),
+      downstreamProvider: sanitizeDownstreamProvider(input.body.downstreamProvider),
       warnings: sanitizeGatewayWarnings(input.body.warnings),
       trace: this.buildResponseTrace(input.body.type, input.trace, completedAt),
       ui: this.buildUiContract(input.body),

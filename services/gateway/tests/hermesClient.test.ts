@@ -2056,6 +2056,51 @@ describe("HermesAgentClient", () => {
     expect(JSON.stringify(response?.data)).not.toContain("/root/hermes");
   });
 
+  it("sanitizes client-facing response metadata before returning gateway envelopes", async () => {
+    process.env.HERMES_AGENT_BASE_URL = "http://agent.test/v1";
+    const client = new HermesAgentClient(getConfig());
+    const traceBus = new TraceBus();
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(
+      chatCompletionEnvelope(JSON.stringify({
+        type: "chat",
+        data: {
+          message: "I checked the workbook context.",
+          confidence: 0.88
+        },
+        skillsUsed: [
+          "SelectionExplainerSkill",
+          "/srv/hermes/private_tool.ts",
+          "HERMES_API_SERVER_KEY=secret_123"
+        ],
+        downstreamProvider: {
+          label: "https://internal.example/provider",
+          model: "gpt-5 HERMES_API_SERVER_KEY=secret_123"
+        }
+      }))
+    ), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    })));
+
+    await client.processRequest({
+      runId: "run_metadata_sanitized_001",
+      request: baseRequest({
+        requestId: "req_metadata_sanitized_001",
+        userMessage: "Check this workbook."
+      }),
+      traceBus
+    });
+
+    const response = traceBus.getRun("run_metadata_sanitized_001")?.response;
+    expect(response?.type).toBe("chat");
+    expect(response?.skillsUsed).toEqual(["SelectionExplainerSkill"]);
+    expect(response?.downstreamProvider).toBeNull();
+    expect(JSON.stringify(response)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify(response)).not.toContain("/srv/hermes");
+    expect(JSON.stringify(response)).not.toContain("internal.example");
+  });
+
   it("maps descriptive overwriteRisk text into a contract-safe risk level for sheet_update responses", async () => {
     process.env.HERMES_AGENT_BASE_URL = "http://agent.test/v1";
     const client = new HermesAgentClient(getConfig());
