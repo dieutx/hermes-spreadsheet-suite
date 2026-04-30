@@ -2962,6 +2962,22 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
   });
 
+  it("sanitizes malformed successful gateway JSON before display in Google Sheets", async () => {
+    const sidebar = loadSidebarContext();
+    const hooks = (sidebar as any).__sidebarTestHooks;
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: true,
+      status: 200,
+      async json() {
+        throw new Error("Unexpected token at /srv/hermes/services/gateway/src/app.ts:99");
+      }
+    })).rejects.toThrow(
+      "The Hermes service returned a response Google Sheets could not use.\n\n" +
+      "Retry the request, then reload the sidebar if it keeps happening."
+    );
+  });
+
   it("translates raw 404 gateway text into an actionable sidebar error", async () => {
     const sidebar = loadSidebarContext();
     const hooks = (sidebar as any).__sidebarTestHooks;
