@@ -51,6 +51,9 @@ const INVALID_HERMES_DEBUG_PREFIX = path.join(tmpdir(), "hermes-spreadsheet-inva
 const INTERNAL_ERROR_LANGUAGE_PATTERN = /\b(contract|schema|structured body|validation|json|payload|parse|parser|normaliz(?:e|ation))\b/i;
 const CLIENT_UNSAFE_INTERNAL_WORDING_PATTERN = /\b(?:contract schema|structured body|validation issue|parser error|raw json|raw payload|zod)\b/i;
 const CLIENT_UNSAFE_DIAGNOSTIC_PATTERN = /\b(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)\b|(?:^|\s)\/(?:root|srv|home|tmp)\/[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})[^\s]*/i;
+const DEBUG_SECRET_ASSIGNMENT_PATTERN = /\b((?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|GOOGLE_CLIENT_SECRET|GOOGLE_REFRESH_TOKEN|GOOGLE_ACCESS_TOKEN)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}\]]+)/gi;
+const DEBUG_BEARER_TOKEN_PATTERN = /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}\b/gi;
+const DEBUG_INTERNAL_URL_PATTERN = /https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})[^\s"'`<>)\]}]*/gi;
 const SANITIZED_WARNING_MESSAGE = "A gateway warning was hidden because it contained internal diagnostic details.";
 const MAX_GATEWAY_RESPONSE_TRACE_EVENTS = 200;
 const DEFAULT_HERMES_AGENT_TIMEOUT_MS = 45_000;
@@ -78,6 +81,13 @@ function containsClientUnsafeDiagnostic(value: unknown): boolean {
   }
 
   return CLIENT_UNSAFE_INTERNAL_WORDING_PATTERN.test(value) || CLIENT_UNSAFE_DIAGNOSTIC_PATTERN.test(value);
+}
+
+function redactDebugArtifactContent(value: string): string {
+  return value
+    .replace(DEBUG_SECRET_ASSIGNMENT_PATTERN, "$1[REDACTED]")
+    .replace(DEBUG_BEARER_TOKEN_PATTERN, "$1[REDACTED]")
+    .replace(DEBUG_INTERNAL_URL_PATTERN, "[REDACTED_INTERNAL_URL]");
 }
 
 function sanitizeGatewayWarning(warning: Warning): Warning {
@@ -1300,7 +1310,7 @@ export class HermesAgentClient {
       `requestId: ${input.requestId}`,
       `runId: ${input.runId}`,
       "--- raw assistant content ---",
-      input.rawContent
+      redactDebugArtifactContent(input.rawContent)
     ].join("\n");
 
     try {
@@ -1329,7 +1339,7 @@ export class HermesAgentClient {
       `requestId: ${input.requestId}`,
       `runId: ${input.runId}`,
       "--- raw assistant content ---",
-      input.rawContent
+      redactDebugArtifactContent(input.rawContent)
     ].join("\n");
 
     const validationDebugContents = [
