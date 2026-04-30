@@ -17,6 +17,7 @@ afterEach(() => {
   delete process.env.HERMES_AGENT_ID;
   delete process.env.HERMES_AGENT_TIMEOUT_MS;
   delete process.env.HERMES_BASE_URL;
+  delete process.env.MAX_UPLOAD_BYTES;
 });
 
 describe("gateway config", () => {
@@ -117,6 +118,14 @@ describe("gateway config", () => {
     expect(getConfig()).toMatchObject({
       saveInvalidHermesDebugArtifacts: true
     });
+  });
+
+  it("fails closed when the upload size limit is invalid", () => {
+    for (const value of ["0", "-1", "not-a-number", "1.5"]) {
+      process.env.MAX_UPLOAD_BYTES = value;
+
+      expect(() => getConfig()).toThrow("MAX_UPLOAD_BYTES must be a positive integer.");
+    }
   });
 
   it("defaults public gateway CORS to the gateway origin when no explicit allowlist is provided", () => {
