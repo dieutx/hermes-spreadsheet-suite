@@ -235,6 +235,10 @@
     return Array.isArray(snapshot && snapshot.entries) && snapshot.entries.length > 0;
   }
 
+  function isRangeFormatLocalExecutionSnapshot(snapshot) {
+    return snapshot && snapshot.kind === "range_format";
+  }
+
   function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
     if (!isCompositeLocalExecutionSnapshot(snapshot)) {
       return [snapshot];
@@ -278,6 +282,24 @@
     writeLocalExecutionSnapshotStore(workbookSessionKey, cleanedStore);
   }
 
+  function buildLocalExecutionSnapshotServerPayload(entry, mode) {
+    if (isRangeFormatLocalExecutionSnapshot(entry)) {
+      return {
+        kind: "range_format",
+        targetSheet: entry.targetSheet,
+        targetRange: entry.targetRange,
+        shape: entry.shape,
+        format: mode === "undo" ? entry.beforeFormat : entry.afterFormat
+      };
+    }
+
+    return {
+      targetSheet: entry.targetSheet,
+      targetRange: entry.targetRange,
+      cells: mode === "undo" ? entry.beforeCells : entry.afterCells
+    };
+  }
+
   function prepareGatewayWritebackResult(result, executionId, workbookSessionKey) {
     const snapshot = result && result.__hermesLocalExecutionSnapshot;
     const strippedResult = stripLocalExecutionSnapshot(result);
@@ -299,22 +321,14 @@
   async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
     const entries = getLocalExecutionSnapshotEntriesForMode(snapshot, mode);
     for (const entry of entries) {
-      await callServer("validateExecutionCellSnapshot", {
-        targetSheet: entry.targetSheet,
-        targetRange: entry.targetRange,
-        cells: mode === "undo" ? entry.beforeCells : entry.afterCells
-      });
+      await callServer("validateExecutionCellSnapshot", buildLocalExecutionSnapshotServerPayload(entry, mode));
     }
   }
 
   async function applyLocalExecutionSnapshotForMode(snapshot, mode) {
     const entries = getLocalExecutionSnapshotEntriesForMode(snapshot, mode);
     for (const entry of entries) {
-      await callServer("applyExecutionCellSnapshot", {
-        targetSheet: entry.targetSheet,
-        targetRange: entry.targetRange,
-        cells: mode === "undo" ? entry.beforeCells : entry.afterCells
-      });
+      await callServer("applyExecutionCellSnapshot", buildLocalExecutionSnapshotServerPayload(entry, mode));
     }
   }
 

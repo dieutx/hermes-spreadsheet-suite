@@ -3368,6 +3368,115 @@ function createLocalExecutionSnapshot_(input) {
   };
 }
 
+function readRangeFormatMatrixSnapshot_(range, getterName) {
+  if (!range || typeof range[getterName] !== 'function') {
+    return null;
+  }
+
+  return cloneMatrix_(range[getterName]());
+}
+
+function readRangeFormatDimensionSnapshot_(sheet, startIndex, count, getterName) {
+  if (!sheet || typeof sheet[getterName] !== 'function') {
+    return null;
+  }
+
+  return Array.from({ length: count }, function(_, offset) {
+    return sheet[getterName](startIndex + offset);
+  });
+}
+
+function readRangeFormatStateForSnapshot_(sheet, range, format) {
+  if (!format || typeof format !== 'object' || format.border) {
+    return null;
+  }
+
+  const state = {};
+  let complete = true;
+  const captureMatrix = function(planField, snapshotField, getterName) {
+    if (format[planField] === undefined) {
+      return;
+    }
+
+    const value = readRangeFormatMatrixSnapshot_(range, getterName);
+    if (!value) {
+      complete = false;
+      return;
+    }
+
+    state[snapshotField] = value;
+  };
+
+  captureMatrix('backgroundColor', 'backgrounds', 'getBackgrounds');
+  captureMatrix('textColor', 'fontColors', 'getFontColors');
+  captureMatrix('fontFamily', 'fontFamilies', 'getFontFamilies');
+  captureMatrix('fontSize', 'fontSizes', 'getFontSizes');
+  captureMatrix('bold', 'fontWeights', 'getFontWeights');
+  captureMatrix('italic', 'fontStyles', 'getFontStyles');
+  captureMatrix('horizontalAlignment', 'horizontalAlignments', 'getHorizontalAlignments');
+  captureMatrix('verticalAlignment', 'verticalAlignments', 'getVerticalAlignments');
+  captureMatrix('wrapStrategy', 'wrapStrategies', 'getWrapStrategies');
+  captureMatrix('numberFormat', 'numberFormats', 'getNumberFormats');
+
+  if (format.underline !== undefined || format.strikethrough !== undefined) {
+    const fontLines = readRangeFormatMatrixSnapshot_(range, 'getFontLines');
+    if (!fontLines) {
+      complete = false;
+    } else {
+      state.fontLines = fontLines;
+    }
+  }
+
+  if (format.columnWidth !== undefined) {
+    const widths = readRangeFormatDimensionSnapshot_(
+      sheet,
+      range.getColumn(),
+      range.getNumColumns(),
+      'getColumnWidth'
+    );
+    if (!widths) {
+      complete = false;
+    } else {
+      state.columnWidths = widths;
+    }
+  }
+
+  if (format.rowHeight !== undefined) {
+    const heights = readRangeFormatDimensionSnapshot_(
+      sheet,
+      range.getRow(),
+      range.getNumRows(),
+      'getRowHeight'
+    );
+    if (!heights) {
+      complete = false;
+    } else {
+      state.rowHeights = heights;
+    }
+  }
+
+  return complete && Object.keys(state).length > 0 ? state : null;
+}
+
+function createRangeFormatLocalExecutionSnapshot_(input) {
+  if (!input || !input.executionId || !input.targetSheet || !input.targetRange || !input.beforeFormat || !input.afterFormat) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'range_format',
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    shape: {
+      rows: input.target.getNumRows(),
+      columns: input.target.getNumColumns()
+    },
+    beforeFormat: input.beforeFormat,
+    afterFormat: input.afterFormat
+  };
+}
+
 function createCompositeLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !Array.isArray(input.entries) || input.entries.length === 0) {
     return null;
@@ -3437,7 +3546,149 @@ function resolveExecutionCellSnapshot_(input) {
   };
 }
 
+function inferRangeFormatSnapshotShape_(format) {
+  const matrix = Object.keys(format || {})
+    .map(function(key) {
+      return format[key];
+    })
+    .find(function(value) {
+      return Array.isArray(value) && Array.isArray(value[0]);
+    });
+
+  return matrix
+    ? {
+      rows: matrix.length,
+      columns: (matrix[0] && matrix[0].length) || 0
+    }
+    : {
+      rows: 0,
+      columns: 0
+    };
+}
+
+function resolveExecutionRangeFormatSnapshot_(input) {
+  if (!input || typeof input !== 'object') {
+    throw new Error('Execution snapshot payload is required.');
+  }
+
+  const format = input.format && typeof input.format === 'object' ? input.format : null;
+  if (!input.targetSheet || !input.targetRange || !format) {
+    throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+  }
+
+  const spreadsheet = SpreadsheetApp.getActive();
+  const sheet = spreadsheet.getSheetByName(input.targetSheet);
+  if (!sheet) {
+    throw new Error('Target sheet not found: ' + input.targetSheet);
+  }
+
+  const target = sheet.getRange(input.targetRange);
+  const inferredShape = inferRangeFormatSnapshotShape_(format);
+  const expectedRows = (input.shape && Number(input.shape.rows)) || inferredShape.rows;
+  const expectedColumns = (input.shape && Number(input.shape.columns)) || inferredShape.columns;
+
+  if (
+    !expectedRows ||
+    !expectedColumns ||
+    target.getNumRows() !== expectedRows ||
+    target.getNumColumns() !== expectedColumns
+  ) {
+    throw new Error('The saved undo snapshot no longer matches the current range shape.');
+  }
+
+  return {
+    spreadsheet: spreadsheet,
+    sheet: sheet,
+    target: target,
+    format: format
+  };
+}
+
+function applyRangeFormatSnapshotState_(sheet, target, format) {
+  if (Array.isArray(format.backgrounds)) {
+    target.setBackgrounds(format.backgrounds);
+  }
+
+  if (Array.isArray(format.fontColors)) {
+    target.setFontColors(format.fontColors);
+  }
+
+  if (Array.isArray(format.fontFamilies)) {
+    target.setFontFamilies(format.fontFamilies);
+  }
+
+  if (Array.isArray(format.fontSizes)) {
+    target.setFontSizes(format.fontSizes);
+  }
+
+  if (Array.isArray(format.fontWeights)) {
+    target.setFontWeights(format.fontWeights);
+  }
+
+  if (Array.isArray(format.fontStyles)) {
+    target.setFontStyles(format.fontStyles);
+  }
+
+  if (Array.isArray(format.fontLines)) {
+    target.setFontLines(format.fontLines);
+  }
+
+  if (Array.isArray(format.horizontalAlignments)) {
+    target.setHorizontalAlignments(format.horizontalAlignments);
+  }
+
+  if (Array.isArray(format.verticalAlignments)) {
+    target.setVerticalAlignments(format.verticalAlignments);
+  }
+
+  if (Array.isArray(format.wrapStrategies)) {
+    target.setWrapStrategies(format.wrapStrategies);
+  }
+
+  if (Array.isArray(format.numberFormats)) {
+    target.setNumberFormats(format.numberFormats);
+  }
+
+  if (Array.isArray(format.columnWidths)) {
+    format.columnWidths.forEach(function(width, offset) {
+      sheet.setColumnWidth(target.getColumn() + offset, width);
+    });
+  }
+
+  if (Array.isArray(format.rowHeights)) {
+    format.rowHeights.forEach(function(height, offset) {
+      sheet.setRowHeight(target.getRow() + offset, height);
+    });
+  }
+}
+
+function validateExecutionRangeFormatSnapshot_(input) {
+  const validated = resolveExecutionRangeFormatSnapshot_(input);
+  return {
+    ok: true,
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    rowCount: validated.target.getNumRows(),
+    columnCount: validated.target.getNumColumns()
+  };
+}
+
+function applyExecutionRangeFormatSnapshot_(input) {
+  const validated = resolveExecutionRangeFormatSnapshot_(input);
+  applyRangeFormatSnapshotState_(validated.sheet, validated.target, validated.format);
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange
+  };
+}
+
 function validateExecutionCellSnapshot(input) {
+  if (input && input.kind === 'range_format') {
+    return validateExecutionRangeFormatSnapshot_(input);
+  }
+
   const validated = resolveExecutionCellSnapshot_(input);
   return {
     ok: true,
@@ -3449,6 +3700,10 @@ function validateExecutionCellSnapshot(input) {
 }
 
 function applyExecutionCellSnapshot(input) {
+  if (input && input.kind === 'range_format') {
+    return applyExecutionRangeFormatSnapshot_(input);
+  }
+
   const validated = resolveExecutionCellSnapshot_(input);
   const target = validated.target;
   const cells = validated.cells;
@@ -3482,6 +3737,10 @@ function applyExecutionCellSnapshot(input) {
 }
 
 function validateExecutionCellSnapshot(input) {
+  if (input && input.kind === 'range_format') {
+    return validateExecutionRangeFormatSnapshot_(input);
+  }
+
   if (!input || typeof input !== 'object') {
     throw new Error('Execution snapshot payload is required.');
   }
@@ -5814,6 +6073,8 @@ function applyWritePlan(input) {
   }
 
   if (isRangeFormatPlan_(plan)) {
+    const beforeFormat = readRangeFormatStateForSnapshot_(sheet, target, plan.format);
+
     if (plan.format.backgroundColor) {
       target.setBackground(plan.format.backgroundColor);
     }
@@ -5889,7 +6150,10 @@ function applyWritePlan(input) {
     }
 
     SpreadsheetApp.flush();
-    return {
+    const afterFormat = beforeFormat
+      ? readRangeFormatStateForSnapshot_(sheet, target, plan.format)
+      : null;
+    return attachLocalExecutionSnapshot_({
       kind: 'range_format_update',
       hostPlatform: 'google_sheets',
       targetSheet: plan.targetSheet,
@@ -5900,7 +6164,14 @@ function applyWritePlan(input) {
       requiresConfirmation: plan.requiresConfirmation,
       overwriteRisk: plan.overwriteRisk,
       summary: getRangeFormatStatusSummary_(plan)
-    };
+    }, createRangeFormatLocalExecutionSnapshot_({
+      executionId: input.executionId,
+      targetSheet: plan.targetSheet,
+      targetRange: plan.targetRange,
+      target: target,
+      beforeFormat: beforeFormat,
+      afterFormat: afterFormat
+    }));
   }
 
   if (isDataCleanupPlan_(plan)) {
