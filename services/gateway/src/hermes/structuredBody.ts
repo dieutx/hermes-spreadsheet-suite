@@ -1101,6 +1101,42 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
   return normalized;
 }
 
+function normalizeRangeFilterOperator(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value.trim();
+  const operatorAliases: Record<string, string> = {
+    equal_to: "equals",
+    equals: "equals",
+    not_equal_to: "notEquals",
+    not_equals: "notEquals",
+    notEquals: "notEquals",
+    contains: "contains",
+    starts_with: "startsWith",
+    startsWith: "startsWith",
+    ends_with: "endsWith",
+    endsWith: "endsWith",
+    greater_than: "greaterThan",
+    greaterThan: "greaterThan",
+    greater_than_or_equal_to: "greaterThanOrEqual",
+    greaterThanOrEqual: "greaterThanOrEqual",
+    less_than: "lessThan",
+    lessThan: "lessThan",
+    less_than_or_equal_to: "lessThanOrEqual",
+    lessThanOrEqual: "lessThanOrEqual",
+    is_empty: "isEmpty",
+    isEmpty: "isEmpty",
+    is_not_empty: "isNotEmpty",
+    isNotEmpty: "isNotEmpty",
+    top_n: "topN",
+    topN: "topN"
+  };
+
+  return operatorAliases[normalized] ?? value;
+}
+
 function normalizeRangeFilterPlanData(value: unknown): unknown {
   if (!isObject(value)) {
     return value;
@@ -1109,13 +1145,41 @@ function normalizeRangeFilterPlanData(value: unknown): unknown {
   const normalized: JsonRecord = { ...value };
 
   if (hasOwn(value, "conditions") && Array.isArray(value.conditions)) {
-    normalized.conditions = value.conditions.map((item) => isObject(item)
-      ? pickFields(item, ["columnRef", "operator", "value", "value2"])
-      : item);
+    normalized.conditions = value.conditions.map((item) => {
+      if (!isObject(item)) {
+        return item;
+      }
+
+      const condition = pickFields(item, ["columnRef", "operator", "value", "value2"]);
+      if (!hasOwn(condition, "columnRef")) {
+        if (hasOwn(item, "field")) {
+          condition.columnRef = item.field;
+        } else if (hasOwn(item, "column")) {
+          condition.columnRef = item.column;
+        }
+      }
+      condition.operator = normalizeRangeFilterOperator(condition.operator);
+      return condition;
+    });
   }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!normalized.combiner || typeof normalized.combiner !== "string") {
+    normalized.combiner = "and";
+  }
+
+  if (!hasOwn(normalized, "clearExistingFilters")) {
+    normalized.clearExistingFilters = true;
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
   }
 
   return normalized;
