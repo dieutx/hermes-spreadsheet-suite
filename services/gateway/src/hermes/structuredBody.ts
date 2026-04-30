@@ -808,12 +808,39 @@ function normalizeCompositePlanStepValue(value: unknown): unknown {
     "plan"
   ]);
 
-  if (hasOwn(value, "dependsOn") && Array.isArray(value.dependsOn)) {
-    normalized.dependsOn = [...value.dependsOn];
+  if (!hasOwn(normalized, "stepId") && hasOwn(value, "id")) {
+    normalized.stepId = value.id;
+  }
+
+  const dependsOnValue = hasOwn(value, "dependsOn")
+    ? value.dependsOn
+    : hasOwn(value, "depends")
+    ? value.depends
+    : value.after;
+
+  if (Array.isArray(dependsOnValue)) {
+    normalized.dependsOn = [...dependsOnValue];
+  } else if (typeof dependsOnValue === "string" && dependsOnValue.trim()) {
+    normalized.dependsOn = [dependsOnValue.trim()];
+  } else if (!hasOwn(normalized, "dependsOn")) {
+    normalized.dependsOn = [];
+  }
+
+  if (!hasOwn(normalized, "continueOnError")) {
+    if (hasOwn(value, "continueOnFailure")) {
+      normalized.continueOnError = value.continueOnFailure;
+    } else {
+      normalized.continueOnError = false;
+    }
   }
 
   if (hasOwn(value, "plan")) {
     normalized.plan = normalizeCompositeStepPlanValue(value.plan);
+  } else if (hasOwn(value, "type") && hasOwn(value, "data")) {
+    normalized.plan = normalizeCompositeStepPlanValue({
+      type: value.type,
+      data: value.data
+    });
   }
 
   return normalized;
@@ -837,8 +864,14 @@ function normalizeCompositePlanData(value: unknown): unknown {
     "dryRunRequired"
   ]);
 
-  if (hasOwn(value, "steps") && Array.isArray(value.steps)) {
-    normalized.steps = value.steps.map((item) => normalizeCompositePlanStepValue(item));
+  const stepsValue = hasOwn(value, "steps")
+    ? value.steps
+    : hasOwn(value, "actions")
+    ? value.actions
+    : value.tasks;
+
+  if (Array.isArray(stepsValue)) {
+    normalized.steps = stepsValue.map((item) => normalizeCompositePlanStepValue(item));
   }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
@@ -858,6 +891,14 @@ function normalizeCompositePlanData(value: unknown): unknown {
   normalized.confirmationLevel = hasDestructiveStep ? "destructive" : "standard";
   // Composite workflows do not have an exact inverse execution path across hosts yet.
   normalized.reversible = false;
+
+  if (!hasOwn(normalized, "dryRunRecommended")) {
+    normalized.dryRunRecommended = true;
+  }
+
+  if (!hasOwn(normalized, "dryRunRequired")) {
+    normalized.dryRunRequired = false;
+  }
 
   return normalized;
 }

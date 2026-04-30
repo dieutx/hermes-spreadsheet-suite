@@ -1284,6 +1284,68 @@ describe("structured body normalization", () => {
     });
   });
 
+  it("normalizes composite action aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "composite_plan",
+      data: {
+        actions: [
+          {
+            id: "sort_sales",
+            type: "range_sort_plan",
+            data: {
+              targetSheet: "Sales",
+              targetRange: "A1:C10",
+              hasHeader: true,
+              keys: [{ columnRef: "Revenue", direction: "desc" }],
+              explanation: "Sort sales by revenue.",
+              confidence: 0.91,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!A1:C10"]
+            }
+          }
+        ],
+        explanation: "Run a one-step workflow.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:C10"],
+        overwriteRisk: "low"
+      }
+    });
+
+    expect(normalized).toEqual({
+      type: "composite_plan",
+      data: {
+        steps: [
+          {
+            stepId: "sort_sales",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              targetSheet: "Sales",
+              targetRange: "A1:C10",
+              hasHeader: true,
+              keys: [{ columnRef: "Revenue", direction: "desc" }],
+              explanation: "Sort sales by revenue.",
+              confidence: 0.91,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!A1:C10"]
+            }
+          }
+        ],
+        explanation: "Run a one-step workflow.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:C10"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: false,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it.each([
     [
       "chat missing message",
