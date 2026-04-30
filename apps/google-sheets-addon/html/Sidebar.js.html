@@ -243,6 +243,10 @@
     return snapshot && snapshot.kind === "data_validation";
   }
 
+  function isNamedRangeLocalExecutionSnapshot(snapshot) {
+    return snapshot && snapshot.kind === "named_range";
+  }
+
   function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
     if (!isCompositeLocalExecutionSnapshot(snapshot)) {
       return [snapshot];
@@ -304,6 +308,15 @@
         targetRange: entry.targetRange,
         shape: entry.shape,
         validation: mode === "undo" ? entry.beforeValidation : entry.afterValidation
+      };
+    }
+
+    if (isNamedRangeLocalExecutionSnapshot(entry)) {
+      return {
+        kind: "named_range",
+        scope: entry.scope,
+        from: mode === "undo" ? entry.after : entry.before,
+        to: mode === "undo" ? entry.before : entry.after
       };
     }
 
