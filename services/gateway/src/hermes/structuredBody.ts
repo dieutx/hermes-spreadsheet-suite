@@ -1222,8 +1222,47 @@ function normalizeDataValidationPlanData(value: unknown): unknown {
     normalized.values = [...value.values];
   }
 
+  if (!hasOwn(normalized, "values")) {
+    if (hasOwn(value, "options") && Array.isArray(value.options)) {
+      normalized.values = [...value.options];
+    } else if (hasOwn(value, "allowedValues") && Array.isArray(value.allowedValues)) {
+      normalized.values = [...value.allowedValues];
+    } else if (hasOwn(value, "listValues") && Array.isArray(value.listValues)) {
+      normalized.values = [...value.listValues];
+    }
+  }
+
+  if (normalized.ruleType === "dropdown" || normalized.ruleType === "pick_list") {
+    normalized.ruleType = "list";
+  } else if (normalized.ruleType === "integer") {
+    normalized.ruleType = "whole_number";
+  } else if (normalized.ruleType === "number") {
+    normalized.ruleType = "decimal";
+  } else if (normalized.ruleType === "formula") {
+    normalized.ruleType = "custom_formula";
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
+  }
+
+  if (!hasOwn(normalized, "allowBlank")) {
+    normalized.allowBlank = true;
+  }
+
+  if (!hasOwn(normalized, "invalidDataBehavior")) {
+    normalized.invalidDataBehavior = "reject";
+  }
+
+  if (normalized.ruleType === "list" && !hasOwn(normalized, "showDropdown")) {
+    normalized.showDropdown = true;
   }
 
   if (!hasOwn(normalized, "inputTitle") && hasOwn(value, "promptTitle")) {
