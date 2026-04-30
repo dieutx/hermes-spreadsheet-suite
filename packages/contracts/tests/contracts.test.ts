@@ -2617,6 +2617,40 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.type).toBe("data_cleanup_update");
   });
 
+  it("rejects data_cleanup_update envelopes with malformed target ranges", () => {
+    const parsed = DataCleanupUpdateResponseSchema.safeParse({
+      schemaVersion: "1.0.0",
+      type: "data_cleanup_update",
+      requestId: "req_cleanup_001",
+      hermesRunId: "run_cleanup_001",
+      processedBy: "hermes",
+      serviceLabel: "hermes-gateway-local",
+      environmentLabel: "local-dev",
+      startedAt: "2026-04-20T09:00:00.000Z",
+      completedAt: "2026-04-20T09:00:01.000Z",
+      durationMs: 1000,
+      trace: [
+        { event: "data_cleanup_update_ready", timestamp: "2026-04-20T09:00:01.000Z" }
+      ],
+      ui: {
+        displayMode: "structured-preview",
+        showTrace: true,
+        showWarnings: true,
+        showConfidence: true,
+        showRequiresConfirmation: true
+      },
+      data: {
+        operation: "data_cleanup_update",
+        targetSheet: "Sheet1",
+        targetRange: "current table",
+        cleanupOperation: "remove_duplicate_rows",
+        summary: "Remove duplicate rows from the target range."
+      }
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a range_transfer_plan response envelope", () => {
     const parsed = RangeTransferPlanResponseSchema.parse({
       schemaVersion: "1.0.0",
