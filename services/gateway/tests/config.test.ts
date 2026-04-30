@@ -140,4 +140,14 @@ describe("gateway config", () => {
       ]
     });
   });
+
+  it("rejects wildcard CORS allowlists for public gateway base urls", () => {
+    process.env.GATEWAY_PUBLIC_BASE_URL = "https://gateway.example.test/hermes-gateway";
+    process.env.GATEWAY_ALLOWED_ORIGINS = "*";
+    process.env.APPROVAL_SECRET = "secret";
+
+    expect(() => getConfig()).toThrow(
+      "GATEWAY_ALLOWED_ORIGINS must not contain * when the gateway public base URL is not local."
+    );
+  });
 });
