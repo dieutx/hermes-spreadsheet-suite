@@ -74,6 +74,20 @@ describe("Google Sheets add-on deploy helpers", () => {
     expect(source).toContain('"forceExtractionMode": "demo"');
   });
 
+  it("rejects non-public gateway urls when building deployment config", () => {
+    for (const gatewayBaseUrl of [
+      "http://gateway.example.com",
+      "http://127.0.0.1:8787",
+      "https://[::1]:8787"
+    ]) {
+      expect(() => buildGoogleSheetsDeploymentConfigSource({
+        gatewayBaseUrl
+      })).toThrow(
+        "gatewayBaseUrl must be a public HTTPS URL reachable from Google Apps Script."
+      );
+    }
+  });
+
   it("sanitizes clasp credential loading failures", async () => {
     const stageDir = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-gs-addon-creds-test-"));
     tempDirs.push(stageDir);
