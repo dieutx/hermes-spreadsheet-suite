@@ -3,6 +3,7 @@ import { Router } from "express";
 import { HermesRequestSchema } from "@hermes/contracts";
 import type { HermesRequest } from "@hermes/contracts";
 import type { GatewayConfig } from "../lib/config.js";
+import { formatClientIssuePath, sanitizeClientIssueMessage } from "../lib/publicErrors.js";
 import { AttachmentStore } from "../lib/store.js";
 import type { TraceBus } from "../lib/traceBus.js";
 
@@ -141,8 +142,8 @@ function buildCanonicalAttachments(
 
 function formatIssues(issues: Array<{ path: (string | number)[]; message: string }>) {
   return issues.map((issue) => ({
-    path: issue.path.join("."),
-    message: issue.message
+    path: formatClientIssuePath(issue.path),
+    message: sanitizeClientIssueMessage(issue.message)
   }));
 }
 

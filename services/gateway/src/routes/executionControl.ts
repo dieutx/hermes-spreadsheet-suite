@@ -13,6 +13,7 @@ import {
   type ExecutionLedger
 } from "../lib/executionLedger.js";
 import { normalizeCompositePlanForDigest } from "../lib/planNormalization.js";
+import { formatClientIssuePath, sanitizeClientIssueMessage } from "../lib/publicErrors.js";
 
 const DryRunRequestSchema = z.object({
   requestId: z.string().min(1).max(128),
@@ -40,8 +41,8 @@ type RouteErrorPayload = {
 
 function formatIssues(issues: z.ZodIssue[]): Array<{ path: string; message: string }> {
   return issues.map((issue) => ({
-    path: issue.path.join("."),
-    message: issue.message
+    path: formatClientIssuePath(issue.path),
+    message: sanitizeClientIssueMessage(issue.message)
   }));
 }
 
