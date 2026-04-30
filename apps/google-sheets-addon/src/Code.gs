@@ -3663,6 +3663,76 @@ function createDataValidationLocalExecutionSnapshot_(input) {
   };
 }
 
+function readNamedRangeStateForSnapshot_(namedRange, fallbackName) {
+  if (!namedRange) {
+    return {
+      exists: false,
+      name: fallbackName
+    };
+  }
+
+  if (typeof namedRange.getName !== 'function' || typeof namedRange.getRange !== 'function') {
+    return null;
+  }
+
+  const range = namedRange.getRange();
+  if (!range || typeof range.getA1Notation !== 'function') {
+    return null;
+  }
+
+  let targetSheet = null;
+  if (typeof range.getSheet === 'function') {
+    const sheet = range.getSheet();
+    if (sheet && typeof sheet.getName === 'function') {
+      targetSheet = sheet.getName();
+    }
+  }
+
+  if (!targetSheet) {
+    return null;
+  }
+
+  return {
+    exists: true,
+    name: namedRange.getName() || fallbackName,
+    targetSheet: targetSheet,
+    targetRange: range.getA1Notation()
+  };
+}
+
+function createNamedRangeStateForTarget_(name, targetSheet, targetRange) {
+  if (!name || !targetSheet || !targetRange) {
+    return null;
+  }
+
+  return {
+    exists: true,
+    name: name,
+    targetSheet: targetSheet,
+    targetRange: targetRange
+  };
+}
+
+function createNamedRangeLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    input.scope !== 'workbook' ||
+    !input.before ||
+    !input.after
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'named_range',
+    scope: 'workbook',
+    before: input.before,
+    after: input.after
+  };
+}
+
 function createRangeFormatLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !input.targetSheet || !input.targetRange || !input.beforeFormat || !input.afterFormat) {
     return null;
@@ -3990,6 +4060,146 @@ function applyExecutionDataValidationSnapshot_(input) {
   };
 }
 
+function assertNamedRangeSnapshotState_(state) {
+  if (!state || typeof state.name !== 'string' || state.name.length === 0) {
+    throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+  }
+
+  if (
+    state.exists === true &&
+    (
+      typeof state.targetSheet !== 'string' ||
+      state.targetSheet.length === 0 ||
+      typeof state.targetRange !== 'string' ||
+      state.targetRange.length === 0
+    )
+  ) {
+    throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+  }
+}
+
+function resolveNamedRangeSnapshotTransition_(input) {
+  if (!input || typeof input !== 'object') {
+    throw new Error('Execution snapshot payload is required.');
+  }
+
+  if (input.scope !== 'workbook') {
+    throw new Error('Google Sheets host does not support sheet-scoped named ranges.');
+  }
+
+  assertNamedRangeSnapshotState_(input.from);
+  assertNamedRangeSnapshotState_(input.to);
+
+  return {
+    spreadsheet: SpreadsheetApp.getActive(),
+    from: input.from,
+    to: input.to
+  };
+}
+
+function resolveNamedRangeSnapshotTarget_(spreadsheet, state) {
+  const sheet = spreadsheet.getSheetByName(state.targetSheet);
+  if (!sheet || typeof sheet.getRange !== 'function') {
+    throw new Error('Target sheet not found: ' + state.targetSheet);
+  }
+
+  return sheet.getRange(state.targetRange);
+}
+
+function validateNamedRangeSnapshotTransition_(spreadsheet, from, to) {
+  if (from.exists === true && !findNamedRange_(spreadsheet, from.name)) {
+    throw new Error('Named range not found: ' + from.name);
+  }
+
+  if (to.exists === true) {
+    resolveNamedRangeSnapshotTarget_(spreadsheet, to);
+  }
+
+  if (from.exists === false && to.exists === true) {
+    if (findNamedRange_(spreadsheet, to.name)) {
+      throw new Error('Named range already exists: ' + to.name);
+    }
+
+    if (typeof spreadsheet.setNamedRange !== 'function') {
+      throw new Error('Google Sheets host does not support creating named ranges.');
+    }
+  }
+
+  if (from.exists === true && to.exists === false && typeof spreadsheet.removeNamedRange !== 'function') {
+    throw new Error('Google Sheets host does not support deleting named ranges.');
+  }
+
+  if (from.exists === true && to.exists === true && from.name !== to.name) {
+    const existingTargetName = findNamedRange_(spreadsheet, to.name);
+    const sourceNamedRange = findNamedRange_(spreadsheet, from.name);
+    if (existingTargetName && existingTargetName !== sourceNamedRange) {
+      throw new Error('Named range already exists: ' + to.name);
+    }
+
+    if (!sourceNamedRange || typeof sourceNamedRange.setName !== 'function') {
+      throw new Error('Google Sheets host does not support renaming named ranges.');
+    }
+  }
+
+  if (from.exists === true && to.exists === true) {
+    const sourceNamedRange = findNamedRange_(spreadsheet, from.name);
+    if (!sourceNamedRange || typeof sourceNamedRange.setRange !== 'function') {
+      throw new Error('Google Sheets host does not support retargeting named ranges.');
+    }
+  }
+}
+
+function applyNamedRangeSnapshotTransition_(spreadsheet, from, to) {
+  validateNamedRangeSnapshotTransition_(spreadsheet, from, to);
+
+  if (from.exists === false && to.exists === false) {
+    return;
+  }
+
+  if (from.exists === false && to.exists === true) {
+    spreadsheet.setNamedRange(to.name, resolveNamedRangeSnapshotTarget_(spreadsheet, to));
+    return;
+  }
+
+  const namedRange = findNamedRange_(spreadsheet, from.name);
+  if (!namedRange) {
+    throw new Error('Named range not found: ' + from.name);
+  }
+
+  if (from.exists === true && to.exists === false) {
+    spreadsheet.removeNamedRange(from.name);
+    return;
+  }
+
+  if (from.name !== to.name) {
+    namedRange.setName(to.name);
+  }
+
+  const sameTarget = from.targetSheet === to.targetSheet && from.targetRange === to.targetRange;
+  if (!sameTarget) {
+    namedRange.setRange(resolveNamedRangeSnapshotTarget_(spreadsheet, to));
+  }
+}
+
+function validateExecutionNamedRangeSnapshot_(input) {
+  const validated = resolveNamedRangeSnapshotTransition_(input);
+  validateNamedRangeSnapshotTransition_(validated.spreadsheet, validated.from, validated.to);
+  return {
+    ok: true,
+    scope: input.scope
+  };
+}
+
+function applyExecutionNamedRangeSnapshot_(input) {
+  const validated = resolveNamedRangeSnapshotTransition_(input);
+  applyNamedRangeSnapshotTransition_(validated.spreadsheet, validated.from, validated.to);
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    scope: input.scope
+  };
+}
+
 function validateExecutionCellSnapshot(input) {
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
@@ -3997,6 +4207,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'data_validation') {
     return validateExecutionDataValidationSnapshot_(input);
+  }
+
+  if (input && input.kind === 'named_range') {
+    return validateExecutionNamedRangeSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -4016,6 +4230,10 @@ function applyExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'data_validation') {
     return applyExecutionDataValidationSnapshot_(input);
+  }
+
+  if (input && input.kind === 'named_range') {
+    return applyExecutionNamedRangeSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -4057,6 +4275,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'data_validation') {
     return validateExecutionDataValidationSnapshot_(input);
+  }
+
+  if (input && input.kind === 'named_range') {
+    return validateExecutionNamedRangeSnapshot_(input);
   }
 
   if (!input || typeof input !== 'object') {
@@ -5937,14 +6159,23 @@ function applyWritePlan(input) {
           throw new Error('Google Sheets host does not support creating named ranges.');
         }
 
+        const localSnapshot = createNamedRangeLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          scope: plan.scope,
+          before: {
+            exists: false,
+            name: plan.name
+          },
+          after: createNamedRangeStateForTarget_(plan.name, plan.targetSheet, plan.targetRange)
+        });
         spreadsheet.setNamedRange(plan.name, namedRangeSheet.getRange(plan.targetRange));
         SpreadsheetApp.flush();
-        return {
+        return attachLocalExecutionSnapshot_({
           kind: 'named_range_update',
           hostPlatform: 'google_sheets',
           ...plan,
           summary: getNamedRangeStatusSummary_(plan)
-        };
+        }, localSnapshot);
       }
       case 'rename': {
         const namedRange = findNamedRange_(spreadsheet, plan.name);
@@ -5961,32 +6192,57 @@ function applyWritePlan(input) {
           throw new Error('Google Sheets host does not support renaming named ranges.');
         }
 
+        const before = input.executionId ? readNamedRangeStateForSnapshot_(namedRange, plan.name) : null;
+        const after = before && before.exists
+          ? {
+            exists: true,
+            name: plan.newName,
+            targetSheet: before.targetSheet,
+            targetRange: before.targetRange
+          }
+          : null;
+        const localSnapshot = createNamedRangeLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          scope: plan.scope,
+          before: before,
+          after: after
+        });
         namedRange.setName(plan.newName);
         SpreadsheetApp.flush();
-        return {
+        return attachLocalExecutionSnapshot_({
           kind: 'named_range_update',
           hostPlatform: 'google_sheets',
           ...plan,
           summary: getNamedRangeStatusSummary_(plan)
-        };
+        }, localSnapshot);
       }
       case 'delete':
         if (typeof spreadsheet.removeNamedRange !== 'function') {
           throw new Error('Google Sheets host does not support deleting named ranges.');
         }
 
-        if (!findNamedRange_(spreadsheet, plan.name)) {
+        const namedRange = findNamedRange_(spreadsheet, plan.name);
+        if (!namedRange) {
           throw new Error('Named range not found: ' + plan.name);
         }
 
+        const localSnapshot = createNamedRangeLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          scope: plan.scope,
+          before: input.executionId ? readNamedRangeStateForSnapshot_(namedRange, plan.name) : null,
+          after: {
+            exists: false,
+            name: plan.name
+          }
+        });
         spreadsheet.removeNamedRange(plan.name);
         SpreadsheetApp.flush();
-        return {
+        return attachLocalExecutionSnapshot_({
           kind: 'named_range_update',
           hostPlatform: 'google_sheets',
           ...plan,
           summary: getNamedRangeStatusSummary_(plan)
-        };
+        }, localSnapshot);
       case 'retarget': {
         const namedRange = findNamedRange_(spreadsheet, plan.name);
         const namedRangeSheet = spreadsheet.getSheetByName(plan.targetSheet);
@@ -6002,14 +6258,21 @@ function applyWritePlan(input) {
           throw new Error('Google Sheets host does not support retargeting named ranges.');
         }
 
-        namedRange.setRange(namedRangeSheet.getRange(plan.targetRange));
+        const targetRange = namedRangeSheet.getRange(plan.targetRange);
+        const localSnapshot = createNamedRangeLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          scope: plan.scope,
+          before: input.executionId ? readNamedRangeStateForSnapshot_(namedRange, plan.name) : null,
+          after: createNamedRangeStateForTarget_(plan.name, plan.targetSheet, plan.targetRange)
+        });
+        namedRange.setRange(targetRange);
         SpreadsheetApp.flush();
-        return {
+        return attachLocalExecutionSnapshot_({
           kind: 'named_range_update',
           hostPlatform: 'google_sheets',
           ...plan,
           summary: getNamedRangeStatusSummary_(plan)
-        };
+        }, localSnapshot);
       }
       default:
         throw new Error('Unsupported named range update.');

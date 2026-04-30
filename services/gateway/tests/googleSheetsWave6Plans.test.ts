@@ -3188,6 +3188,179 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("passes Google Sheets named range snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_named_range_001"],
+      executions: {
+        exec_named_range_001: {
+          baseExecutionId: "exec_named_range_001"
+        }
+      },
+      bases: {
+        exec_named_range_001: {
+          baseExecutionId: "exec_named_range_001",
+          kind: "named_range",
+          scope: "workbook",
+          before: {
+            exists: true,
+            name: "OldRange",
+            targetSheet: "Sales",
+            targetRange: "A1:A10"
+          },
+          after: {
+            exists: true,
+            name: "NewRange",
+            targetSheet: "Sales",
+            targetRange: "A1:A10"
+          }
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "named_range_update",
+          operation: "rename",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_named_range_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "named_range",
+          scope: "workbook",
+          from: {
+            exists: true,
+            name: "NewRange",
+            targetSheet: "Sales",
+            targetRange: "A1:A10"
+          },
+          to: {
+            exists: true,
+            name: "OldRange",
+            targetSheet: "Sales",
+            targetRange: "A1:A10"
+          }
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "named_range",
+          scope: "workbook",
+          from: {
+            exists: true,
+            name: "NewRange",
+            targetSheet: "Sales",
+            targetRange: "A1:A10"
+          },
+          to: {
+            exists: true,
+            name: "OldRange",
+            targetSheet: "Sales",
+            targetRange: "A1:A10"
+          }
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies Google Sheets named range snapshots on the server", () => {
+    const targetRange = {
+      getA1Notation() {
+        return "A1:A10";
+      }
+    };
+    const namedRange = {
+      getName: vi.fn(() => "NewRange"),
+      setName: vi.fn(),
+      setRange: vi.fn(),
+      getRange: vi.fn(() => targetRange)
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("A1:A10");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getNamedRanges: vi.fn(() => [namedRange]),
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      }),
+      setNamedRange: vi.fn(),
+      removeNamedRange: vi.fn()
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "named_range",
+      scope: "workbook",
+      from: {
+        exists: true,
+        name: "NewRange",
+        targetSheet: "Sales",
+        targetRange: "A1:A10"
+      },
+      to: {
+        exists: true,
+        name: "OldRange",
+        targetSheet: "Sales",
+        targetRange: "A1:A10"
+      }
+    })).toMatchObject({
+      ok: true,
+      scope: "workbook"
+    });
+
+    expect(namedRange.setName).toHaveBeenCalledWith("OldRange");
+    expect(namedRange.setRange).not.toHaveBeenCalled();
+    expect(spreadsheet.setNamedRange).not.toHaveBeenCalled();
+    expect(spreadsheet.removeNamedRange).not.toHaveBeenCalled();
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("applies external data plans by anchoring a first-class formula into a single Google Sheets cell", () => {
     const targetRange = createRangeStub({
       a1Notation: "B2",

@@ -951,6 +951,84 @@ describe("Google Sheets wave 2 plans", () => {
     expect(removeNamedRange).toHaveBeenCalledWith("SalesData");
   });
 
+  it("attaches undo snapshots for Google Sheets named range retarget updates", () => {
+    const oldRange = {
+      getA1Notation() {
+        return "A1:A10";
+      },
+      getSheet() {
+        return {
+          getName() {
+            return "Sheet1";
+          }
+        };
+      }
+    };
+    const targetRange = {
+      getA1Notation() {
+        return "B2:D20";
+      }
+    };
+    const existingNamedRange = {
+      getName: vi.fn(() => "SalesData"),
+      getRange: vi.fn(() => oldRange),
+      setRange: vi.fn()
+    };
+    const sheet = {
+      getRange: vi.fn((a1Notation: string) => {
+        expect(a1Notation).toBe("B2:D20");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName(sheetName: string) {
+        expect(sheetName).toBe("Sheet1");
+        return sheet;
+      },
+      getNamedRanges() {
+        return [existingNamedRange];
+      }
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      executionId: "exec_named_range_snapshot_sheets_001",
+      plan: {
+        operation: "retarget",
+        scope: "workbook",
+        name: "SalesData",
+        targetSheet: "Sheet1",
+        targetRange: "B2:D20",
+        explanation: "Move the named range.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "named_range_update",
+      operation: "retarget",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_named_range_snapshot_sheets_001",
+        kind: "named_range",
+        scope: "workbook",
+        before: {
+          exists: true,
+          name: "SalesData",
+          targetSheet: "Sheet1",
+          targetRange: "A1:A10"
+        },
+        after: {
+          exists: true,
+          name: "SalesData",
+          targetSheet: "Sheet1",
+          targetRange: "B2:D20"
+        }
+      }
+    });
+    expect(existingNamedRange.setRange).toHaveBeenCalledWith(targetRange);
+  });
+
   it("fails closed when creating a Google Sheets named range that already exists", () => {
     const existingNamedRange = {
       getName: vi.fn(() => "SalesData")
