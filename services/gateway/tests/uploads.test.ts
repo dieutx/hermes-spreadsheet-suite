@@ -479,6 +479,38 @@ describe("upload router", () => {
     expect(attachmentStore.get(attachment.id)?.metadata.fileName).toBe("uploaded-image.png");
   });
 
+  it("rejects oversized upload content credentials before attachment lookup", async () => {
+    const { uploadRouter } = createTestApp();
+
+    const oversizedAttachmentId = await invokeUploadContent(uploadRouter, `att_${"x".repeat(256)}`, {
+      uploadToken: "upl_valid_shape",
+      sessionId: "sess_img_real_001",
+      workbookId: "sheet_import_demo"
+    });
+    expect(oversizedAttachmentId.statusCode).toBe(400);
+    expect(oversizedAttachmentId.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Upload content credentials are invalid.",
+        userAction: "Upload the file again if you still need it."
+      }
+    });
+
+    const oversizedUploadToken = await invokeUploadContent(uploadRouter, "att_valid_shape", {
+      uploadToken: `upl_${"x".repeat(512)}`,
+      sessionId: "sess_img_real_001",
+      workbookId: "sheet_import_demo"
+    });
+    expect(oversizedUploadToken.statusCode).toBe(400);
+    expect(oversizedUploadToken.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Upload content credentials are invalid.",
+        userAction: "Upload the file again if you still need it."
+      }
+    });
+  });
+
   it("rejects image uploads without a Hermes session id", async () => {
     const { uploadRouter } = createTestApp();
 
