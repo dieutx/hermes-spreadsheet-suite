@@ -2504,7 +2504,7 @@ export const RangeTransferUpdateDataSchema = strictObject({
 export const DataCleanupUpdateDataSchema = strictObject({
   operation: z.literal("data_cleanup_update"),
   targetSheet: z.string().min(1).max(128),
-  targetRange: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
   cleanupOperation: Wave4CleanupOperationSchema,
   summary: z.string().min(1).max(500)
 });
