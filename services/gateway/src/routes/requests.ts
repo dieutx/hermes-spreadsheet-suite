@@ -8,6 +8,9 @@ import type { TraceBus } from "../lib/traceBus.js";
 
 type JsonRecord = Record<string, unknown>;
 
+const PUBLIC_RUN_ERROR_FALLBACK =
+  "The gateway hit an unexpected error while processing the request.";
+const UNSAFE_RUN_ERROR_PATTERN = /\b(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)\b|(?:^|\s)\/(?:root|srv|home|tmp)\/[^\s]+|https?:\/\/[^\s]+/i;
 const NULL_OPTIONAL_PATHS = new Set([
   "context.selection.headers",
   "context.activeCell.formula",
@@ -173,6 +176,23 @@ function shouldIncludeResponseTrace(value: unknown): boolean {
 
   const normalized = value.trim().toLowerCase();
   return normalized !== "0" && normalized !== "false" && normalized !== "no";
+}
+
+function getPublicRunError(error: string | undefined): string | undefined {
+  if (!error) {
+    return undefined;
+  }
+
+  const message = error
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!message || UNSAFE_RUN_ERROR_PATTERN.test(message)) {
+    return PUBLIC_RUN_ERROR_FALLBACK;
+  }
+
+  return message.length > 4000 ? message.slice(0, 4000) : message;
 }
 
 function stripTraceFromResponse<T>(response: T, includeTrace: boolean): T {
@@ -381,7 +401,7 @@ export function createRequestRouter(input: {
       startedAt: activeRun.startedAt,
       completedAt: activeRun.completedAt,
       response: stripTraceFromResponse(activeRun.response, includeTrace),
-      error: activeRun.error
+      error: getPublicRunError(activeRun.error)
     });
   });
 
