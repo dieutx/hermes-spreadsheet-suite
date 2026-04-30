@@ -820,5 +820,26 @@ describe("request router", () => {
     );
     expect((response.body as any).error).not.toContain("HERMES_API_SERVER_KEY");
     expect((response.body as any).error).not.toContain("/srv/hermes");
+
+    traceBus.ensureRun(
+      "run_status_embedded_error_001",
+      "req_status_embedded_error_001",
+      "sess_status_error_001"
+    );
+    traceBus.setError(
+      "run_status_embedded_error_001",
+      "Provider failed for qa_HERMES_API_SERVER_KEY"
+    );
+
+    const embeddedResponse = await invokeGet(router, "run_status_embedded_error_001", {
+      requestId: "req_status_embedded_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(embeddedResponse.statusCode).toBe(200);
+    expect((embeddedResponse.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((embeddedResponse.body as any).error).not.toContain("qa_HERMES");
   });
 });
