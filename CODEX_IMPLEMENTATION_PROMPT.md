@@ -70,7 +70,7 @@ Assume the following are already true or should remain true:
 - Hermes Agent API server base URL is configured via env:
   - `HERMES_AGENT_BASE_URL=http://127.0.0.1:8642/v1`
 - Hermes API auth key is configured via env:
-  - `HERMES_API_SERVER_KEY=...`
+  - `HERMES_API_SERVER_KEY=<REPLACE_ME_OPTIONAL_API_KEY>`
 - model is:
   - `HERMES_AGENT_MODEL=hermes-agent`
 - spreadsheet runtime rules file exists or should exist at:
