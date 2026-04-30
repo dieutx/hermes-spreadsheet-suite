@@ -857,7 +857,7 @@ export const DataValidationPlanDataSchema = z.union([
   strictObject({
     ...dataValidationSharedFields,
     ruleType: z.literal("list"),
-    sourceRange: z.string().min(1).max(128),
+    sourceRange: A1TargetRangeSchema,
     showDropdown: z.boolean().optional()
   }),
   strictObject({
