@@ -2188,7 +2188,7 @@ describe("HermesAgentClient", () => {
     const debugPrefix = "hermes-spreadsheet-invalid-req_mixed_001";
     const debugDir = tmpdir();
     const rawAssistantContent = [
-      "Here is the JSON body you asked for:",
+      "Here is the JSON body you asked for: HERMES_API_SERVER_KEY=secret_debug_123 Bearer sk-debug-token http://127.0.0.1:8642/v1",
       JSON.stringify({
         type: "chat",
         data: {
@@ -2245,7 +2245,7 @@ describe("HermesAgentClient", () => {
     const debugPrefix = "hermes-spreadsheet-invalid-req_mixed_001";
     const debugDir = tmpdir();
     const rawAssistantContent = [
-      "Here is the JSON body you asked for:",
+      "Here is the JSON body you asked for: HERMES_API_SERVER_KEY=secret_debug_123 Bearer sk-debug-token http://127.0.0.1:8642/v1",
       JSON.stringify({
         type: "chat",
         data: {
@@ -2281,7 +2281,13 @@ describe("HermesAgentClient", () => {
 
     const debugContents = await fs.readFile(path.join(debugDir, newDebugFiles[0]), "utf8");
     expect(debugContents).toContain("reason: assistant_content_not_single_json_object");
-    expect(debugContents).toContain(rawAssistantContent);
+    expect(debugContents).toContain("This should be rejected because prose surrounds the JSON.");
+    expect(debugContents).toContain("HERMES_API_SERVER_KEY=[REDACTED]");
+    expect(debugContents).toContain("Bearer [REDACTED]");
+    expect(debugContents).toContain("[REDACTED_INTERNAL_URL]");
+    expect(debugContents).not.toContain("secret_debug_123");
+    expect(debugContents).not.toContain("sk-debug-token");
+    expect(debugContents).not.toContain("127.0.0.1:8642");
   });
 
   it("rejects invalid warnings shapes beyond string[] or warning objects", async () => {
