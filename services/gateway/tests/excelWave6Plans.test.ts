@@ -2422,6 +2422,95 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(namedRange.delete).not.toHaveBeenCalled();
   });
 
+  it("restores Excel range filter snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const beforeCriteria = [
+      { filterOn: "custom", criterion1: "=Closed" }
+    ];
+    const afterCriteria = [
+      { filterOn: "custom", criterion1: "=Open" }
+    ];
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_filter_001"],
+      executions: {
+        exec_filter_001: {
+          baseExecutionId: "exec_filter_001"
+        }
+      },
+      bases: {
+        exec_filter_001: {
+          baseExecutionId: "exec_filter_001",
+          kind: "range_filter",
+          targetSheet: "Sales",
+          targetRange: "A1:F25",
+          beforeCriteria,
+          afterCriteria
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "range_filter",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    let currentCriteria = [...afterCriteria];
+    const filterApi = {
+      clearCriteria: vi.fn(() => {
+        currentCriteria = [];
+      }),
+      apply: vi.fn((_target: unknown, columnIndex: number, criteria: Record<string, unknown>) => {
+        currentCriteria[columnIndex] = criteria;
+      })
+    };
+    const targetRange = {
+      load: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("Sales");
+              return {
+                getRange(rangeA1: string) {
+                  expect(rangeA1).toBe("A1:F25");
+                  return targetRange;
+                },
+                autoFilter: filterApi
+              };
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_filter_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(filterApi.clearCriteria).toHaveBeenCalledTimes(1);
+    expect(filterApi.apply).toHaveBeenCalledWith(targetRange, 0, beforeCriteria[0]);
+    expect(currentCriteria).toEqual(beforeCriteria);
+  });
+
   it("renders and applies native Excel table plans", async () => {
     const table = {
       name: "",

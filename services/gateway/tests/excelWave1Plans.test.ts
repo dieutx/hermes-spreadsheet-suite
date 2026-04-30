@@ -463,6 +463,77 @@ describe("Excel wave 1 plan helpers", () => {
     );
   });
 
+  it("attaches local undo snapshots for Excel range filter writes", async () => {
+    let criteria = [{ filterOn: "custom", criterion1: "=Closed" }];
+    const filterApi = {
+      load: vi.fn(),
+      clearCriteria: vi.fn(() => {
+        criteria = [];
+      }),
+      apply: vi.fn((_target: unknown, columnIndex: number, nextCriteria: Record<string, unknown>) => {
+        criteria[columnIndex] = nextCriteria;
+      }),
+      get criteria() {
+        return criteria;
+      }
+    };
+    const targetRange = {
+      load: vi.fn(),
+      values: [
+        ["Status", "Amount"],
+        ["Open", 10]
+      ]
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      autoFilter: filterApi
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:F25",
+        hasHeader: true,
+        conditions: [
+          { columnRef: "Status", operator: "equals", value: "Open" }
+        ],
+        combiner: "and",
+        clearExistingFilters: true,
+        explanation: "Filter open rows.",
+        confidence: 0.89,
+        requiresConfirmation: true
+      },
+      requestId: "req_filter_snapshot_excel_001",
+      runId: "run_filter_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_filter_snapshot_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_filter",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_filter_snapshot_excel_001",
+        kind: "range_filter",
+        targetSheet: "Sheet1",
+        targetRange: "A1:F25",
+        beforeCriteria: [
+          { filterOn: "custom", criterion1: "=Closed" }
+        ],
+        afterCriteria: [
+          { filterOn: "custom", criterion1: "=Open" }
+        ]
+      }
+    });
+  });
+
   it("maps Excel sort and filter column refs to zero-based offsets within the target range", async () => {
     const sortApi = { apply: vi.fn() };
     const filterApi = { apply: vi.fn(), clearCriteria: vi.fn() };

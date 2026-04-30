@@ -1274,6 +1274,37 @@ async function createNamedRangeLocalExecutionSnapshot({
   };
 }
 
+function cloneExcelFilterCriteriaSnapshot(criteria) {
+  return Array.isArray(criteria) ? cloneLocalExecutionSnapshotValue(criteria) : null;
+}
+
+function createRangeFilterLocalExecutionSnapshot({
+  executionId,
+  targetSheet,
+  targetRange,
+  beforeCriteria,
+  afterCriteria
+}) {
+  if (
+    !executionId ||
+    !targetSheet ||
+    !targetRange ||
+    !Array.isArray(beforeCriteria) ||
+    !Array.isArray(afterCriteria)
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "range_filter",
+    targetSheet,
+    targetRange,
+    beforeCriteria,
+    afterCriteria
+  };
+}
+
 function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
   if (!executionId || !Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -1299,6 +1330,10 @@ function isDataValidationLocalExecutionSnapshot(snapshot) {
 
 function isNamedRangeLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "named_range";
+}
+
+function isRangeFilterLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "range_filter";
 }
 
 function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
@@ -1784,6 +1819,64 @@ async function validateNamedRangeLocalExecutionSnapshotForMode(snapshot, mode) {
   });
 }
 
+function getRangeFilterCriteriaForMode(snapshot, mode) {
+  return mode === "undo" ? snapshot?.beforeCriteria : snapshot?.afterCriteria;
+}
+
+function isActiveExcelFilterCriteriaSnapshot(criteria) {
+  return !!criteria &&
+    typeof criteria === "object" &&
+    typeof criteria.filterOn === "string" &&
+    criteria.filterOn.length > 0 &&
+    criteria.filterOn !== "none";
+}
+
+function assertRangeFilterSnapshotCriteria(snapshot, criteria) {
+  if (!snapshot?.targetSheet || !snapshot?.targetRange || !Array.isArray(criteria)) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
+function applyExcelRangeFilterCriteriaSnapshot(autoFilter, target, criteria) {
+  if (!autoFilter || typeof autoFilter.clearCriteria !== "function" || typeof autoFilter.apply !== "function") {
+    throw new Error("Excel host does not support restoring range filters on this sheet.");
+  }
+
+  autoFilter.clearCriteria();
+  criteria.forEach((entry, columnIndex) => {
+    if (isActiveExcelFilterCriteriaSnapshot(entry)) {
+      autoFilter.apply(target, columnIndex, cloneLocalExecutionSnapshotValue(entry));
+    }
+  });
+}
+
+async function restoreRangeFilterLocalExecutionSnapshotForMode(snapshot, mode) {
+  const criteria = getRangeFilterCriteriaForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    assertRangeFilterSnapshotCriteria(snapshot, criteria);
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+    const target = sheet.getRange(snapshot.targetRange);
+    applyExcelRangeFilterCriteriaSnapshot(sheet.autoFilter, target, criteria);
+    await context.sync();
+  });
+}
+
+async function validateRangeFilterLocalExecutionSnapshotForMode(snapshot, mode) {
+  const criteria = getRangeFilterCriteriaForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    assertRangeFilterSnapshotCriteria(snapshot, criteria);
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+    const target = sheet.getRange(snapshot.targetRange);
+    if (!target || !sheet.autoFilter || typeof sheet.autoFilter.clearCriteria !== "function" || typeof sheet.autoFilter.apply !== "function") {
+      throw new Error("Excel host does not support restoring range filters on this sheet.");
+    }
+  });
+}
+
 async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
   if (isCompositeLocalExecutionSnapshot(snapshot)) {
     for (const entry of getLocalExecutionSnapshotEntriesForMode(snapshot, mode)) {
@@ -1802,6 +1895,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isNamedRangeLocalExecutionSnapshot(snapshot)) {
     return restoreNamedRangeLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isRangeFilterLocalExecutionSnapshot(snapshot)) {
+    return restoreRangeFilterLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -1864,6 +1961,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isNamedRangeLocalExecutionSnapshot(snapshot)) {
     return validateNamedRangeLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isRangeFilterLocalExecutionSnapshot(snapshot)) {
+    return validateRangeFilterLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -8675,12 +8776,18 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const sheet = worksheets.getItem(plan.targetSheet);
       const target = sheet.getRange(plan.targetRange);
       target.load(["values"]);
+      const autoFilter = sheet.autoFilter;
+      if (executionId && typeof autoFilter?.load === "function") {
+        autoFilter.load(["criteria"]);
+      }
       await context.sync();
 
-      const autoFilter = sheet.autoFilter;
       if (!autoFilter?.apply) {
         throw new Error("Excel host does not support range filters on this selection.");
       }
+      const beforeCriteria = executionId
+        ? cloneExcelFilterCriteriaSnapshot(autoFilter.criteria)
+        : null;
 
       if (plan.combiner !== "and") {
         throw new Error("Excel host does not support filter combiners other than and.");
@@ -8721,13 +8828,25 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         );
       }
 
+      if (executionId && typeof autoFilter.load === "function") {
+        autoFilter.load(["criteria"]);
+      }
       await context.sync();
-      return {
+      const afterCriteria = executionId
+        ? cloneExcelFilterCriteriaSnapshot(autoFilter.criteria)
+        : null;
+      return attachLocalExecutionSnapshot({
         kind: "range_filter",
         hostPlatform: platform,
         ...plan,
         summary: getRangeFilterStatusSummary(plan)
-      };
+      }, createRangeFilterLocalExecutionSnapshot({
+        executionId,
+        targetSheet: plan.targetSheet,
+        targetRange: plan.targetRange,
+        beforeCriteria,
+        afterCriteria
+      }));
     }
 
     if (isConditionalFormatPlan(plan)) {
