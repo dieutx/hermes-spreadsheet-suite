@@ -4,6 +4,7 @@ import type {
   AnalysisReportPlanData,
   CompositePlanData,
   CompositeUpdateData,
+  ExternalDataPlanData,
   ExtractionMode,
   HermesRequest,
   HermesResponse,
@@ -60,7 +61,8 @@ export type WritePlan =
   | AnalysisReportWritePlanData
   | PivotTablePlanData
   | ChartPlanData
-  | TablePlanData;
+  | TablePlanData
+  | ExternalDataPlanData;
 
 export type CompositeWritePlan = CompositePlanData;
 
@@ -204,6 +206,12 @@ export type TableUpdateWritebackResult = TablePlanData & {
   summary: string;
 };
 
+export type ExternalDataUpdateWritebackResult = ExternalDataPlanData & {
+  kind: "external_data_update";
+  hostPlatform: HermesRequest["host"]["platform"];
+  summary: string;
+};
+
 export type CompositeUpdateWritebackResult = {
   kind: "composite_update";
   hostPlatform: HermesRequest["host"]["platform"];
@@ -229,6 +237,7 @@ export type WritebackResult =
   | PivotTableUpdateWritebackResult
   | ChartUpdateWritebackResult
   | TableUpdateWritebackResult
+  | ExternalDataUpdateWritebackResult
   | CompositeUpdateWritebackResult;
 
 export type WritebackDestructiveConfirmation = {

@@ -816,6 +816,10 @@ describe("shared client render helpers", () => {
       event: "history_requested",
       timestamp: "2026-04-20T09:00:04.000Z"
     } as any)).toBe("History requested");
+    expect(formatTraceEvent({
+      event: "external_data_plan_ready",
+      timestamp: "2026-04-20T09:00:05.000Z"
+    } as any)).toBe("External data plan ready");
   });
 
   it("renders safe proof and trace metadata without hidden reasoning fields", () => {
@@ -2193,6 +2197,27 @@ describe("shared client render helpers", () => {
   });
 
   it("formats typed completion lines for range transfer and cleanup updates", () => {
+    expect(formatWritebackStatusLine({
+      kind: "external_data_update",
+      hostPlatform: "google_sheets",
+      sourceType: "market_data",
+      provider: "googlefinance",
+      query: {
+        symbol: "CURRENCY:BTCUSD",
+        attribute: "price"
+      },
+      targetSheet: "Market Data",
+      targetRange: "B2",
+      formula: '=GOOGLEFINANCE("CURRENCY:BTCUSD","price")',
+      explanation: "Anchor the latest BTC price in B2.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Market Data!B2"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      summary: "Inserted GOOGLEFINANCE formula into Market Data!B2."
+    } satisfies WritebackResult)).toBe("Inserted GOOGLEFINANCE formula into Market Data!B2.");
+
     expect(formatWritebackStatusLine({
       kind: "range_transfer_update",
       hostPlatform: "google_sheets",

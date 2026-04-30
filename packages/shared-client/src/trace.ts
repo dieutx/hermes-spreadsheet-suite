@@ -27,6 +27,7 @@ const EVENT_LABELS: Record<string, string> = {
   named_range_update_ready: "Named range update ready",
   range_transfer_plan_ready: "Range transfer plan ready",
   data_cleanup_plan_ready: "Data cleanup plan ready",
+  external_data_plan_ready: "External data plan ready",
   range_transfer_update_ready: "Range transfer update ready",
   data_cleanup_update_ready: "Data cleanup update ready",
   analysis_report_plan_ready: "Analysis report plan ready",
@@ -104,6 +105,7 @@ export function formatWritebackStatusLine(result: WritebackResult): string {
     case "pivot_table_update":
     case "chart_update":
     case "table_update":
+    case "external_data_update":
     case "composite_update":
       return result.summary;
   }
