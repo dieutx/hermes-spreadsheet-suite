@@ -12,6 +12,7 @@
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval:fixtures": "tsx --tsconfig scripts/tsconfig.json scripts/eval_fixtures.ts --json",
     "predev:gateway": "npm --workspace @hermes/contracts run build",
     "dev:gateway": "npm --workspace @hermes/gateway run dev",
     "deploy:google-sheets": "node --import tsx scripts/deploy_google_sheets_addon.ts",
