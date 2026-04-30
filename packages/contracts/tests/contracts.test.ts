@@ -1266,6 +1266,21 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.data.keys).toHaveLength(2);
   });
 
+  it("rejects malformed sort target ranges", () => {
+    const parsed = RangeSortPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "current table",
+      hasHeader: true,
+      keys: [{ columnRef: "Status", direction: "asc" }],
+      explanation: "Sort by status.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:F25"]
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a chat-only analysis report plan", () => {
     const parsed = AnalysisReportPlanDataSchema.parse({
       sourceSheet: "Sales",
@@ -1537,6 +1552,23 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Invalid filter plan.",
       confidence: 0.8,
       requiresConfirmation: true
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects malformed filter target ranges", () => {
+    const parsed = RangeFilterPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "current table",
+      hasHeader: true,
+      conditions: [{ columnRef: "Status", operator: "equals", value: "Open" }],
+      combiner: "and",
+      clearExistingFilters: true,
+      explanation: "Filter open rows.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:F25"]
     });
 
     expect(parsed.success).toBe(false);
