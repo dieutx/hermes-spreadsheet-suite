@@ -43,6 +43,7 @@ export type PreferredResponseType =
   | "composite_plan"
   | "sheet_update"
   | "workbook_structure_update"
+  | "range_format_update"
   | "sheet_structure_update"
   | "range_sort_plan"
   | "range_filter_plan"
@@ -75,6 +76,9 @@ const ANALYSIS_REPORT_KEYWORD_PATTERN = /\b(analy[sz]e|analysis|report|insights|
 const PIVOT_TABLE_KEYWORD_PATTERN = /\b(pivot table|pivot|bang tong hop)\b/;
 const CHART_KEYWORD_PATTERN = /\b(chart|graph|plot|bieu do|do thi)\b/;
 const TABLE_PLAN_KEYWORD_PATTERN = /\b(format as table|format .* as a table|convert .* to (?:a )?table|make .* (?:a )?table|create (?:a )?table from|filterable table|banded rows?|native table|excel table|structured table)\b/;
+const STATIC_RANGE_FORMAT_KEYWORD_PATTERN = /\b(format|formatting|bold|italic|underline|strikethrough|font|font size|fill|background|text color|font color|number format|currency|percent|percentage|decimal places?|wrap|wrapped|center|align|alignment|vertical align|border|borders|row height|column width|shade|color)\b/;
+const STATIC_RANGE_FORMAT_ACTION_PATTERN = /\b(make|set|apply|format|change|turn|wrap|center|align|color|shade|bold|italic|underline|strikethrough|resize)\b/;
+const STATIC_RANGE_FORMAT_TARGET_PATTERN = /\b(selected|selection|range|ranges|cell|cells|row|rows|column|columns|header|headers|table|this|current|vung|o|dong|cot)\b/;
 const EXTERNAL_DATA_PROVIDER_PATTERN = /\b(googlefinance|importhtml|importxml|importdata)\b/;
 const MARKET_DATA_KEYWORD_PATTERN = /\b(stock|stocks|ticker|tickers|quote|quotes|share price|share prices|market data|price history|crypto|coin|coins|googlefinance|chung khoan|co phieu|gia co phieu|gia crypto|btc|eth)\b/;
 const WEB_IMPORT_KEYWORD_PATTERN = /\b(website|web page|web table|html table|table from a website|public url|url|importhtml|importxml|importdata|scrape table|lay bang tu website|lay du lieu tu website)\b/;
@@ -111,6 +115,7 @@ const WRITE_CAPABLE_RESPONSE_TYPES = new Set<PreferredResponseType>([
   "composite_plan",
   "sheet_update",
   "workbook_structure_update",
+  "range_format_update",
   "sheet_structure_update",
   "range_sort_plan",
   "range_filter_plan",
@@ -402,6 +407,23 @@ function isLikelyTablePlanRequest(userMessage: string): boolean {
     /\b(table filters?|filter buttons?|banded rows?|totals row|native table|excel table)\b/.test(userMessage);
 }
 
+function isLikelyRangeFormatRequest(rawMessage: string, userMessage: string): boolean {
+  if (isLikelyConditionalFormatRequest(userMessage) || isLikelyTablePlanRequest(userMessage)) {
+    return false;
+  }
+
+  if (!STATIC_RANGE_FORMAT_KEYWORD_PATTERN.test(userMessage)) {
+    return false;
+  }
+
+  if (!STATIC_RANGE_FORMAT_ACTION_PATTERN.test(userMessage)) {
+    return false;
+  }
+
+  return A1_REFERENCE_PATTERN.test(rawMessage) ||
+    STATIC_RANGE_FORMAT_TARGET_PATTERN.test(userMessage);
+}
+
 function isLikelyGeneratedDataRequest(rawMessage: string, lowerMessage: string): boolean {
   if (!GENERATED_DATA_KEYWORD_PATTERN.test(lowerMessage)) {
     return false;
@@ -472,6 +494,7 @@ function isLikelyCompositeRequest(
     isLikelyPivotTableRequest(lowerMessage),
     isLikelyChartRequest(lowerMessage),
     isLikelyTablePlanRequest(lowerMessage),
+    isLikelyRangeFormatRequest(rawMessage, lowerMessage),
     isLikelyAnalysisReportRequest(lowerMessage),
     /\b(insert|delete|hide|unhide|merge|unmerge|freeze|unfreeze|group|ungroup|autofit)\b/.test(lowerMessage) ||
       /\b(?:sheet\s+)?tab\s+color\b/.test(lowerMessage),
@@ -528,7 +551,7 @@ function isLikelyNamedRangeRequest(rawMessage: string, lowerMessage: string): bo
   return false;
 }
 
-function isLikelyAdvisoryOnlyArtifactQuestion(userMessage: string): boolean {
+function isLikelyAdvisoryOnlyArtifactQuestion(rawMessage: string, userMessage: string): boolean {
   if (!ADVISORY_ARTIFACT_QUESTION_PATTERN.test(userMessage)) {
     return false;
   }
@@ -540,6 +563,7 @@ function isLikelyAdvisoryOnlyArtifactQuestion(userMessage: string): boolean {
   return isLikelyPivotTableRequest(userMessage) ||
     isLikelyChartRequest(userMessage) ||
     isLikelyTablePlanRequest(userMessage) ||
+    isLikelyRangeFormatRequest(rawMessage, userMessage) ||
     isLikelyConditionalFormatRequest(userMessage) ||
     isLikelyExternalDataRequest(userMessage);
 }
@@ -692,7 +716,7 @@ function getPreferredResponseType(
   if (hasInputLayoutConflictRisk(request, rawMessage, userMessage)) {
     return "composite_plan";
   }
-  if (isLikelyAdvisoryOnlyArtifactQuestion(userMessage)) {
+  if (isLikelyAdvisoryOnlyArtifactQuestion(rawMessage, userMessage)) {
     return "chat";
   }
   if (isLikelyExternalDataRequest(userMessage)) {
@@ -746,6 +770,9 @@ function getPreferredResponseType(
     isLikelyConditionalFormatRequest(userMessage)
   ) {
     return "conditional_format_plan";
+  }
+  if (isLikelyRangeFormatRequest(rawMessage, userMessage)) {
+    return "range_format_update";
   }
   if (isLikelyPivotTableRequest(userMessage)) {
     return "pivot_table_plan";
@@ -813,6 +840,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- chart_plan: limited. Require a single-cell target anchor and categoryField. Supported chart types: bar, column, stacked_bar, stacked_column, line, area, pie, scatter. Series labels may use explicit custom legend text when provided. Supported legend positions: bottom, left, right, top, hidden. Optional horizontalAxisTitle and verticalAxisTitle are supported for charts with axes, but not pie charts. If you would naturally say none, emit hidden.",
         "- table_plan: limited. Format an existing range as a table-like range using row banding and optional filter buttons. Do not emit styleName or showTotalsRow=true on Google Sheets because those are not exact native table features.",
         "- external_data_plan: limited. Require a single-cell target anchor. Supported sourceType/provider pairs: market_data/googlefinance and web_table_import/importhtml, importxml, or importdata. Formula text must match the provider exactly. Web imports only support public fetchable sources and must not assume authenticated or JavaScript-rendered pages.",
+        "- range_format_update: supported. Supported static formatting fields: numberFormat, backgroundColor, textColor, fontFamily, fontSize, bold, italic, underline, strikethrough, horizontalAlignment, verticalAlignment, wrapStrategy, border, columnWidth, and rowHeight. Use conditional_format_plan for rule-based highlighting.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats. Do not plan overlapping move or append destinations on the same sheet.",
         "- data_cleanup_plan: limited. normalize_case only supports upper, lower, title, and sentence. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
         "- range_filter_plan: limited. Do not combine multiple OR conditions in one exact step. topN filters and repeated conditions on the same column are unsupported.",
@@ -829,6 +857,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- chart_plan: limited. Require a single-cell target anchor, categoryField, and at least one unique series field. Supported chart types: bar, column, stacked_bar, stacked_column, line, area, pie, scatter. Series labels may use explicit custom legend text when provided. Supported legend positions: top, bottom, left, right, hidden. Optional horizontalAxisTitle and verticalAxisTitle are supported for charts with axes, but not pie charts. Pie charts support exactly one series. sourceRange must expose a header row whose field order matches categoryField followed by the requested series fields exactly.",
         "- table_plan: limited. Create a native Excel table over an existing range. Supported options: name, styleName, hasHeaders, showBandedRows, showBandedColumns, showFilterButton, and showTotalsRow.",
         "- external_data_plan: unsupported. Do not emit external_data_plan on Excel hosts. Return type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\" and suggest a simpler alternative such as a preview, a plain formula explanation, or moving the task to Google Sheets.",
+        "- range_format_update: supported. Supported static formatting fields: numberFormat, backgroundColor, textColor, fontFamily, fontSize, bold, italic, underline, strikethrough, horizontalAlignment, verticalAlignment, wrapStrategy, border, columnWidth, and rowHeight. Use conditional_format_plan for rule-based highlighting.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats.",
         "- data_cleanup_plan: limited. normalize_case only supports upper, lower, title, and sentence. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
         "- range_filter_plan: limited. Use combiner=and only. Repeated conditions on the same column are exact-safe only when exactly two custom criteria can be combined with AND.",
@@ -1006,6 +1035,8 @@ export function buildHermesSpreadsheetRequestPrompt(request: HermesRequest): str
       ? "This request is an explicit format-as-table flow. Prefer type=\"table_plan\" for native Excel tables or exact-safe Google Sheets table-like formatting."
       : preferredResponseType === "conditional_format_plan"
       ? "This request is an explicit conditional-formatting flow. Prefer type=\"conditional_format_plan\" for highlight, duplicate-marking, threshold-coloring, color-scale, and clear-conditional-format asks."
+      : preferredResponseType === "range_format_update"
+      ? "This request is an explicit static range-formatting flow. Prefer type=\"range_format_update\" for number formats, fill/text color, font style, alignment, wrapping, borders, row height, and column width."
       : preferredResponseType === "named_range_update"
       ? "This request is an explicit named-range flow. Prefer type=\"named_range_update\" for create, rename, delete, or retarget named range requests."
       : preferredResponseType === "workbook_structure_update"

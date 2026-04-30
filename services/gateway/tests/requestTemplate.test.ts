@@ -69,6 +69,8 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("If you would naturally say none, emit hidden.");
     expect(prompt).toContain("range_transfer_plan: limited");
     expect(prompt).toContain("Supported pasteMode values: values, formulas, formats.");
+    expect(prompt).toContain("range_format_update: supported");
+    expect(prompt).toContain("Supported static formatting fields");
     expect(prompt).toContain("normalize_case only supports upper, lower, title, and sentence.");
     expect(prompt).toContain("named_range_update: limited");
     expect(prompt).toContain("external_data_plan: limited");
@@ -109,6 +111,8 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("note_writes: unsupported");
     expect(prompt).toContain("external_data_plan: unsupported");
     expect(prompt).toContain("Do not emit external_data_plan on Excel hosts.");
+    expect(prompt).toContain("range_format_update: supported");
+    expect(prompt).toContain("Supported static formatting fields");
     expect(prompt).toContain("Repeated conditions on the same column are exact-safe only when exactly two custom criteria can be combined with AND.");
   });
 
@@ -806,6 +810,35 @@ describe("Hermes spreadsheet request prompt", () => {
     }));
 
     expect(prompt).not.toContain('Prefer type="conditional_format_plan"');
+  });
+
+  it("routes static formatting prompts toward range_format_update", () => {
+    const prompts = [
+      buildHermesSpreadsheetRequestPrompt(baseRequest({
+        userMessage: "Make A1:F1 bold with blue fill and a bottom border."
+      })),
+      buildHermesSpreadsheetRequestPrompt(baseRequest({
+        userMessage: "Set C2:C20 to currency number format."
+      })),
+      buildHermesSpreadsheetRequestPrompt(baseRequest({
+        userMessage: "Wrap text and center align this selected range."
+      }))
+    ];
+
+    for (const prompt of prompts) {
+      expect(prompt).toContain('Prefer type="range_format_update"');
+      expect(prompt).not.toContain('Prefer type="conditional_format_plan"');
+      expect(prompt).not.toContain('Prefer type="table_plan"');
+    }
+  });
+
+  it("keeps advisory static formatting how-to prompts on the chat path", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Explain how to make A1:F1 bold in Excel."
+    }));
+
+    expect(prompt).toContain('Prefer type="chat"');
+    expect(prompt).not.toContain('Prefer type="range_format_update"');
   });
 
   it("includes wave-1 sheet structure confirmation invariants in the request guidance", () => {
