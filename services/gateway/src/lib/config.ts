@@ -49,6 +49,20 @@ function parsePositiveIntegerEnv(value: string | undefined, fallback: number): n
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseRequiredPositiveIntegerEnv(name: string, value: string | undefined, fallback: number): number {
+  const raw = String(value ?? fallback).trim();
+  if (!/^[1-9]\d*$/.test(raw)) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+
+  return parsed;
+}
+
 function tryNormalizeOrigin(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -113,7 +127,11 @@ export function getConfig(): GatewayConfig {
     serviceLabel: process.env.HERMES_SERVICE_LABEL ?? "hermes-gateway-local",
     gatewayPublicBaseUrl,
     allowedCorsOrigins,
-    maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 8_000_000),
+    maxUploadBytes: parseRequiredPositiveIntegerEnv(
+      "MAX_UPLOAD_BYTES",
+      process.env.MAX_UPLOAD_BYTES,
+      8_000_000
+    ),
     approvalSecret,
     saveInvalidHermesDebugArtifacts: parseBooleanEnv(process.env.HERMES_DEBUG_INVALID_RESPONSES),
     hermesAgentBaseUrl:

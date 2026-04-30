@@ -288,8 +288,7 @@ export async function refreshClaspAccessToken(
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`Failed to refresh clasp OAuth access token (${response.status}): ${body}`);
+    throw new Error(`Failed to refresh clasp OAuth access token (${response.status}).`);
   }
 
   const data = (await response.json()) as { access_token?: string };
@@ -323,10 +322,7 @@ export async function createBoundGoogleSheetsScriptProject(options: {
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(
-      `Failed to create a bound Apps Script project for spreadsheet ${spreadsheetId} (${response.status}): ${body}`
-    );
+    throw new Error(`Failed to create a bound Apps Script project (${response.status}).`);
   }
 
   const data = (await response.json()) as { scriptId?: string };
