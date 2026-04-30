@@ -1748,6 +1748,68 @@ function normalizeTablePlanData(value: unknown): unknown {
     "confirmationLevel"
   ]);
 
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.targetSheet = value.sheet.trim();
+    } else if (typeof value.sheetName === "string" && value.sheetName.trim()) {
+      normalized.targetSheet = value.sheetName.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "range")) {
+    const rangeRef = parseQualifiedRangeRef(value.range);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef?.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef?.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "name") && typeof value.tableName === "string" && value.tableName.trim()) {
+    normalized.name = value.tableName.trim();
+  }
+
+  if (!hasOwn(normalized, "hasHeaders")) {
+    if (typeof value.hasHeader === "boolean") {
+      normalized.hasHeaders = value.hasHeader;
+    } else if (typeof value.header === "boolean") {
+      normalized.hasHeaders = value.header;
+    }
+  }
+
+  if (!hasOwn(normalized, "styleName")) {
+    if (typeof value.tableStyle === "string" && value.tableStyle.trim()) {
+      normalized.styleName = value.tableStyle.trim();
+    } else if (typeof value.style === "string" && value.style.trim()) {
+      normalized.styleName = value.style.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "showBandedRows") && typeof value.bandedRows === "boolean") {
+    normalized.showBandedRows = value.bandedRows;
+  }
+
+  if (!hasOwn(normalized, "showBandedColumns") && typeof value.bandedColumns === "boolean") {
+    normalized.showBandedColumns = value.bandedColumns;
+  }
+
+  if (!hasOwn(normalized, "showFilterButton")) {
+    if (typeof value.filterButton === "boolean") {
+      normalized.showFilterButton = value.filterButton;
+    } else if (typeof value.filterButtons === "boolean") {
+      normalized.showFilterButton = value.filterButtons;
+    }
+  }
+
+  if (!hasOwn(normalized, "showTotalsRow")) {
+    if (typeof value.totalsRow === "boolean") {
+      normalized.showTotalsRow = value.totalsRow;
+    } else if (typeof value.totalRow === "boolean") {
+      normalized.showTotalsRow = value.totalRow;
+    }
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
   }
