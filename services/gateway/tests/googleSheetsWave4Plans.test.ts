@@ -712,7 +712,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
-  it("appends values into the first empty rows of a Google Sheets search window", () => {
+  it("rejects value appends when Google Sheets targetRange is a search window", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B3",
       row: 2,
@@ -781,7 +781,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     };
     const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
 
-    const result = applyWritePlan({
+    expect(() => applyWritePlan({
       plan: {
         sourceSheet: "RawData",
         sourceRange: "A2:B3",
@@ -797,27 +797,10 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    });
-
-    expect(result).toEqual({
-      kind: "range_transfer_update",
-      operation: "range_transfer_update",
-      hostPlatform: "google_sheets",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Archive",
-      targetRange: "D7:E8",
-      transferOperation: "append",
-      pasteMode: "values",
-      transpose: false,
-      summary: "Appended RawData!A2:B3 into Archive!D7:E8."
-    });
-    expect(appendWriteRange.setValues).toHaveBeenCalledWith([
-      ["Ada", "Lovelace"],
-      ["Grace", "Hopper"]
-    ]);
+    })).toThrow("Google Sheets host requires append targetRange to match the full destination rectangle.");
+    expect(appendWriteRange.setValues).not.toHaveBeenCalled();
     expect(targetRange.setValues).not.toHaveBeenCalled();
-    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush).not.toHaveBeenCalled();
   });
 
   it("uses Google Sheets copy semantics for formula-mode transfers so relative references can rebase", () => {
@@ -925,7 +908,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
-  it("appends formulas into the first empty rows of a Google Sheets search window", () => {
+  it("rejects formula appends when Google Sheets targetRange is a search window", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B3",
       row: 2,
@@ -1015,7 +998,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     };
     const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
 
-    const result = applyWritePlan({
+    expect(() => applyWritePlan({
       plan: {
         sourceSheet: "RawData",
         sourceRange: "A2:B3",
@@ -1031,24 +1014,10 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    });
-
-    expect(result).toEqual({
-      kind: "range_transfer_update",
-      operation: "range_transfer_update",
-      hostPlatform: "google_sheets",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Archive",
-      targetRange: "D7:E8",
-      transferOperation: "append",
-      pasteMode: "formulas",
-      transpose: false,
-      summary: "Appended RawData!A2:B3 into Archive!D7:E8."
-    });
-    expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
+    })).toThrow("Google Sheets host requires append targetRange to match the full destination rectangle.");
+    expect(sourceRange.copyTo).not.toHaveBeenCalled();
     expect(appendWriteRange.setFormulas).not.toHaveBeenCalled();
-    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush).not.toHaveBeenCalled();
   });
 
   it("applies format-only move transfers in Google Sheets and clears the source formatting after success", () => {
@@ -1140,7 +1109,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
-  it("appends formats into the first empty rows of a Google Sheets search window", () => {
+  it("rejects format appends when Google Sheets targetRange is a search window", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B3",
       row: 2,
@@ -1215,7 +1184,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     };
     const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
 
-    const result = applyWritePlan({
+    expect(() => applyWritePlan({
       plan: {
         sourceSheet: "RawData",
         sourceRange: "A2:B3",
@@ -1231,27 +1200,13 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    });
-
-    expect(result).toEqual({
-      kind: "range_transfer_update",
-      operation: "range_transfer_update",
-      hostPlatform: "google_sheets",
-      sourceSheet: "RawData",
-      sourceRange: "A2:B3",
-      targetSheet: "Archive",
-      targetRange: "D7:E8",
-      transferOperation: "append",
-      pasteMode: "formats",
-      transpose: false,
-      summary: "Appended RawData!A2:B3 into Archive!D7:E8."
-    });
-    expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
+    })).toThrow("Google Sheets host requires append targetRange to match the full destination rectangle.");
+    expect(sourceRange.copyTo).not.toHaveBeenCalled();
     expect(appendWriteRange.setValues).not.toHaveBeenCalled();
-    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush).not.toHaveBeenCalled();
   });
 
-  it("fails closed when a fully blank multi-row append target is too small in Google Sheets", () => {
+  it("fails closed when a Google Sheets append targetRange is not the full destination rectangle", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B4",
       row: 2,
@@ -1319,7 +1274,7 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    })).toThrow("Google Sheets host cannot append exactly within the approved target range.");
+    })).toThrow("Google Sheets host requires append targetRange to match the full destination rectangle.");
 
     expect(targetRange.setValues).not.toHaveBeenCalled();
     expect(flush).not.toHaveBeenCalled();

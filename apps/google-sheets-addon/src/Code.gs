@@ -492,6 +492,7 @@ function sanitizeHostExecutionError_(error, fallbackMessage) {
   if (
     /cannot append exactly when the approved target range contains internal gaps/i.test(message) ||
     /cannot append exactly within the approved target range/i.test(message) ||
+    /requires append targetRange to match the full destination rectangle/i.test(message) ||
     /cannot split this column exactly within the approved target range/i.test(message)
   ) {
     return formatUserFacingErrorText_(
@@ -3576,16 +3577,6 @@ function deriveTransferTargetRangeA1_(plan, targetRange) {
   return normalizeA1_(targetRange.getA1Notation());
 }
 
-function getActualAppendTargetRange_(targetRangeA1, startRowOffset, rowCount, columnCount) {
-  const bounds = parseA1RangeReference_(normalizeA1_(targetRangeA1));
-  return buildA1RangeFromBounds_({
-    startRow: bounds.startRow + startRowOffset,
-    endRow: bounds.startRow + startRowOffset + rowCount - 1,
-    startColumn: bounds.startColumn,
-    endColumn: bounds.startColumn + columnCount - 1
-  });
-}
-
 function assertNonOverlappingTransfer_(plan, targetRangeA1) {
   if (!plan || plan.sourceSheet !== plan.targetSheet) {
     return;
@@ -3661,22 +3652,6 @@ function writeTransferToTarget_(targetRange, sourceRange, plan) {
   throw new Error('Google Sheets host does not support exact-safe transfer pasteMode ' + plan.pasteMode + '.');
 }
 
-function getRangeOccupancyMatrix_(targetRange) {
-  const values = targetRange.getValues();
-  const formulas = typeof targetRange.getFormulas === 'function'
-    ? targetRange.getFormulas()
-    : [];
-
-  return values.map(function(row, rowIndex) {
-    const formulaRow = formulas[rowIndex] || [];
-    return row.map(function(value, columnIndex) {
-      const formulaValue = formulaRow[columnIndex];
-      return (typeof formulaValue === 'string' && formulaValue.trim().length > 0) ||
-        !isBlankCellValue_(value);
-    });
-  });
-}
-
 function getInsertedTransferMatrix_(sourceRange, plan) {
   if (plan.pasteMode === 'values') {
     return normalizeTransferValues_(sourceRange.getValues(), plan);
@@ -3689,94 +3664,21 @@ function getInsertedTransferMatrix_(sourceRange, plan) {
   throw new Error('Google Sheets host does not support exact-safe transfer pasteMode ' + plan.pasteMode + '.');
 }
 
-function resolveAppendTransferTarget_(targetSheet, targetRange, sourceRange, plan) {
+function resolveAppendTransferTarget_(targetRange, sourceRange, plan) {
   const resolvedShape = getResolvedTransferShape_(sourceRange, plan);
   const insertedMatrix = plan.pasteMode === 'formats'
     ? null
     : getInsertedTransferMatrix_(sourceRange, plan);
 
-  if (targetRange.getNumColumns() !== resolvedShape.columns) {
-    throw new Error('Google Sheets host cannot append when the approved target range width does not match the transfer width.');
-  }
-
-  const occupancyMatrix = getRangeOccupancyMatrix_(targetRange);
-  const anchorOnlyRange =
-    targetRange.getNumRows() === 1 &&
-    targetRange.getNumRows() < resolvedShape.rows &&
-    occupancyMatrix.every(function(row) {
-      return row.every(function(isOccupied) {
-        return !isOccupied;
-      });
-    });
-
-  if (anchorOnlyRange) {
-    if (typeof targetSheet.getRange !== 'function') {
-      throw new Error('Google Sheets host cannot expand the approved append anchor exactly.');
-    }
-
-    const expandedTargetRange = targetSheet.getRange(
-      targetRange.getRow(),
-      targetRange.getColumn(),
-      resolvedShape.rows,
-      resolvedShape.columns
-    );
-
-    if (expandedTargetRange.getNumRows() !== resolvedShape.rows ||
-      expandedTargetRange.getNumColumns() !== resolvedShape.columns) {
-      throw new Error('Google Sheets host cannot expand the approved append anchor exactly.');
-    }
-
-    return {
-      writeRange: expandedTargetRange,
-      insertedMatrix: insertedMatrix,
-      actualTargetRange: getActualAppendTargetRange_(
-        targetRange.getA1Notation(),
-        0,
-        resolvedShape.rows,
-        resolvedShape.columns
-      )
-    };
-  }
-
-  let firstEmptyRow = occupancyMatrix.length;
-  let seenGap = false;
-
-  for (let rowIndex = 0; rowIndex < occupancyMatrix.length; rowIndex += 1) {
-    const isEmptyRow = occupancyMatrix[rowIndex].every(function(isOccupied) {
-      return !isOccupied;
-    });
-
-    if (isEmptyRow) {
-      if (!seenGap) {
-        firstEmptyRow = rowIndex;
-        seenGap = true;
-      }
-      continue;
-    }
-
-    if (seenGap) {
-      throw new Error('Google Sheets host cannot append exactly when the approved target range contains internal gaps.');
-    }
-  }
-
-  if (firstEmptyRow + resolvedShape.rows > targetRange.getNumRows()) {
-    throw new Error('Google Sheets host cannot append exactly within the approved target range.');
+  if (targetRange.getNumRows() !== resolvedShape.rows ||
+    targetRange.getNumColumns() !== resolvedShape.columns) {
+    throw new Error('Google Sheets host requires append targetRange to match the full destination rectangle.');
   }
 
   return {
-    writeRange: targetSheet.getRange(
-      targetRange.getRow() + firstEmptyRow,
-      targetRange.getColumn(),
-      resolvedShape.rows,
-      resolvedShape.columns
-    ),
+    writeRange: targetRange,
     insertedMatrix: insertedMatrix,
-    actualTargetRange: getActualAppendTargetRange_(
-      targetRange.getA1Notation(),
-      firstEmptyRow,
-      resolvedShape.rows,
-      resolvedShape.columns
-    )
+    actualTargetRange: normalizeA1_(targetRange.getA1Notation())
   };
 }
 
@@ -5522,7 +5424,7 @@ function applyWritePlan(input) {
     let actualTargetRange;
 
     if (plan.operation === 'append') {
-      const appendTarget = resolveAppendTransferTarget_(targetSheet, targetAnchor, sourceRange, plan);
+      const appendTarget = resolveAppendTransferTarget_(targetAnchor, sourceRange, plan);
       resolvedTargetRange = appendTarget.writeRange;
       actualTargetRange = appendTarget.actualTargetRange;
     } else {

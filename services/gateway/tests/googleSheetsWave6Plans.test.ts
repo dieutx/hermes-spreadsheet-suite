@@ -417,6 +417,12 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.sanitizeHostExecutionError(
       new Error("Google Sheets host cannot append exactly within the approved target range.")
     )).toBe(expectedAppendMessage);
+    expect(code.sanitizeHostExecutionError(
+      new Error("Google Sheets host requires append targetRange to match the full destination rectangle.")
+    )).toBe(expectedAppendMessage);
+    expect(sidebar.sanitizeHostExecutionError(
+      new Error("Google Sheets host requires append targetRange to match the full destination rectangle.")
+    )).toBe(expectedAppendMessage);
 
     expect(sidebar.sanitizeHostExecutionError(
       new Error("Invalid date literal: 2026-13-40")
