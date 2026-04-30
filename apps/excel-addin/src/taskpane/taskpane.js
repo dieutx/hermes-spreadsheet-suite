@@ -253,6 +253,12 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;");
 }
 
+function escapeHtmlAttribute(value) {
+  return escapeHtml(value)
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function normalizeA1(address) {
   const text = String(address || "");
   const withoutSheet = text.includes("!") ? text.split("!").pop() : text;
@@ -5733,7 +5739,7 @@ async function executeWritePlanMessage(message) {
 function renderAttachmentStrip() {
   elements.attachmentStrip.innerHTML = state.pendingAttachments.map((attachment, index) => `
     <div class="chip">
-      <img src="${attachment.previewUrl}" alt="" />
+      <img src="${escapeHtmlAttribute(attachment.previewUrl)}" alt="" />
       <span>${escapeHtml(attachment.fileName)}</span>
       <span class="chip-status">${escapeHtml(attachment.status)}</span>
       <button type="button" data-remove-index="${index}">x</button>
@@ -5878,7 +5884,7 @@ function renderStructuredPreview(response, message) {
         <div>${escapeHtml(preview.explanation)}</div>
         ${getRequiresConfirmation(response) ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Workbook Update
             </button>
           </div>
@@ -5900,7 +5906,7 @@ function renderStructuredPreview(response, message) {
         <div class="preview-meta">${escapeHtml(preview.summary)}</div>
         ${getRequiresConfirmation(response) ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Sheet Update
             </button>
           </div>
@@ -5921,7 +5927,7 @@ function renderStructuredPreview(response, message) {
         <div class="preview-meta">${escapeHtml(preview.summary)}</div>
         ${getRequiresConfirmation(response) ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Sort
             </button>
           </div>
@@ -5946,7 +5952,7 @@ function renderStructuredPreview(response, message) {
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Filter
             </button>
           </div>
@@ -5970,7 +5976,7 @@ function renderStructuredPreview(response, message) {
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Format Update
             </button>
           </div>
@@ -5999,7 +6005,7 @@ function renderStructuredPreview(response, message) {
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Conditional Formatting
             </button>
           </div>
@@ -6042,7 +6048,7 @@ function renderStructuredPreview(response, message) {
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Validation
             </button>
           </div>
@@ -6065,7 +6071,7 @@ function renderStructuredPreview(response, message) {
         <div class="preview-meta">${escapeHtml(preview.summary)}</div>
         ${getRequiresConfirmation(response) ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Named Range Update
             </button>
           </div>
@@ -6095,7 +6101,7 @@ function renderStructuredPreview(response, message) {
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Transfer
             </button>
           </div>
@@ -6138,7 +6144,7 @@ function renderStructuredPreview(response, message) {
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Cleanup
             </button>
           </div>
@@ -6184,7 +6190,7 @@ function renderStructuredPreview(response, message) {
         ${compositeSupportError ? `<div class="warning-line">${escapeHtml(compositeSupportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !compositeSupportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Workflow
             </button>
           </div>
@@ -6209,7 +6215,7 @@ function renderStructuredPreview(response, message) {
         ${renderTable([], preview.rows)}
         ${getRequiresConfirmation(response) ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Analysis Report
             </button>
           </div>
@@ -6244,7 +6250,7 @@ function renderStructuredPreview(response, message) {
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Pivot Table
             </button>
           </div>
@@ -6277,7 +6283,7 @@ function renderStructuredPreview(response, message) {
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Chart
             </button>
           </div>
@@ -6314,7 +6320,7 @@ function renderStructuredPreview(response, message) {
         ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Table
             </button>
           </div>
@@ -6365,7 +6371,7 @@ function renderStructuredPreview(response, message) {
         ${renderTable([], preview.rows)}
         ${getRequiresConfirmation(response) ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Update
             </button>
           </div>
@@ -6385,7 +6391,7 @@ function renderStructuredPreview(response, message) {
         ${renderTable(preview.headers, preview.rows)}
         ${getRequiresConfirmation(response) ? `
           <div class="preview-actions">
-            <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+            <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Insert
             </button>
           </div>
