@@ -13,6 +13,8 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.APPROVAL_SECRET;
+  delete process.env.HERMES_SERVICE_LABEL;
+  delete process.env.HERMES_ENVIRONMENT_LABEL;
 });
 
 describe("gateway app", () => {
@@ -108,6 +110,16 @@ describe("gateway app", () => {
     );
 
     expect(executionLayer).toBeDefined();
+  });
+
+  it("keeps public app metadata labels sanitized for health and proof responses", () => {
+    process.env.HERMES_SERVICE_LABEL = "http://internal.example/gateway";
+    process.env.HERMES_ENVIRONMENT_LABEL = "APPROVAL_SECRET=secret";
+
+    const { config } = createApp();
+
+    expect(config.serviceLabel).toBe("hermes-gateway-local");
+    expect(config.environmentLabel).toBe("local-dev");
   });
 
   it("returns a JSON invalid-request error for malformed JSON bodies", () => {
