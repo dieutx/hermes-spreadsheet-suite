@@ -263,7 +263,24 @@ function extractGatewayErrorMessage_(statusCode, bodyText) {
     // Fall back to the raw text when the gateway does not return JSON.
   }
 
+  if (containsSensitiveGatewayErrorText_(bodyText)) {
+    return fallback;
+  }
+
   return bodyText;
+}
+
+function containsSensitiveGatewayErrorText_(text) {
+  var value = String(text || '');
+  return (
+    /\b(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)\s*[:=]/i.test(value) ||
+    /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(value) ||
+    /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(value) ||
+    /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(value) ||
+    /(?:^|\s)[A-Za-z]:\\[^\s]+/.test(value) ||
+    /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(value) ||
+    /\b(?:stack trace|traceback)\b/i.test(value)
+  );
 }
 
 function formatUserFacingErrorText_(message, userAction) {
@@ -277,11 +294,28 @@ function formatUserFacingErrorText_(message, userAction) {
   return resolvedMessage + '\n\n' + resolvedUserAction;
 }
 
+function containsSensitiveHostDiagnostics_(message) {
+  var text = String(message || '');
+  return (
+    /\b(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)\s*[:=]/i.test(text) ||
+    /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(text) ||
+    /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(text) ||
+    /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(text) ||
+    /(?:^|\s)[A-Za-z]:\\[^\s]+/.test(text) ||
+    /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(text) ||
+    /\b(?:stack trace|traceback)\b/i.test(text)
+  );
+}
+
 function sanitizeHostExecutionError_(error, fallbackMessage) {
   const rawMessage = error && error.message ? error.message : String(error || '');
   const message = String(rawMessage || '').trim().replace(/^Error:\s*/i, '');
 
   if (!message) {
+    return fallbackMessage || 'Write-back failed.';
+  }
+
+  if (containsSensitiveHostDiagnostics_(message)) {
     return fallbackMessage || 'Write-back failed.';
   }
 
