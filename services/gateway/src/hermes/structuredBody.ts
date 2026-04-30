@@ -866,6 +866,52 @@ function normalizeWorkbookStructureUpdateData(value: unknown): unknown {
     "overwriteRisk"
   ]);
 
+  if (!hasOwn(normalized, "operation")) {
+    if (typeof value.action === "string" && value.action.trim()) {
+      normalized.operation = value.action.trim();
+    } else if (typeof value.op === "string" && value.op.trim()) {
+      normalized.operation = value.op.trim();
+    }
+  }
+
+  if (typeof normalized.operation === "string") {
+    const operation = normalized.operation.trim().toLowerCase();
+    normalized.operation =
+      operation === "add" || operation === "create" || operation === "insert" || operation === "new"
+        ? "create_sheet"
+        : operation === "delete" || operation === "remove"
+        ? "delete_sheet"
+        : operation === "rename"
+        ? "rename_sheet"
+        : operation === "duplicate" || operation === "copy"
+        ? "duplicate_sheet"
+        : operation === "move"
+        ? "move_sheet"
+        : operation === "hide"
+        ? "hide_sheet"
+        : operation === "unhide" || operation === "show"
+        ? "unhide_sheet"
+        : operation;
+  }
+
+  if (!hasOwn(normalized, "sheetName")) {
+    if (typeof value.name === "string" && value.name.trim()) {
+      normalized.sheetName = value.name.trim();
+    } else if (typeof value.sheet === "string" && value.sheet.trim()) {
+      normalized.sheetName = value.sheet.trim();
+    } else if (typeof value.sheetTitle === "string" && value.sheetTitle.trim()) {
+      normalized.sheetName = value.sheetTitle.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "newSheetName")) {
+    if (typeof value.newName === "string" && value.newName.trim()) {
+      normalized.newSheetName = value.newName.trim();
+    } else if (typeof value.newTitle === "string" && value.newTitle.trim()) {
+      normalized.newSheetName = value.newTitle.trim();
+    }
+  }
+
   if (hasOwn(normalized, "overwriteRisk")) {
     normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
   }

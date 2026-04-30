@@ -351,6 +351,30 @@ describe("structured body normalization", () => {
     expect(parsed).toEqual(expectedBody);
   });
 
+  it("normalizes workbook structure action and sheet-name aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "workbook_structure_update",
+      data: {
+        action: "add",
+        name: "Summary",
+        position: "end",
+        explanation: "Create a summary worksheet.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "workbook_structure_update",
+      data: {
+        operation: "create_sheet",
+        sheetName: "Summary",
+        position: "end"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("synthesizes external data formulas from provider fields before validation", () => {
     const marketData = normalizeHermesStructuredBodyInput({
       type: "external_data_plan",
