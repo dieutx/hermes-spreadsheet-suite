@@ -4429,6 +4429,8 @@ describe("writeback confirmation flow", () => {
       explanation: "Format the selected header range.",
       confidence: 0.92,
       requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:B2"],
+      confirmationLevel: "standard" as const,
       overwriteRisk: "low"
     };
 
@@ -4496,6 +4498,8 @@ describe("writeback confirmation flow", () => {
         explanation: "Format the selected header range.",
         confidence: 0.92,
         requiresConfirmation: true,
+        affectedRanges: ["Sheet1!A1:B2"],
+        confirmationLevel: "standard",
         overwriteRisk: "low",
         summary: "Applied formatting to Sheet1!A1:B2."
       } as any,
@@ -4532,6 +4536,8 @@ describe("writeback confirmation flow", () => {
         explanation: "Format the selected header range.",
         confidence: 0.92,
         requiresConfirmation: true,
+        affectedRanges: ["Sheet1!A1:B2"],
+        confirmationLevel: "standard",
         overwriteRisk: "low"
       },
       result: {
@@ -4546,6 +4552,8 @@ describe("writeback confirmation flow", () => {
         explanation: "Wrong formatting semantics.",
         confidence: 0.92,
         requiresConfirmation: true,
+        affectedRanges: ["Sheet1!A1:B2"],
+        confirmationLevel: "standard",
         overwriteRisk: "low",
         summary: "Applied the wrong formatting."
       }
@@ -4571,6 +4579,8 @@ describe("writeback confirmation flow", () => {
       explanation: "Format the selected header range.",
       confidence: 0.92,
       requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:B2"],
+      confirmationLevel: "standard" as const,
       overwriteRisk: "low"
     };
 

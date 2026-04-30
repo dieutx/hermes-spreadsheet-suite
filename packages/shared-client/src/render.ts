@@ -187,6 +187,8 @@ export type StructuredPreview =
       targetRange: string;
       format: RangeFormatUpdateResponse["data"]["format"];
       explanation: string;
+      affectedRanges: RangeFormatUpdateResponse["data"]["affectedRanges"];
+      confirmationLevel: RangeFormatUpdateResponse["data"]["confirmationLevel"];
       overwriteRisk?: RangeFormatUpdateResponse["data"]["overwriteRisk"];
     }
   | ({
@@ -1202,6 +1204,8 @@ export function buildRangeFormatPreview(
     targetRange: plan.targetRange,
     format: plan.format,
     explanation: plan.explanation,
+    affectedRanges: plan.affectedRanges,
+    confirmationLevel: plan.confirmationLevel,
     overwriteRisk: plan.overwriteRisk
   };
 }

@@ -1029,6 +1029,8 @@ function normalizeRangeFormatUpdateData(value: unknown): unknown {
     "explanation",
     "confidence",
     "requiresConfirmation",
+    "affectedRanges",
+    "confirmationLevel",
     "overwriteRisk"
   ]);
 
@@ -1054,6 +1056,22 @@ function normalizeRangeFormatUpdateData(value: unknown): unknown {
   const normalizedFormat = normalizeRangeFormatValue(formatSource);
   if (isObject(normalizedFormat) && Object.keys(normalizedFormat).length > 0) {
     normalized.format = normalizedFormat;
+  }
+
+  if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
+    normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (
+    (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) &&
+    typeof normalized.targetSheet === "string" &&
+    typeof normalized.targetRange === "string"
+  ) {
+    normalized.affectedRanges = [`${normalized.targetSheet}!${normalized.targetRange}`];
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel = "standard";
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {

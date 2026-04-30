@@ -2392,6 +2392,8 @@ describe("shared client render helpers", () => {
         explanation: "Apply square-table formatting.",
         confidence: 0.9,
         requiresConfirmation: true,
+        affectedRanges: ["Sheet1!A1:J10"],
+        confirmationLevel: "standard",
         overwriteRisk: "low"
       }
     } satisfies ResponseFixture<"range_format_update">);
@@ -2413,6 +2415,8 @@ describe("shared client render helpers", () => {
         rowHeight: 24
       },
       explanation: "Apply square-table formatting.",
+      affectedRanges: ["Sheet1!A1:J10"],
+      confirmationLevel: "standard",
       overwriteRisk: "low"
     });
     expect(isWritePlanResponse(response)).toBe(true);
