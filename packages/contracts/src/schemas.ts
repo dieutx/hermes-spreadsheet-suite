@@ -1563,7 +1563,7 @@ export const RangeFormatSchema = strictObject({
 
 export const RangeFormatUpdateDataSchema = strictObject({
   targetSheet: z.string().min(1).max(128),
-  targetRange: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
   format: RangeFormatSchema,
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
@@ -1650,7 +1650,7 @@ export const ConditionalFormatColorScalePointSchema = strictObject({
 
 const ConditionalFormatPlanSharedFields = {
   targetSheet: z.string().min(1).max(128),
-  targetRange: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
@@ -1864,7 +1864,7 @@ export const ConditionalFormatPlanDataSchema = z.union([
 export const ConditionalFormatUpdateDataSchema = strictObject({
   operation: z.literal("conditional_format_update"),
   targetSheet: z.string().min(1).max(128),
-  targetRange: z.string().min(1).max(128),
+  targetRange: A1TargetRangeSchema,
   managementMode: ConditionalFormatManagementModeSchema,
   summary: z.string().min(1).max(500)
 });
