@@ -50,10 +50,13 @@ import {
 import { normalizeCompositePlanForDigest } from "../lib/planNormalization.js";
 
 const APPROVAL_TOKEN_MAX_AGE_MS = 15 * 60 * 1000;
+const WRITEBACK_ID_MAX_LENGTH = 128;
+const APPROVAL_TOKEN_MAX_LENGTH = 1024;
+const PLAN_DIGEST_MAX_LENGTH = 128;
 
 const ApprovalRequestSchema = z.object({
-  requestId: z.string().min(1),
-  runId: z.string().min(1),
+  requestId: z.string().min(1).max(WRITEBACK_ID_MAX_LENGTH),
+  runId: z.string().min(1).max(WRITEBACK_ID_MAX_LENGTH),
   workbookSessionKey: z.string().min(1).max(256).optional(),
   destructiveConfirmation: z.object({
     confirmed: z.literal(true)
@@ -516,11 +519,11 @@ const CompositeWritebackResultSchema = z.object({
 }).strict();
 
 const CompletionRequestSchema = z.object({
-  requestId: z.string().min(1),
-  runId: z.string().min(1),
+  requestId: z.string().min(1).max(WRITEBACK_ID_MAX_LENGTH),
+  runId: z.string().min(1).max(WRITEBACK_ID_MAX_LENGTH),
   workbookSessionKey: z.string().min(1).max(256).optional(),
-  approvalToken: z.string().min(1),
-  planDigest: z.string().min(1),
+  approvalToken: z.string().min(1).max(APPROVAL_TOKEN_MAX_LENGTH),
+  planDigest: z.string().min(1).max(PLAN_DIGEST_MAX_LENGTH),
   result: z.union([AtomicWritebackResultSchema, CompositeWritebackResultSchema])
 });
 
