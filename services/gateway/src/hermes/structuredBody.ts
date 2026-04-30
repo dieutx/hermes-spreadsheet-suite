@@ -927,7 +927,7 @@ function normalizeConditionalFormatStyleValue(value: unknown): unknown {
     return value;
   }
 
-  return pickFields(value, [
+  const normalized = pickFields(value, [
     "backgroundColor",
     "textColor",
     "bold",
@@ -936,6 +936,24 @@ function normalizeConditionalFormatStyleValue(value: unknown): unknown {
     "strikethrough",
     "numberFormat"
   ]);
+
+  if (!hasOwn(normalized, "backgroundColor")) {
+    if (hasOwn(value, "background")) {
+      normalized.backgroundColor = value.background;
+    } else if (hasOwn(value, "fillColor")) {
+      normalized.backgroundColor = value.fillColor;
+    }
+  }
+
+  if (!hasOwn(normalized, "textColor")) {
+    if (hasOwn(value, "fontColor")) {
+      normalized.textColor = value.fontColor;
+    } else if (hasOwn(value, "foregroundColor")) {
+      normalized.textColor = value.foregroundColor;
+    }
+  }
+
+  return normalized;
 }
 
 function normalizeConditionalFormatColorScalePointValue(value: unknown): unknown {
@@ -948,6 +966,90 @@ function normalizeConditionalFormatColorScalePointValue(value: unknown): unknown
     "value",
     "color"
   ]);
+}
+
+function normalizeConditionalFormatRuleTypeValue(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+
+  switch (normalized) {
+    case "single":
+    case "single_color":
+    case "cell_value":
+      return "single_color";
+    case "text":
+    case "contains_text":
+    case "text_contains":
+      return "text_contains";
+    case "number":
+    case "numeric":
+    case "number_compare":
+      return "number_compare";
+    case "date":
+    case "date_compare":
+      return "date_compare";
+    case "duplicate":
+    case "duplicates":
+    case "duplicate_values":
+      return "duplicate_values";
+    case "formula":
+    case "custom":
+    case "custom_formula":
+      return "custom_formula";
+    case "top":
+    case "top_n":
+    case "top_bottom":
+      return "top_n";
+    case "average":
+    case "average_compare":
+    case "above_below_average":
+      return "average_compare";
+    case "color_scale":
+      return "color_scale";
+    default:
+      return value;
+  }
+}
+
+function normalizeConditionalFormatManagementModeValue(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+
+  switch (normalized) {
+    case "add":
+    case "append":
+    case "add_rule":
+      return "add";
+    case "replace":
+    case "replace_all":
+    case "replace_existing":
+    case "replace_existing_rules":
+    case "replace_all_rules":
+    case "replace_all_on_target":
+      return "replace_all_on_target";
+    case "clear":
+    case "clear_existing":
+    case "clear_existing_rules":
+    case "clear_rules":
+    case "clear_on_target":
+      return "clear_on_target";
+    default:
+      return value;
+  }
 }
 
 function normalizeConditionalFormatPlanData(value: unknown): unknown {
@@ -974,6 +1076,39 @@ function normalizeConditionalFormatPlanData(value: unknown): unknown {
     "direction"
   ]);
 
+  if (!hasOwn(normalized, "targetSheet")) {
+    if (hasOwn(value, "sheet")) {
+      normalized.targetSheet = value.sheet;
+    } else if (hasOwn(value, "sheetName")) {
+      normalized.targetSheet = value.sheetName;
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange")) {
+    const rangeValue = hasOwn(value, "range") ? value.range : value.target;
+    const rangeRef = parseQualifiedRangeRef(rangeValue);
+    if (!hasOwn(normalized, "targetSheet") && rangeRef.sheet) {
+      normalized.targetSheet = rangeRef.sheet;
+    }
+    if (rangeRef.range) {
+      normalized.targetRange = rangeRef.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "managementMode")) {
+    if (hasOwn(value, "mode")) {
+      normalized.managementMode = normalizeConditionalFormatManagementModeValue(value.mode);
+    } else if (hasOwn(value, "action")) {
+      normalized.managementMode = normalizeConditionalFormatManagementModeValue(value.action);
+    }
+  } else {
+    normalized.managementMode = normalizeConditionalFormatManagementModeValue(normalized.managementMode);
+  }
+
+  if (hasOwn(normalized, "ruleType")) {
+    normalized.ruleType = normalizeConditionalFormatRuleTypeValue(normalized.ruleType);
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
   }
@@ -987,7 +1122,10 @@ function normalizeConditionalFormatPlanData(value: unknown): unknown {
   if (hasOwn(value, "rule") && isObject(value.rule)) {
     const rule = value.rule;
     if (!hasOwn(normalized, "ruleType") && hasOwn(rule, "ruleType")) {
-      normalized.ruleType = rule.ruleType;
+      normalized.ruleType = normalizeConditionalFormatRuleTypeValue(rule.ruleType);
+    }
+    if (!hasOwn(normalized, "ruleType") && hasOwn(rule, "type")) {
+      normalized.ruleType = normalizeConditionalFormatRuleTypeValue(rule.type);
     }
     if (!hasOwn(normalized, "comparator") && hasOwn(rule, "comparator")) {
       normalized.comparator = rule.comparator;
@@ -1032,6 +1170,14 @@ function normalizeConditionalFormatPlanData(value: unknown): unknown {
 
   if (!hasOwn(normalized, "formula") && hasOwn(value, "customFormula")) {
     normalized.formula = value.customFormula;
+  }
+
+  if (!hasOwn(normalized, "replacesExistingRules")) {
+    if (normalized.managementMode === "replace_all_on_target" || normalized.managementMode === "clear_on_target") {
+      normalized.replacesExistingRules = true;
+    } else if (normalized.managementMode === "add") {
+      normalized.replacesExistingRules = false;
+    }
   }
 
   if (

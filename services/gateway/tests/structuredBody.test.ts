@@ -682,6 +682,48 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes conditional format aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        sheet: "Support",
+        range: "G2:G50",
+        mode: "replace",
+        rule: {
+          type: "formula",
+          customFormula: '=$G2="Breached"',
+          format: {
+            background: "#FDECEC",
+            fontColor: "#9C0006",
+            bold: true
+          }
+        },
+        explanation: "Highlight breached SLA rows.",
+        confidence: 0.92,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Support",
+        targetRange: "G2:G50",
+        managementMode: "replace_all_on_target",
+        replacesExistingRules: true,
+        ruleType: "custom_formula",
+        formula: '=$G2="Breached"',
+        style: {
+          backgroundColor: "#FDECEC",
+          textColor: "#9C0006",
+          bold: true
+        },
+        affectedRanges: ["Support!G2:G50"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes table plans before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "table_plan",
