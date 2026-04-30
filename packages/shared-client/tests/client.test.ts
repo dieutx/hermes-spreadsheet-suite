@@ -960,6 +960,52 @@ describe("shared client render helpers", () => {
     expect(typeof client.redoExecution).toBe("function");
   });
 
+  it("sends session ids on execution-control gateway client calls", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ entries: [] }), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("http://localhost:18787");
+
+    await client.dryRunPlan({
+      requestId: "req_dry_001",
+      runId: "run_dry_001",
+      sessionId: "sess_client_001",
+      plan: { steps: [] }
+    } as any);
+    await client.listPlanHistory({
+      workbookSessionKey: "excel_windows::workbook-123",
+      sessionId: "sess_client_001",
+      limit: 5
+    } as any);
+    await client.prepareUndoExecution({
+      requestId: "req_undo_001",
+      workbookSessionKey: "excel_windows::workbook-123",
+      sessionId: "sess_client_001",
+      executionId: "exec_001"
+    });
+    await client.redoExecution({
+      requestId: "req_redo_001",
+      workbookSessionKey: "excel_windows::workbook-123",
+      sessionId: "sess_client_001",
+      executionId: "exec_undo_001"
+    });
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+      sessionId: "sess_client_001"
+    });
+    expect(String(fetchMock.mock.calls[1][0])).toBe(
+      "http://localhost:18787/api/execution/history?workbookSessionKey=excel_windows%3A%3Aworkbook-123&sessionId=sess_client_001&limit=5"
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({
+      sessionId: "sess_client_001"
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toMatchObject({
+      sessionId: "sess_client_001"
+    });
+  });
+
   it("renders chat responses as message-first with follow-up suggestions", () => {
     const response = baseResponse({
       type: "chat",

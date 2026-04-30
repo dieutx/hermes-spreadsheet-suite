@@ -220,6 +220,76 @@ function buildWorkbookCreateSheetResult(
 }
 
 describe("writeback confirmation flow", () => {
+  it("records writeback history under the originating Hermes session id", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      targetSheet: "Sheet1",
+      targetRange: "A1:B2",
+      operation: "replace_range",
+      values: [["Region", "Revenue"], ["North", 1200]],
+      explanation: "Write the approved sales block.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      shape: { rows: 2, columns: 2 }
+    };
+    traceBus.ensureRun("run_session_history_001", "req_session_history_001", "sess_history_a");
+    setRunResponse(traceBus, {
+      runId: "run_session_history_001",
+      requestId: "req_session_history_001",
+      type: "sheet_update",
+      traceEvent: "sheet_update_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_session_history_001",
+        runId: "run_session_history_001",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_session_history_001",
+        runId: "run_session_history_001",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: buildRangeWriteResult(plan, {
+          undoReady: true
+        })
+      }
+    });
+    expect(completion.status).toBe(200);
+
+    expect(
+      executionLedger.listHistory(
+        "excel_windows::workbook-123",
+        undefined,
+        undefined,
+        "sess_history_a"
+      ).entries
+    ).toHaveLength(1);
+    expect(
+      executionLedger.listHistory(
+        "excel_windows::workbook-123",
+        undefined,
+        undefined,
+        "sess_history_b"
+      ).entries
+    ).toHaveLength(0);
+  });
+
   it("rejects composite approval when a required dry-run is missing or stale", () => {
     const traceBus = new TraceBus();
     const executionLedger = new ExecutionLedger();

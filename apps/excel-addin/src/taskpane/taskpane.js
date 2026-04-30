@@ -5501,6 +5501,9 @@ const gateway = {
     const params = new URLSearchParams({
       workbookSessionKey: input.workbookSessionKey
     });
+    if (input.sessionId) {
+      params.set("sessionId", input.sessionId);
+    }
     if (typeof input.limit === "number") {
       params.set("limit", String(input.limit));
     }
@@ -5546,6 +5549,7 @@ const gateway = {
 async function dryRunCompositePlan(input) {
   return gateway.dryRunPlan({
     ...input,
+    sessionId,
     workbookSessionKey: getWorkbookSessionKey()
   });
 }
@@ -5553,6 +5557,7 @@ async function dryRunCompositePlan(input) {
 async function listExecutionHistory(input = {}) {
   return gateway.listPlanHistory({
     workbookSessionKey: getWorkbookSessionKey(),
+    sessionId,
     cursor: input.cursor,
     limit: input.limit
   });
@@ -5571,6 +5576,7 @@ async function undoExecution(executionId) {
   const request = {
     executionId,
     requestId,
+    sessionId,
     workbookSessionKey
   };
   await gateway.prepareUndoExecution(request);
@@ -5595,6 +5601,7 @@ async function redoExecution(executionId) {
   const request = {
     executionId,
     requestId,
+    sessionId,
     workbookSessionKey
   };
   await gateway.prepareRedoExecution(request);

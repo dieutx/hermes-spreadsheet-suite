@@ -2203,6 +2203,7 @@ export const UndoRequestSchema = strictObject({
   executionId: z.string().min(1).max(128),
   requestId: z.string().min(1).max(128),
   workbookSessionKey: z.string().min(1).max(256),
+  sessionId: z.string().min(1).max(128).optional(),
   reason: z.string().min(1).max(4000).optional()
 });
 
@@ -2210,6 +2211,7 @@ export const RedoRequestSchema = strictObject({
   executionId: z.string().min(1).max(128),
   requestId: z.string().min(1).max(128),
   workbookSessionKey: z.string().min(1).max(256),
+  sessionId: z.string().min(1).max(128).optional(),
   reason: z.string().min(1).max(4000).optional()
 });
 

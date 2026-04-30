@@ -346,6 +346,84 @@ describe("execution control routes", () => {
     });
   });
 
+  it("scopes execution history and undo controls by workbook and session id", () => {
+    const ledger = new ExecutionLedger();
+    ledger.recordCompleted({
+      executionId: "exec_001",
+      workbookSessionKey: "excel_windows::workbook-123",
+      sessionId: "sess_a",
+      requestId: "req_001",
+      runId: "run_001",
+      planType: "sheet_update",
+      planDigest: "digest_001",
+      status: "completed",
+      timestamp: "2026-04-20T13:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "Updated Sales!A1:B2."
+    } as any);
+
+    const sameSessionHistory = invokeExecutionRouteWithLedger({
+      path: "/history",
+      method: "get",
+      ledger,
+      query: {
+        workbookSessionKey: "excel_windows::workbook-123",
+        sessionId: "sess_a"
+      }
+    });
+    expect(sameSessionHistory.status).toBe(200);
+    expect((sameSessionHistory.body as any).entries).toHaveLength(1);
+
+    const otherSessionHistory = invokeExecutionRouteWithLedger({
+      path: "/history",
+      method: "get",
+      ledger,
+      query: {
+        workbookSessionKey: "excel_windows::workbook-123",
+        sessionId: "sess_b"
+      }
+    });
+    expect(otherSessionHistory.status).toBe(200);
+    expect(otherSessionHistory.body).toMatchObject({ entries: [] });
+
+    const otherSessionUndo = invokeExecutionRouteWithLedger({
+      path: "/undo",
+      method: "post",
+      ledger,
+      body: {
+        requestId: "req_undo_001",
+        workbookSessionKey: "excel_windows::workbook-123",
+        sessionId: "sess_b",
+        executionId: "exec_001"
+      }
+    });
+    expect(otherSessionUndo.status).toBe(409);
+    expect(otherSessionUndo.body).toMatchObject({
+      error: {
+        code: "STALE_EXECUTION"
+      }
+    });
+
+    const sameSessionUndo = invokeExecutionRouteWithLedger({
+      path: "/undo",
+      method: "post",
+      ledger,
+      body: {
+        requestId: "req_undo_002",
+        workbookSessionKey: "excel_windows::workbook-123",
+        sessionId: "sess_a",
+        executionId: "exec_001"
+      }
+    });
+    expect(sameSessionUndo.status).toBe(200);
+    expect(sameSessionUndo.body).toMatchObject({
+      operation: "composite_update",
+      summary: "Undid execution exec_001."
+    });
+  });
+
   it("stores dry-run results under the canonical composite digest", () => {
     const dryRun = invokeExecutionRoute({
       path: "/dry-run",

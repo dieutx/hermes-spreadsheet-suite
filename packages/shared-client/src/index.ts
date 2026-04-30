@@ -218,6 +218,10 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         workbookSessionKey: input.workbookSessionKey
       });
 
+      if (input.sessionId) {
+        params.set("sessionId", input.sessionId);
+      }
+
       if (input.cursor) {
         params.set("cursor", input.cursor);
       }

@@ -15,6 +15,7 @@ export class FreshDryRunRequiredError extends Error {}
 
 type HistoryRecord = {
   workbookSessionKey: string;
+  sessionId?: string;
   entry: PlanHistoryEntry;
 };
 
@@ -67,6 +68,7 @@ export class ExecutionLedger {
 
   private pruneWorkbookHistory(
     workbookSessionKey: string,
+    sessionId: string | undefined,
     bucket: PlanHistoryEntry[]
   ): PlanHistoryEntry[] {
     if (bucket.length <= this.maxHistoryEntriesPerWorkbook) {
@@ -80,15 +82,24 @@ export class ExecutionLedger {
 
     for (const entry of bucket) {
       if (!retainedIds.has(entry.executionId)) {
-        this.historyByExecutionId.delete(this.getExecutionKey(workbookSessionKey, entry.executionId));
+        this.historyByExecutionId.delete(this.getExecutionKey(
+          workbookSessionKey,
+          entry.executionId,
+          sessionId
+        ));
       }
     }
 
     return retained;
   }
 
-  listHistory(workbookSessionKey: string, limit?: number, cursor?: string): PlanHistoryPage {
-    const entries = [...(this.history.get(workbookSessionKey) ?? [])]
+  listHistory(
+    workbookSessionKey: string,
+    limit?: number,
+    cursor?: string,
+    sessionId?: string
+  ): PlanHistoryPage {
+    const entries = [...(this.history.get(this.getHistoryKey(workbookSessionKey, sessionId)) ?? [])]
       .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp));
 
     const startIndex = this.parseCursor(cursor);
@@ -106,16 +117,17 @@ export class ExecutionLedger {
       : { entries: pageEntries };
   }
 
-  recordApproved(input: { workbookSessionKey: string } & PlanHistoryEntry): void {
+  recordApproved(input: { workbookSessionKey: string; sessionId?: string } & PlanHistoryEntry): void {
     this.upsertHistoryEntry(input);
   }
 
-  recordCompleted(input: { workbookSessionKey: string } & PlanHistoryEntry): void {
+  recordCompleted(input: { workbookSessionKey: string; sessionId?: string } & PlanHistoryEntry): void {
     this.upsertHistoryEntry(input);
   }
 
   assertFreshDryRun(input: {
     workbookSessionKey: string;
+    sessionId?: string;
     planDigest: string;
     required: boolean;
   }): void {
@@ -123,15 +135,19 @@ export class ExecutionLedger {
       return;
     }
 
-    const result = this.getDryRun(input.workbookSessionKey, input.planDigest);
+    const result = this.getDryRun(input.workbookSessionKey, input.planDigest, input.sessionId);
     if (!result || !result.simulated || Date.parse(result.expiresAt) <= this.now()) {
       throw new FreshDryRunRequiredError("Required dry-run is missing, stale, or unusable.");
     }
   }
 
-  private upsertHistoryEntry(input: { workbookSessionKey: string } & PlanHistoryEntry): void {
-    const { workbookSessionKey, ...entry } = input;
-    const bucket = this.history.get(input.workbookSessionKey) ?? [];
+  private upsertHistoryEntry(input: {
+    workbookSessionKey: string;
+    sessionId?: string;
+  } & PlanHistoryEntry): void {
+    const { workbookSessionKey, sessionId, ...entry } = input;
+    const historyKey = this.getHistoryKey(workbookSessionKey, sessionId);
+    const bucket = this.history.get(historyKey) ?? [];
     const existingIndex = bucket.findIndex(
       (candidate) => candidate.executionId === entry.executionId
     );
@@ -140,22 +156,30 @@ export class ExecutionLedger {
     } else {
       bucket.push(entry);
     }
-    this.history.set(workbookSessionKey, this.pruneWorkbookHistory(workbookSessionKey, bucket));
-    this.historyByExecutionId.set(this.getExecutionKey(workbookSessionKey, input.executionId), {
+    this.history.set(historyKey, this.pruneWorkbookHistory(workbookSessionKey, sessionId, bucket));
+    this.historyByExecutionId.set(this.getExecutionKey(workbookSessionKey, input.executionId, sessionId), {
       workbookSessionKey,
+      sessionId,
       entry
     });
   }
 
-  storeDryRun(result: DryRunResult): void {
+  storeDryRun(result: DryRunResult & { sessionId?: string }): void {
     this.pruneExpiredDryRuns();
-    this.dryRuns.set(this.getDryRunKey(result.workbookSessionKey, result.planDigest), result);
+    this.dryRuns.set(
+      this.getDryRunKey(result.workbookSessionKey, result.planDigest, result.sessionId),
+      result
+    );
     this.evictOverflowDryRuns();
   }
 
-  getDryRun(workbookSessionKey: string, planDigest: string): DryRunResult | undefined {
+  getDryRun(
+    workbookSessionKey: string,
+    planDigest: string,
+    sessionId?: string
+  ): DryRunResult | undefined {
     this.pruneExpiredDryRuns();
-    return this.dryRuns.get(this.getDryRunKey(workbookSessionKey, planDigest));
+    return this.dryRuns.get(this.getDryRunKey(workbookSessionKey, planDigest, sessionId));
   }
 
   prepareUndoExecution(request: UndoRequest): CompositeUpdateData {
@@ -169,6 +193,7 @@ export class ExecutionLedger {
 
     this.upsertHistoryEntry({
       workbookSessionKey: record.workbookSessionKey,
+      sessionId: record.sessionId,
       ...record.entry,
       undoEligible: false,
       redoEligible: false
@@ -176,6 +201,7 @@ export class ExecutionLedger {
 
     this.upsertHistoryEntry({
       workbookSessionKey: record.workbookSessionKey,
+      sessionId: record.sessionId,
       executionId: result.executionId,
       requestId: request.requestId,
       runId: this.buildControlRunId("undo", request.requestId),
@@ -204,6 +230,7 @@ export class ExecutionLedger {
 
     this.upsertHistoryEntry({
       workbookSessionKey: record.workbookSessionKey,
+      sessionId: record.sessionId,
       ...record.entry,
       undoEligible: false,
       redoEligible: false
@@ -211,6 +238,7 @@ export class ExecutionLedger {
 
     this.upsertHistoryEntry({
       workbookSessionKey: record.workbookSessionKey,
+      sessionId: record.sessionId,
       executionId: result.executionId,
       requestId: request.requestId,
       runId: this.buildControlRunId("redo", request.requestId),
@@ -230,7 +258,7 @@ export class ExecutionLedger {
 
   private getUndoRecord(request: UndoRequest): HistoryRecord {
     const record = this.historyByExecutionId.get(
-      this.getExecutionKey(request.workbookSessionKey, request.executionId)
+      this.getExecutionKey(request.workbookSessionKey, request.executionId, request.sessionId)
     );
     if (
       !record
@@ -245,7 +273,7 @@ export class ExecutionLedger {
 
   private getRedoRecord(request: RedoRequest): HistoryRecord {
     const record = this.historyByExecutionId.get(
-      this.getExecutionKey(request.workbookSessionKey, request.executionId)
+      this.getExecutionKey(request.workbookSessionKey, request.executionId, request.sessionId)
     );
     if (
       !record
@@ -295,12 +323,16 @@ export class ExecutionLedger {
     };
   }
 
-  private getDryRunKey(workbookSessionKey: string, planDigest: string): string {
-    return `${workbookSessionKey}::${planDigest}`;
+  private getHistoryKey(workbookSessionKey: string, sessionId?: string): string {
+    return sessionId ? `${workbookSessionKey}::session::${sessionId}` : workbookSessionKey;
   }
 
-  private getExecutionKey(workbookSessionKey: string, executionId: string): string {
-    return `${workbookSessionKey}::${executionId}`;
+  private getDryRunKey(workbookSessionKey: string, planDigest: string, sessionId?: string): string {
+    return `${this.getHistoryKey(workbookSessionKey, sessionId)}::${planDigest}`;
+  }
+
+  private getExecutionKey(workbookSessionKey: string, executionId: string, sessionId?: string): string {
+    return `${this.getHistoryKey(workbookSessionKey, sessionId)}::${executionId}`;
   }
 
   private buildControlExecutionId(

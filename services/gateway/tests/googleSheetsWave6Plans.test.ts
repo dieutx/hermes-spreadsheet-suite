@@ -941,9 +941,11 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     await hooks.sendPrompt();
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[0][0]).toBe(
-      "http://127.0.0.1:8787/api/execution/history?workbookSessionKey=google_sheets%3A%3Asheet-123&limit=20"
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "workbookSessionKey=google_sheets%3A%3Asheet-123"
     );
+    expect(String(fetchMock.mock.calls[0][0])).toContain("sessionId=sess_");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("limit=20");
     expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
     expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
     expect(hooks.elements.messages.innerHTML).toContain("Undid Sheet8!A1.");
@@ -2386,29 +2388,36 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(sidebar.fetch).toHaveBeenCalledTimes(6);
     expect(sidebar.fetch.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/dry-run");
     expect(JSON.parse(String(sidebar.fetch.mock.calls[0][1]?.body))).toMatchObject({
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey: "google_sheets::sheet-123"
     });
-    expect(sidebar.fetch.mock.calls[1][0]).toBe(
-      "http://127.0.0.1:8787/api/execution/history?workbookSessionKey=google_sheets%3A%3Asheet-123&limit=5"
+    expect(String(sidebar.fetch.mock.calls[1][0])).toContain(
+      "workbookSessionKey=google_sheets%3A%3Asheet-123"
     );
+    expect(String(sidebar.fetch.mock.calls[1][0])).toContain("sessionId=sess_");
+    expect(String(sidebar.fetch.mock.calls[1][0])).toContain("limit=5");
     expect(sidebar.fetch.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
     expect(JSON.parse(String(sidebar.fetch.mock.calls[2][1]?.body))).toMatchObject({
       executionId: "exec_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey: "google_sheets::sheet-123"
     });
     expect(sidebar.fetch.mock.calls[3][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
     expect(JSON.parse(String(sidebar.fetch.mock.calls[3][1]?.body))).toMatchObject({
       executionId: "exec_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey: "google_sheets::sheet-123"
     });
     expect(sidebar.fetch.mock.calls[4][0]).toBe("http://127.0.0.1:8787/api/execution/redo/prepare");
     expect(JSON.parse(String(sidebar.fetch.mock.calls[4][1]?.body))).toMatchObject({
       executionId: "exec_undo_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey: "google_sheets::sheet-123"
     });
     expect(sidebar.fetch.mock.calls[5][0]).toBe("http://127.0.0.1:8787/api/execution/redo");
     expect(JSON.parse(String(sidebar.fetch.mock.calls[5][1]?.body))).toMatchObject({
       executionId: "exec_undo_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey: "google_sheets::sheet-123"
     });
     expect(sidebar.callServer).toHaveBeenCalledWith("applyExecutionCellSnapshot", expect.objectContaining({

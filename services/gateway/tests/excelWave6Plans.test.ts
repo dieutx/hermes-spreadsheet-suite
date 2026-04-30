@@ -582,17 +582,21 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     await taskpane.sendPrompt();
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[0][0]).toBe(
-      `http://127.0.0.1:8787/api/execution/history?workbookSessionKey=${encodeURIComponent(workbookSessionKey)}&limit=20`
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      `workbookSessionKey=${encodeURIComponent(workbookSessionKey)}`
     );
+    expect(String(fetchMock.mock.calls[0][0])).toContain("sessionId=sess_");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("limit=20");
     expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
       executionId: "exec_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey
     });
     expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
     expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({
       executionId: "exec_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey
     });
     expect(appliedCells).toEqual([
@@ -2703,29 +2707,36 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(fetchMock).toHaveBeenCalledTimes(6);
     expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/dry-run");
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey
     });
-    expect(fetchMock.mock.calls[1][0]).toBe(
-      `http://127.0.0.1:8787/api/execution/history?workbookSessionKey=${encodeURIComponent(workbookSessionKey)}&limit=5`
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      `workbookSessionKey=${encodeURIComponent(workbookSessionKey)}`
     );
+    expect(String(fetchMock.mock.calls[1][0])).toContain("sessionId=sess_");
+    expect(String(fetchMock.mock.calls[1][0])).toContain("limit=5");
     expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
     expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({
       executionId: "exec_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey
     });
     expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
     expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toMatchObject({
       executionId: "exec_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey
     });
     expect(fetchMock.mock.calls[4][0]).toBe("http://127.0.0.1:8787/api/execution/redo/prepare");
     expect(JSON.parse(String(fetchMock.mock.calls[4][1]?.body))).toMatchObject({
       executionId: "exec_undo_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey
     });
     expect(fetchMock.mock.calls[5][0]).toBe("http://127.0.0.1:8787/api/execution/redo");
     expect(JSON.parse(String(fetchMock.mock.calls[5][1]?.body))).toMatchObject({
       executionId: "exec_undo_001",
+      sessionId: expect.stringMatching(/^sess_/),
       workbookSessionKey
     });
     expect(appliedCells).toEqual([
