@@ -96,6 +96,45 @@ function chatCompletionEnvelope(content: string) {
 }
 
 describe("HermesAgentClient", () => {
+  it("fails closed before provider fetch when the Hermes Agent base url is invalid or non-http", async () => {
+    process.env.HERMES_AGENT_BASE_URL = "javascript:alert(1)";
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(
+      chatCompletionEnvelope(JSON.stringify({
+        type: "chat",
+        data: {
+          message: "This should not be fetched."
+        }
+      }))
+    ), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const client = new HermesAgentClient(getConfig());
+    const traceBus = new TraceBus();
+
+    await client.processRequest({
+      runId: "run_invalid_agent_url_001",
+      request: baseRequest({
+        requestId: "req_invalid_agent_url_001"
+      }),
+      traceBus
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const response = traceBus.getRun("run_invalid_agent_url_001")?.response;
+    expect(response).toMatchObject({
+      type: "error",
+      data: {
+        code: "INTERNAL_ERROR",
+        message: "I couldn't complete that spreadsheet request right now."
+      }
+    });
+    expect(JSON.stringify(response)).not.toContain("javascript");
+  });
+
   it("accepts wave-1 structured plan families", () => {
     const bodies = [
       {

@@ -1403,7 +1403,17 @@ export class HermesAgentClient {
       );
     }
 
-    return `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
+    const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+    try {
+      const parsed = new URL(normalizedBaseUrl);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error("unsupported protocol");
+      }
+    } catch {
+      throw new Error("HERMES_AGENT_BASE_URL (or legacy HERMES_BASE_URL) must be a valid http(s) URL.");
+    }
+
+    return `${normalizedBaseUrl}/chat/completions`;
   }
 }
 
