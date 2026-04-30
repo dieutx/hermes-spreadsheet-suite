@@ -3962,6 +3962,43 @@ function createWorkbookStructureRenameLocalExecutionSnapshot_(input) {
   };
 }
 
+function getWorkbookStructureVisibilitySnapshotState_(sheet) {
+  if (!sheet || typeof sheet.isSheetHidden !== 'function') {
+    throw new Error('Google Sheets host cannot read sheet visibility for exact undo.');
+  }
+
+  return sheet.isSheetHidden() ? 'hidden' : 'visible';
+}
+
+function createWorkbookStructureVisibilityLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.sheetName ||
+    !input.beforeVisibility ||
+    !input.afterVisibility ||
+    input.beforeVisibility === input.afterVisibility
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'workbook_structure',
+    operation: 'sheet_visibility',
+    before: {
+      exists: true,
+      name: input.sheetName,
+      visibility: input.beforeVisibility
+    },
+    after: {
+      exists: true,
+      name: input.sheetName,
+      visibility: input.afterVisibility
+    }
+  };
+}
+
 function createCompositeLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !Array.isArray(input.entries) || input.entries.length === 0) {
     return null;
@@ -4634,13 +4671,43 @@ function assertWorkbookStructureRenameSnapshotState_(state) {
   }
 }
 
-function resolveWorkbookStructureRenameSnapshotTransition_(input) {
-  if (!input || input.operation !== 'rename_sheet') {
+function assertWorkbookStructureVisibilitySnapshotState_(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== 'string' ||
+    state.name.trim().length === 0 ||
+    (state.visibility !== 'visible' && state.visibility !== 'hidden')
+  ) {
+    throw new Error('That workbook structure history entry is no longer available in this sheet session.');
+  }
+}
+
+function resolveWorkbookStructureSnapshotTransition_(input) {
+  if (!input || (input.operation !== 'rename_sheet' && input.operation !== 'sheet_visibility')) {
     throw new Error('That workbook structure history entry cannot be restored exactly.');
   }
 
-  assertWorkbookStructureRenameSnapshotState_(input.from);
-  assertWorkbookStructureRenameSnapshotState_(input.to);
+  if (input.operation === 'rename_sheet') {
+    assertWorkbookStructureRenameSnapshotState_(input.from);
+    assertWorkbookStructureRenameSnapshotState_(input.to);
+
+    const spreadsheet = SpreadsheetApp.getActive();
+    const sheet = spreadsheet.getSheetByName(input.from.name);
+    if (!sheet) {
+      throw new Error('Target sheet not found: ' + input.from.name);
+    }
+
+    return {
+      spreadsheet: spreadsheet,
+      sheet: sheet,
+      from: input.from,
+      to: input.to
+    };
+  }
+
+  assertWorkbookStructureVisibilitySnapshotState_(input.from);
+  assertWorkbookStructureVisibilitySnapshotState_(input.to);
 
   const spreadsheet = SpreadsheetApp.getActive();
   const sheet = spreadsheet.getSheetByName(input.from.name);
@@ -4648,7 +4715,13 @@ function resolveWorkbookStructureRenameSnapshotTransition_(input) {
     throw new Error('Target sheet not found: ' + input.from.name);
   }
 
+  const currentVisibility = getWorkbookStructureVisibilitySnapshotState_(sheet);
+  if (currentVisibility !== input.from.visibility) {
+    throw new Error('Sheet visibility changed since this history entry was captured.');
+  }
+
   return {
+    spreadsheet: spreadsheet,
     sheet: sheet,
     from: input.from,
     to: input.to
@@ -4656,7 +4729,7 @@ function resolveWorkbookStructureRenameSnapshotTransition_(input) {
 }
 
 function validateExecutionWorkbookStructureSnapshot_(input) {
-  const transition = resolveWorkbookStructureRenameSnapshotTransition_(input);
+  const transition = resolveWorkbookStructureSnapshotTransition_(input);
   return {
     ok: true,
     operation: input.operation,
@@ -4666,12 +4739,44 @@ function validateExecutionWorkbookStructureSnapshot_(input) {
 }
 
 function applyExecutionWorkbookStructureSnapshot_(input) {
-  const transition = resolveWorkbookStructureRenameSnapshotTransition_(input);
-  if (typeof transition.sheet.setName !== 'function') {
-    throw new Error('Google Sheets host cannot restore the saved sheet rename.');
+  const transition = resolveWorkbookStructureSnapshotTransition_(input);
+
+  if (input.operation === 'rename_sheet') {
+    if (typeof transition.sheet.setName !== 'function') {
+      throw new Error('Google Sheets host cannot restore the saved sheet rename.');
+    }
+
+    transition.sheet.setName(transition.to.name);
+    SpreadsheetApp.flush();
+    return {
+      ok: true,
+      operation: input.operation,
+      from: transition.from.name,
+      to: transition.to.name
+    };
   }
 
-  transition.sheet.setName(transition.to.name);
+  if (transition.to.visibility === 'hidden') {
+    const visibleSheets = transition.spreadsheet.getSheets().filter(function(candidate) {
+      return !candidate.isSheetHidden();
+    });
+    if (visibleSheets.length <= 1 && getWorkbookStructureVisibilitySnapshotState_(transition.sheet) === 'visible') {
+      throw new Error('Cannot hide the only visible worksheet.');
+    }
+
+    if (typeof transition.sheet.hideSheet !== 'function') {
+      throw new Error('Google Sheets host cannot restore the saved sheet visibility.');
+    }
+
+    transition.sheet.hideSheet();
+  } else {
+    if (typeof transition.sheet.showSheet !== 'function') {
+      throw new Error('Google Sheets host cannot restore the saved sheet visibility.');
+    }
+
+    transition.sheet.showSheet();
+  }
+
   SpreadsheetApp.flush();
   return {
     ok: true,
@@ -6613,15 +6718,22 @@ function applyWritePlan(input) {
           throw new Error('Cannot hide the only visible worksheet.');
         }
 
+        const beforeVisibility = getWorkbookStructureVisibilitySnapshotState_(sheet);
         sheet.hideSheet();
         SpreadsheetApp.flush();
-        return {
+        const afterVisibility = getWorkbookStructureVisibilitySnapshotState_(sheet);
+        return attachLocalExecutionSnapshot_({
           kind: 'workbook_structure_update',
           hostPlatform: 'google_sheets',
           sheetName: plan.sheetName,
           operation: plan.operation,
           summary: getWorkbookStructureStatusSummary_(plan)
-        };
+        }, createWorkbookStructureVisibilityLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          sheetName: plan.sheetName,
+          beforeVisibility: beforeVisibility,
+          afterVisibility: afterVisibility
+        }));
       }
       case 'unhide_sheet': {
         const sheet = spreadsheet.getSheetByName(plan.sheetName);
@@ -6629,15 +6741,22 @@ function applyWritePlan(input) {
           throw new Error('Target sheet not found: ' + plan.sheetName);
         }
 
+        const beforeVisibility = getWorkbookStructureVisibilitySnapshotState_(sheet);
         sheet.showSheet();
         SpreadsheetApp.flush();
-        return {
+        const afterVisibility = getWorkbookStructureVisibilitySnapshotState_(sheet);
+        return attachLocalExecutionSnapshot_({
           kind: 'workbook_structure_update',
           hostPlatform: 'google_sheets',
           sheetName: plan.sheetName,
           operation: plan.operation,
           summary: getWorkbookStructureStatusSummary_(plan)
-        };
+        }, createWorkbookStructureVisibilityLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          sheetName: plan.sheetName,
+          beforeVisibility: beforeVisibility,
+          afterVisibility: afterVisibility
+        }));
       }
       default:
         throw new Error('Unsupported workbook structure update.');
