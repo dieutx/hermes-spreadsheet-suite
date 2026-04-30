@@ -2347,6 +2347,65 @@ describe("writeback confirmation flow", () => {
     });
   });
 
+  it("records note sheet writes as undo-eligible when the host confirms an exact rollback snapshot", () => {
+    const traceBus = new TraceBus();
+    const executionLedger = new ExecutionLedger();
+    const plan = {
+      targetSheet: "Sales",
+      targetRange: "B2:C2",
+      operation: "set_notes" as const,
+      notes: [["Needs review", "Clear before closeout"]],
+      explanation: "Attach review notes without changing cell values.",
+      confidence: 0.91,
+      requiresConfirmation: true as const,
+      shape: { rows: 1, columns: 2 }
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_sheet_note_history_undo_ready",
+      requestId: "req_sheet_note_history_undo_ready",
+      type: "sheet_update",
+      traceEvent: "sheet_update_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/approve",
+      body: {
+        requestId: "req_sheet_note_history_undo_ready",
+        runId: "run_sheet_note_history_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      executionLedger,
+      path: "/complete",
+      body: {
+        requestId: "req_sheet_note_history_undo_ready",
+        runId: "run_sheet_note_history_undo_ready",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: buildRangeWriteResult(plan, { undoReady: true })
+      }
+    });
+    expect(completion.status).toBe(200);
+
+    expect(
+      executionLedger.listHistory("excel_windows::workbook-123").entries[0]
+    ).toMatchObject({
+      planType: "sheet_update",
+      reversible: true,
+      undoEligible: true
+    });
+  });
+
   it("rejects composite completion when stepResults are duplicated and a step is missing", () => {
     const traceBus = new TraceBus();
     const executionLedger = new ExecutionLedger();

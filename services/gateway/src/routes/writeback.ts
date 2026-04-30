@@ -1405,12 +1405,6 @@ function isCompositePlan(plan: ApprovalPlan | undefined): plan is CompositePlanD
   return Boolean(plan && "steps" in plan);
 }
 
-function hasNonEmptyNotesMatrix(notes: unknown): boolean {
-  return Array.isArray(notes) && notes.some((row) =>
-    Array.isArray(row) && row.some((cell) => cell !== null && cell !== undefined && String(cell).length > 0)
-  );
-}
-
 function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
   if (!plan) {
     return false;
@@ -1473,7 +1467,7 @@ function isPlanReversible(plan: ApprovalPlan | undefined): boolean {
     "targetRange" in plan &&
     typeof plan.targetRange === "string" &&
     (
-      ("shape" in plan && !("notes" in plan && hasNonEmptyNotesMatrix(plan.notes))) ||
+      "shape" in plan ||
       ("outputMode" in plan && plan.outputMode === "materialize_report") ||
       ("operation" in plan && (
         plan.operation === "normalize_case" ||
