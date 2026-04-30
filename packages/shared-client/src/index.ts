@@ -81,6 +81,13 @@ async function parseJson<T>(response: Response): Promise<T> {
       if (typeof message === "string" && message.trim()) {
         const trimmedMessage = message.trim();
         const trimmedUserAction = typeof userAction === "string" ? userAction.trim() : "";
+        const combinedErrorText = trimmedUserAction
+          ? `${trimmedMessage}\n${trimmedUserAction}`
+          : trimmedMessage;
+        if (containsSensitiveGatewayErrorText(combinedErrorText)) {
+          throw new Error(formatRawGatewayTextFailure(response.status));
+        }
+
         throw new Error(
           trimmedUserAction && trimmedUserAction !== trimmedMessage
             ? `${trimmedMessage}\n\n${trimmedUserAction}`
