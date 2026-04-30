@@ -5474,6 +5474,10 @@ function getGatewayUrl(path) {
   return `${gatewayBaseUrl}${String(path).startsWith("/") ? path : `/${path}`}`;
 }
 
+function encodeGatewayPathSegment(value) {
+  return encodeURIComponent(String(value));
+}
+
 const gateway = {
   async uploadImage(input) {
     const form = new FormData();
@@ -5504,7 +5508,7 @@ const gateway = {
     params.set("sessionId", sessionId);
 
     return parseJson(await fetch(
-      getGatewayUrl(`/api/requests/${runId}${params.size > 0 ? `?${params.toString()}` : ""}`)
+      getGatewayUrl(`/api/requests/${encodeGatewayPathSegment(runId)}${params.size > 0 ? `?${params.toString()}` : ""}`)
     ));
   },
 
@@ -5517,7 +5521,7 @@ const gateway = {
     }
     params.set("sessionId", sessionId);
 
-    return parseJson(await fetch(getGatewayUrl(`/api/trace/${runId}?${params.toString()}`)));
+    return parseJson(await fetch(getGatewayUrl(`/api/trace/${encodeGatewayPathSegment(runId)}?${params.toString()}`)));
   },
 
   async approveWrite(input) {
