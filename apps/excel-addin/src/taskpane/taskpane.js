@@ -3483,6 +3483,10 @@ function assertNonOverlappingTransfer(plan, resolvedTargetRange) {
     return;
   }
 
+  if (plan.operation === "copy") {
+    return;
+  }
+
   const sourceBounds = parseA1RangeReference(plan.sourceRange);
   const targetBounds = deriveTransferTargetBounds(plan, resolvedTargetRange);
 

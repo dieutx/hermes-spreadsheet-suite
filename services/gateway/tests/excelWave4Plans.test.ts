@@ -1835,6 +1835,71 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     })).rejects.toThrow("Excel host cannot apply an overlapping move transfer exactly.");
   });
 
+  it("allows overlapping copy transfers in Excel without clearing the source", async () => {
+    const sourceRange = createRangeStub({
+      address: "Sheet1!A1:B2",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        [1, 2],
+        [3, 4]
+      ]
+    });
+    const targetRange = createRangeStub({
+      address: "Sheet1!B1:C2",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["old", "old"],
+        ["old", "old"]
+      ]
+    });
+    const worksheet = {
+      getRange: vi.fn((rangeName: string) => rangeName === "A1:B2" ? sourceRange : targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "Sheet1",
+        sourceRange: "A1:B2",
+        targetSheet: "Sheet1",
+        targetRange: "B1:C2",
+        operation: "copy",
+        pasteMode: "values",
+        transpose: false,
+        explanation: "Copy the block one column to the right.",
+        confidence: 0.82,
+        requiresConfirmation: true,
+        affectedRanges: ["Sheet1!A1:B2", "Sheet1!B1:C2"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      },
+      requestId: "req_range_transfer_overlap_copy_excel_001",
+      runId: "run_range_transfer_overlap_copy_excel_001",
+      approvalToken: "token",
+      executionId: "exec_range_transfer_overlap_copy_excel_001"
+    })).resolves.toMatchObject({
+      kind: "range_transfer_update",
+      transferOperation: "copy",
+      targetSheet: "Sheet1",
+      targetRange: "B1:C2"
+    });
+
+    expect(targetRange.values).toEqual([
+      [1, 2],
+      [3, 4]
+    ]);
+    expect(sourceRange.clear).not.toHaveBeenCalled();
+  });
+
   it("applies exact-safe standardize_format cleanup semantics in Excel", async () => {
     const targetRange = createRangeStub({
       address: "Contacts!B2:B5",
