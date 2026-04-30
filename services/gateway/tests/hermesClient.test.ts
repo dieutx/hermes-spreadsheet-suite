@@ -1957,6 +1957,105 @@ describe("HermesAgentClient", () => {
     });
   });
 
+  it("sanitizes internal warning text before returning gateway envelopes", async () => {
+    process.env.HERMES_AGENT_BASE_URL = "http://agent.test/v1";
+    const client = new HermesAgentClient(getConfig());
+    const traceBus = new TraceBus();
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(
+      chatCompletionEnvelope(JSON.stringify({
+        type: "chat",
+        data: {
+          message: "I checked the workbook context.",
+          confidence: 0.91
+        },
+        warnings: [
+          {
+            code: "HERMES_API_SERVER_KEY",
+            message: "ReferenceError at /srv/hermes/services/gateway/src/app.ts:99 HERMES_API_SERVER_KEY=secret_123",
+            severity: "warning",
+            field: "/srv/hermes/services/gateway/src/app.ts"
+          }
+        ]
+      }))
+    ), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    })));
+
+    await client.processRequest({
+      runId: "run_warning_sanitized_001",
+      request: baseRequest({
+        requestId: "req_warning_sanitized_001",
+        userMessage: "Check this workbook."
+      }),
+      traceBus
+    });
+
+    const response = traceBus.getRun("run_warning_sanitized_001")?.response;
+    expect(response?.type).toBe("chat");
+    expect(response?.warnings?.[0]).toEqual({
+      code: "INTERNAL_WARNING",
+      message: "A gateway warning was hidden because it contained internal diagnostic details.",
+      severity: "warning"
+    });
+    expect(JSON.stringify(response?.warnings)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify(response?.warnings)).not.toContain("/srv/hermes");
+  });
+
+  it("sanitizes nested data warnings before returning import previews", async () => {
+    process.env.HERMES_AGENT_BASE_URL = "http://agent.test/v1";
+    const client = new HermesAgentClient(getConfig());
+    const traceBus = new TraceBus();
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(
+      chatCompletionEnvelope(JSON.stringify({
+        type: "sheet_import_plan",
+        data: {
+          sourceAttachmentId: "att_warning_001",
+          targetSheet: "Sheet1",
+          targetRange: "A1:B2",
+          headers: ["A", "B"],
+          values: [["1", "2"]],
+          confidence: 0.81,
+          warnings: [
+            {
+              code: "EXTRACTION_NOTE",
+              message: "Traceback at /root/hermes/extractor.py:88 with APPROVAL_SECRET=secret_123",
+              severity: "warning",
+              field: "/root/hermes/extractor.py"
+            }
+          ],
+          requiresConfirmation: true,
+          extractionMode: "real",
+          shape: { rows: 2, columns: 2 }
+        }
+      }))
+    ), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    })));
+
+    await client.processRequest({
+      runId: "run_nested_warning_sanitized_001",
+      request: baseRequest({
+        requestId: "req_nested_warning_sanitized_001",
+        userMessage: "Import this image table."
+      }),
+      traceBus
+    });
+
+    const response = traceBus.getRun("run_nested_warning_sanitized_001")?.response;
+    expect(response?.type).toBe("sheet_import_plan");
+    expect((response?.data as any).warnings?.[0]).toEqual({
+      code: "EXTRACTION_NOTE",
+      message: "A gateway warning was hidden because it contained internal diagnostic details.",
+      severity: "warning"
+    });
+    expect(JSON.stringify(response?.data)).not.toContain("APPROVAL_SECRET");
+    expect(JSON.stringify(response?.data)).not.toContain("/root/hermes");
+  });
+
   it("maps descriptive overwriteRisk text into a contract-safe risk level for sheet_update responses", async () => {
     process.env.HERMES_AGENT_BASE_URL = "http://agent.test/v1";
     const client = new HermesAgentClient(getConfig());
