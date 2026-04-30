@@ -156,6 +156,7 @@ export type WritebackState = {
 export type StoredRun = {
   runId: string;
   requestId?: string;
+  sessionId?: string;
   hermesRunId?: string;
   status: RunStatus;
   events: HermesTraceEvent[];
@@ -268,12 +269,15 @@ export class TraceBus {
     }
   }
 
-  ensureRun(runId: string, requestId?: string): StoredRun {
+  ensureRun(runId: string, requestId?: string, sessionId?: string): StoredRun {
     this.pruneExpiredRuns();
     const existing = this.runs.get(runId);
     if (existing) {
       if (requestId && !existing.requestId) {
         existing.requestId = requestId;
+      }
+      if (sessionId && !existing.sessionId) {
+        existing.sessionId = sessionId;
       }
       this.touchRun(existing);
       return existing;
@@ -285,6 +289,7 @@ export class TraceBus {
     const created: StoredRun = {
       runId,
       requestId,
+      sessionId,
       status: "accepted",
       events: [],
       firstEventIndex: 0,
