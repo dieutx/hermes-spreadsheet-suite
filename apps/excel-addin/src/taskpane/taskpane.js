@@ -1716,6 +1716,10 @@ function assertExcelChartPlanSupport(plan) {
 }
 
 function getExcelChartSupportError(preview) {
+  if (!isSingleCellA1Anchor(preview?.targetRange)) {
+    return "This Excel runtime requires a single-cell target anchor for charts.";
+  }
+
   try {
     assertExcelChartPlanSupport(preview);
     return "";
