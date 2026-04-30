@@ -1,6 +1,8 @@
 import { Router } from "express";
 import type { TraceBus } from "../lib/traceBus.js";
 
+const TRACE_ID_MAX_LENGTH = 128;
+
 function parseAfterQuery(value: unknown): number | undefined {
   if (value === undefined) {
     return 0;
@@ -14,12 +16,48 @@ function parseAfterQuery(value: unknown): number | undefined {
   return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
-function getRequestIdQueryValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+function parseRequiredTraceIdentifier(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0 || normalized.length > TRACE_ID_MAX_LENGTH) {
+    return undefined;
+  }
+
+  return normalized;
 }
 
-function getSessionIdQueryValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+function parseOptionalTraceIdentifier(value: unknown): { ok: true; value?: string } | { ok: false } {
+  if (value === undefined) {
+    return { ok: true };
+  }
+
+  if (typeof value !== "string") {
+    return { ok: false };
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return { ok: true };
+  }
+
+  if (normalized.length > TRACE_ID_MAX_LENGTH) {
+    return { ok: false };
+  }
+
+  return { ok: true, value: normalized };
+}
+
+function invalidTraceIdentifierRequest() {
+  return {
+    error: {
+      code: "INVALID_REQUEST",
+      message: "Trace identifiers are invalid.",
+      userAction: "Retry the request trace from the current Hermes session."
+    }
+  };
 }
 
 export function createTraceRouter(input: {
@@ -40,11 +78,19 @@ export function createTraceRouter(input: {
       return;
     }
 
-    const run = input.traceBus.peekRun(req.params.runId);
+    const runId = parseRequiredTraceIdentifier(req.params.runId);
+    const requestId = parseOptionalTraceIdentifier(req.query.requestId);
+    const sessionId = parseOptionalTraceIdentifier(req.query.sessionId);
+    if (!runId || !requestId.ok || !sessionId.ok) {
+      res.status(400).json(invalidTraceIdentifierRequest());
+      return;
+    }
+
+    const run = input.traceBus.peekRun(runId);
     if (
       !run ||
-      (run.requestId && getRequestIdQueryValue(req.query.requestId) !== run.requestId) ||
-      (run.sessionId && getSessionIdQueryValue(req.query.sessionId) !== run.sessionId)
+      (run.requestId && requestId.value !== run.requestId) ||
+      (run.sessionId && sessionId.value !== run.sessionId)
     ) {
       res.status(404).json({
         error: {
@@ -56,7 +102,7 @@ export function createTraceRouter(input: {
       return;
     }
 
-    const activeRun = input.traceBus.getRun(req.params.runId);
+    const activeRun = input.traceBus.getRun(runId);
     if (!activeRun) {
       res.status(404).json({
         error: {
@@ -68,9 +114,9 @@ export function createTraceRouter(input: {
       return;
     }
 
-    const events = input.traceBus.list(req.params.runId, after);
+    const events = input.traceBus.list(runId, after);
     res.json({
-      runId: req.params.runId,
+      runId,
       requestId: activeRun.requestId,
       hermesRunId: activeRun.hermesRunId,
       status: activeRun.status,
