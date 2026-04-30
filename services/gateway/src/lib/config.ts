@@ -63,6 +63,20 @@ function parseRequiredPositiveIntegerEnv(name: string, value: string | undefined
   return parsed;
 }
 
+function parseHttpUrlEnv(name: string, value: string): string {
+  const trimmed = value.trim();
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new Error("unsupported protocol");
+    }
+    return trimmed;
+  } catch {
+    throw new Error(`${name} must be a valid http(s) URL.`);
+  }
+}
+
 function tryNormalizeOrigin(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -102,7 +116,10 @@ function getAllowedCorsOrigins(
 }
 
 export function getConfig(): GatewayConfig {
-  const gatewayPublicBaseUrl = process.env.GATEWAY_PUBLIC_BASE_URL ?? "http://127.0.0.1:8787";
+  const gatewayPublicBaseUrl = parseHttpUrlEnv(
+    "GATEWAY_PUBLIC_BASE_URL",
+    process.env.GATEWAY_PUBLIC_BASE_URL ?? "http://127.0.0.1:8787"
+  );
   const approvalSecret = process.env.APPROVAL_SECRET?.trim() ?? "";
   const allowedCorsOrigins = getAllowedCorsOrigins(
     gatewayPublicBaseUrl,

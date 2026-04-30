@@ -137,6 +137,17 @@ describe("gateway config", () => {
     });
   });
 
+  it("fails closed when the public gateway base url is invalid or non-http", () => {
+    for (const value of ["not a url", "javascript:alert(1)", "file:///tmp/gateway"]) {
+      process.env.GATEWAY_PUBLIC_BASE_URL = value;
+      process.env.APPROVAL_SECRET = "secret";
+
+      expect(() => getConfig()).toThrow(
+        "GATEWAY_PUBLIC_BASE_URL must be a valid http(s) URL."
+      );
+    }
+  });
+
   it("accepts an explicit comma-separated CORS allowlist", () => {
     process.env.GATEWAY_ALLOWED_ORIGINS =
       "https://docs.google.com, https://gateway.example.test , https://excel.officeapps.live.com";
