@@ -364,6 +364,51 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("encodes Excel run identifiers in request and trace polling paths", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (url: unknown) => new Response(JSON.stringify(
+      String(url).includes("/api/trace/")
+        ? {
+            runId: "run/../unsafe?x=1",
+            requestId: "req_poll_path_001",
+            status: "processing",
+            nextIndex: 0,
+            events: []
+          }
+        : {
+            runId: "run/../unsafe?x=1",
+            requestId: "req_poll_path_001",
+            status: "processing"
+          }
+    ), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    }));
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    }, {
+      fetchImpl: fetchMock
+    });
+
+    await taskpane.pollRun({
+      runId: "run/../unsafe?x=1",
+      requestId: "req_poll_path_001",
+      traceIndex: 0,
+      trace: [],
+      statusLine: "Thinking...",
+      content: "Thinking..."
+    });
+
+    await vi.advanceTimersByTimeAsync(900);
+
+    expect(String(fetchMock.mock.calls[0]?.[0] || "")).toContain(
+      "/api/trace/run%2F..%2Funsafe%3Fx%3D1?"
+    );
+    expect(String(fetchMock.mock.calls[1]?.[0] || "")).toContain(
+      "/api/requests/run%2F..%2Funsafe%3Fx%3D1?"
+    );
+  });
+
   it("loads the Excel taskpane without crypto.randomUUID and still creates request ids", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})
