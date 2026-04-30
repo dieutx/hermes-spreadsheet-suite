@@ -7704,8 +7704,12 @@ function applyWritePlan(input) {
 
     assertNonOverlappingTransfer_(plan, actualTargetRange);
     const canSnapshotCopyTransfer = plan.operation === 'copy' && plan.pasteMode !== 'formats';
-    const beforeValues = canSnapshotCopyTransfer ? resolvedTargetRange.getValues() : null;
-    const beforeFormulas = canSnapshotCopyTransfer ? resolvedTargetRange.getFormulas() : null;
+    const canSnapshotValueMoveTransfer = plan.operation === 'move' && plan.pasteMode === 'values';
+    const shouldSnapshotTargetCells = canSnapshotCopyTransfer || canSnapshotValueMoveTransfer;
+    const beforeValues = shouldSnapshotTargetCells ? resolvedTargetRange.getValues() : null;
+    const beforeFormulas = shouldSnapshotTargetCells ? resolvedTargetRange.getFormulas() : null;
+    const beforeSourceValues = canSnapshotValueMoveTransfer ? sourceRange.getValues() : null;
+    const beforeSourceFormulas = canSnapshotValueMoveTransfer ? sourceRange.getFormulas() : null;
     writeTransferToTarget_(resolvedTargetRange, sourceRange, plan);
 
     if (plan.operation === 'move') {
@@ -7724,6 +7728,30 @@ function applyWritePlan(input) {
         afterValues: resolvedTargetRange.getValues(),
         afterFormulas: resolvedTargetRange.getFormulas()
       }))
+      : canSnapshotValueMoveTransfer
+        ? attachLocalExecutionSnapshot_(result, createCompositeLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          entries: [
+            createLocalExecutionSnapshot_({
+              executionId: input.executionId,
+              targetSheet: plan.sourceSheet,
+              targetRange: plan.sourceRange,
+              beforeValues: beforeSourceValues,
+              beforeFormulas: beforeSourceFormulas,
+              afterValues: sourceRange.getValues(),
+              afterFormulas: sourceRange.getFormulas()
+            }),
+            createLocalExecutionSnapshot_({
+              executionId: input.executionId,
+              targetSheet: plan.targetSheet,
+              targetRange: actualTargetRange,
+              beforeValues: beforeValues,
+              beforeFormulas: beforeFormulas,
+              afterValues: resolvedTargetRange.getValues(),
+              afterFormulas: resolvedTargetRange.getFormulas()
+            })
+          ].filter(Boolean)
+        }))
       : result;
   }
 
