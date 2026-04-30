@@ -5401,12 +5401,21 @@ function applyWritePlan(input) {
     const sourceRange = sourceSheet.getRange(plan.sourceRange);
     const targetAnchor = targetSheet.getRange(plan.targetRange);
     const transferShape = getResolvedTransferShape_(sourceRange, plan);
-    const resolvedTargetRange = resolveFullTransferTargetRange_(
-      targetAnchor,
-      transferShape.rows,
-      transferShape.columns
-    );
-    const actualTargetRange = deriveTransferTargetRangeA1_(plan, resolvedTargetRange);
+    let resolvedTargetRange;
+    let actualTargetRange;
+
+    if (plan.operation === 'append') {
+      const appendTarget = resolveAppendTransferTarget_(targetSheet, targetAnchor, sourceRange, plan);
+      resolvedTargetRange = appendTarget.writeRange;
+      actualTargetRange = appendTarget.actualTargetRange;
+    } else {
+      resolvedTargetRange = resolveFullTransferTargetRange_(
+        targetAnchor,
+        transferShape.rows,
+        transferShape.columns
+      );
+      actualTargetRange = deriveTransferTargetRangeA1_(plan, resolvedTargetRange);
+    }
 
     assertNonOverlappingTransfer_(plan, actualTargetRange);
     const canSnapshotCopyTransfer = plan.operation === 'copy' && plan.pasteMode !== 'formats';
