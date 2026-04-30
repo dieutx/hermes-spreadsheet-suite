@@ -39,6 +39,7 @@ const REQUIRED_STRUCTURED_BODY_FIELDS = [
 export type PreferredResponseType =
   | "chat"
   | "formula"
+  | "error"
   | "composite_plan"
   | "sheet_update"
   | "workbook_structure_update"
@@ -672,6 +673,10 @@ function isLikelyExternalDataRequest(
     EXTERNAL_DATA_ACTION_PATTERN.test(normalizedMessage);
 }
 
+function isExcelHost(request: HermesRequest): boolean {
+  return request.host.platform === "excel_windows" || request.host.platform === "excel_macos";
+}
+
 function getPreferredResponseType(
   request: HermesRequest,
   rawMessage: string,
@@ -687,6 +692,9 @@ function getPreferredResponseType(
     return "composite_plan";
   }
   if (isLikelyExternalDataRequest(userMessage)) {
+    if (isExcelHost(request)) {
+      return "error";
+    }
     return "external_data_plan";
   }
   if (!/\bvalidation\b/.test(userMessage) &&
@@ -773,6 +781,10 @@ function isLikelyExplicitWriteIntent(
   normalizedMessage: string,
   preferredResponseType: PreferredResponseType
 ): boolean {
+  if (preferredResponseType === "error") {
+    return true;
+  }
+
   if (WRITE_CAPABLE_RESPONSE_TYPES.has(preferredResponseType)) {
     return true;
   }
@@ -971,6 +983,8 @@ export function buildHermesSpreadsheetRequestPrompt(request: HermesRequest): str
     "Preserve contract-safe public fields only in data, warnings, skillsUsed, and downstreamProvider.",
     preferredResponseType === "composite_plan"
       ? "This request is an explicit multi-step spreadsheet workflow. Prefer type=\"composite_plan\" over a single plan when the user clearly asks for multiple ordered actions."
+      : preferredResponseType === "error"
+      ? "This request asks for a spreadsheet flow that the current host capability matrix marks unsupported. Prefer type=\"error\" with data.code=\"UNSUPPORTED_OPERATION\" instead of emitting a host-unsupported write plan."
       : preferredResponseType === "sheet_update"
       ? generatedDataRequest
         ? "This request is an explicit data-population flow. Prefer type=\"sheet_update\" with concrete values when the target sheet or range already exists."
