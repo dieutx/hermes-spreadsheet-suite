@@ -215,6 +215,8 @@ describe("upload router", () => {
       attachmentStore.get((uploadResponse.body as any).attachment.id)?.metadata.previewUrl
     ).toBe((uploadResponse.body as any).attachment.previewUrl);
     expect((uploadResponse.body as any).attachment.previewUrl).toContain("uploadToken=");
+    expect((uploadResponse.body as any).attachment.previewUrl).toContain("sessionId=sess_img_real_001");
+    expect((uploadResponse.body as any).attachment.previewUrl).toContain("workbookId=sheet_import_demo");
 
     const flow2Response = await invokeRequestPost(requestRouter, {
         schemaVersion: "1.0.0",
@@ -342,7 +344,7 @@ describe("upload router", () => {
     expect(response.next).not.toHaveBeenCalled();
   });
 
-  it("requires the matching upload token to fetch uploaded preview content", async () => {
+  it("requires matching upload token, session id, and workbook id to fetch uploaded preview content", async () => {
     const { uploadRouter } = createTestApp();
 
     const uploadResponse = await invokeUploadImage(uploadRouter, {
@@ -370,10 +372,38 @@ describe("upload router", () => {
     const validToken = await invokeUploadContent(uploadRouter, attachment.id, {
       uploadToken: attachment.uploadToken
     });
-    expect(validToken.statusCode).toBe(200);
-    expect(validToken.body).toBeUndefined();
-    expect(validToken.sentBody).toEqual(PNG_SIGNATURE_BYTES);
-    expect(validToken.headers.get("content-type")).toBe("image/png");
+    expect(validToken.statusCode).toBe(404);
+    expect(validToken.body).toEqual({
+      error: {
+        code: "ATTACHMENT_UNAVAILABLE",
+        message: "Attachment not found.",
+        userAction: "Upload the file again if you still need it."
+      }
+    });
+
+    const wrongSession = await invokeUploadContent(uploadRouter, attachment.id, {
+      uploadToken: attachment.uploadToken,
+      sessionId: "sess_other",
+      workbookId: "sheet_import_demo"
+    });
+    expect(wrongSession.statusCode).toBe(404);
+
+    const wrongWorkbook = await invokeUploadContent(uploadRouter, attachment.id, {
+      uploadToken: attachment.uploadToken,
+      sessionId: "sess_img_real_001",
+      workbookId: "sheet_other"
+    });
+    expect(wrongWorkbook.statusCode).toBe(404);
+
+    const validOwnership = await invokeUploadContent(uploadRouter, attachment.id, {
+      uploadToken: attachment.uploadToken,
+      sessionId: "sess_img_real_001",
+      workbookId: "sheet_import_demo"
+    });
+    expect(validOwnership.statusCode).toBe(200);
+    expect(validOwnership.body).toBeUndefined();
+    expect(validOwnership.sentBody).toEqual(PNG_SIGNATURE_BYTES);
+    expect(validOwnership.headers.get("content-type")).toBe("image/png");
   });
 
   it("rejects image uploads without a Hermes session id", async () => {
