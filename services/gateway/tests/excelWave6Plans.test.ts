@@ -358,6 +358,7 @@ describe("Excel wave 6 composite plans and execution controls", () => {
 
     await vi.advanceTimersByTimeAsync(900);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0] || "")).toContain("sessionId=sess_");
 
     await vi.advanceTimersByTimeAsync(5000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -1011,6 +1012,8 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     await vi.advanceTimersByTimeAsync(900);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]?.[0] || "")).toContain("sessionId=sess_");
+    expect(String(fetchMock.mock.calls[1]?.[0] || "")).toContain("sessionId=sess_");
     expect(message.content).toBe("Done.");
     expect(message.statusLine).not.toContain("Request failed");
     expect(message.tracePollingDisabled).toBe(true);

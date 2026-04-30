@@ -87,6 +87,10 @@ function formatUploadRouterError(error: unknown, maxUploadBytes: number): {
   };
 }
 
+function getQueryString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
 export function createUploadRouter(input: {
   attachmentStore: AttachmentStore;
   config: GatewayConfig;
@@ -179,7 +183,11 @@ export function createUploadRouter(input: {
       throw new Error("Upload token missing for saved attachment.");
     }
 
-    const previewUrl = `${input.config.gatewayPublicBaseUrl}/api/uploads/${attachment.id}/content?uploadToken=${encodeURIComponent(uploadToken)}`;
+    const previewUrl =
+      `${input.config.gatewayPublicBaseUrl}/api/uploads/${attachment.id}/content` +
+      `?uploadToken=${encodeURIComponent(uploadToken)}` +
+      `&sessionId=${encodeURIComponent(sessionId)}` +
+      `&workbookId=${encodeURIComponent(workbookId)}`;
     attachment.previewUrl = previewUrl;
     res.status(201).json({
       attachment
@@ -191,7 +199,14 @@ export function createUploadRouter(input: {
     const uploadToken = typeof req.query.uploadToken === "string"
       ? req.query.uploadToken
       : undefined;
-    if (!attachment || uploadToken !== attachment.metadata.uploadToken) {
+    const sessionId = getQueryString(req.query.sessionId);
+    const workbookId = getQueryString(req.query.workbookId);
+    if (
+      !attachment ||
+      uploadToken !== attachment.metadata.uploadToken ||
+      (attachment.sessionId && sessionId !== attachment.sessionId) ||
+      (attachment.workbookId && workbookId !== attachment.workbookId)
+    ) {
       res.status(404).json({
         error: {
           code: "ATTACHMENT_UNAVAILABLE",

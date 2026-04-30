@@ -401,6 +401,34 @@ describe("shared client render helpers", () => {
     );
   });
 
+  it("includes sessionId when polling runs and traces", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      runId: "run_123",
+      requestId: "req_123",
+      status: "processing",
+      nextIndex: 0,
+      events: [],
+      startedAt: "2026-04-22T00:00:00.000Z"
+    }), {
+      status: 200,
+      headers: {
+        "content-type": "application/json"
+      }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient("http://localhost:18787");
+    await (client.pollRun as any)("run_123", "req_123", "sess_123");
+    await (client.pollTrace as any)("run_123", 0, "req_123", "sess_123");
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "http://localhost:18787/api/requests/run_123?requestId=req_123&sessionId=sess_123"
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "http://localhost:18787/api/trace/run_123?after=0&requestId=req_123&sessionId=sess_123"
+    );
+  });
+
   it("preserves executionId from writeback approval responses and forwards workbook-scoped approval fields", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       requestId: "req_approve_001",

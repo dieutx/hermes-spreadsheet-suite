@@ -171,10 +171,13 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       );
     },
 
-    async pollRun(runId, requestId) {
+    async pollRun(runId, requestId, sessionId) {
       const params = new URLSearchParams();
       if (requestId) {
         params.set("requestId", requestId);
+      }
+      if (sessionId) {
+        params.set("sessionId", sessionId);
       }
 
       return parseJson(
@@ -184,12 +187,15 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       );
     },
 
-    async pollTrace(runId, after = 0, requestId) {
+    async pollTrace(runId, after = 0, requestId, sessionId) {
       const params = new URLSearchParams({
         after: String(after)
       });
       if (requestId) {
         params.set("requestId", requestId);
+      }
+      if (sessionId) {
+        params.set("sessionId", sessionId);
       }
 
       return parseJson(
