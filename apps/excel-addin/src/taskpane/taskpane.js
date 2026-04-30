@@ -1305,6 +1305,30 @@ function createRangeFilterLocalExecutionSnapshot({
   };
 }
 
+function createWorkbookStructureRenameLocalExecutionSnapshot({
+  executionId,
+  beforeName,
+  afterName
+}) {
+  if (!executionId || !beforeName || !afterName || beforeName === afterName) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "workbook_structure",
+    operation: "rename_sheet",
+    before: {
+      exists: true,
+      name: beforeName
+    },
+    after: {
+      exists: true,
+      name: afterName
+    }
+  };
+}
+
 function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
   if (!executionId || !Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -1334,6 +1358,10 @@ function isNamedRangeLocalExecutionSnapshot(snapshot) {
 
 function isRangeFilterLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "range_filter";
+}
+
+function isWorkbookStructureLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "workbook_structure";
 }
 
 function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
@@ -1819,6 +1847,64 @@ async function validateNamedRangeLocalExecutionSnapshotForMode(snapshot, mode) {
   });
 }
 
+function assertWorkbookStructureRenameSnapshotState(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
+function getWorkbookStructureSnapshotTransitionForMode(snapshot, mode) {
+  if (snapshot?.operation !== "rename_sheet") {
+    throw new Error("That workbook structure history entry cannot be restored exactly.");
+  }
+
+  return {
+    from: mode === "undo" ? snapshot.after : snapshot.before,
+    to: mode === "undo" ? snapshot.before : snapshot.after
+  };
+}
+
+async function applyWorkbookStructureSnapshotTransition(context, transition) {
+  assertWorkbookStructureRenameSnapshotState(transition.from);
+  assertWorkbookStructureRenameSnapshotState(transition.to);
+
+  const sheet = context.workbook.worksheets.getItem(transition.from.name);
+  if (typeof sheet.load === "function") {
+    sheet.load(["name"]);
+    await context.sync();
+  }
+
+  sheet.name = transition.to.name;
+}
+
+async function restoreWorkbookStructureLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getWorkbookStructureSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    await applyWorkbookStructureSnapshotTransition(context, transition);
+    await context.sync();
+  });
+}
+
+async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getWorkbookStructureSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    assertWorkbookStructureRenameSnapshotState(transition.from);
+    assertWorkbookStructureRenameSnapshotState(transition.to);
+    const sheet = context.workbook.worksheets.getItem(transition.from.name);
+    if (typeof sheet.load === "function") {
+      sheet.load(["name"]);
+      await context.sync();
+    }
+  });
+}
+
 function getRangeFilterCriteriaForMode(snapshot, mode) {
   return mode === "undo" ? snapshot?.beforeCriteria : snapshot?.afterCriteria;
 }
@@ -1901,6 +1987,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
     return restoreRangeFilterLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
+  if (isWorkbookStructureLocalExecutionSnapshot(snapshot)) {
+    return restoreWorkbookStructureLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
   if (!snapshot?.targetSheet || !snapshot?.targetRange || !Array.isArray(cells) || cells.length === 0) {
     throw new Error("That history entry is no longer available in this spreadsheet session.");
@@ -1965,6 +2055,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isRangeFilterLocalExecutionSnapshot(snapshot)) {
     return validateRangeFilterLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isWorkbookStructureLocalExecutionSnapshot(snapshot)) {
+    return validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -8387,16 +8481,22 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             throw new Error(`Target sheet not found: ${resolvedPlan.sheetName}`);
           }
 
+          const beforeName = sheet.name;
           sheet.name = resolvedPlan.newSheetName;
           await context.sync();
-          return {
+          const afterName = sheet.name || resolvedPlan.newSheetName;
+          return attachLocalExecutionSnapshot({
             kind: "workbook_structure_update",
             hostPlatform: platform,
             sheetName: resolvedPlan.sheetName,
             operation: resolvedPlan.operation,
             newSheetName: resolvedPlan.newSheetName,
             summary: getWorkbookStructureStatusSummary(resolvedPlan)
-          };
+          }, createWorkbookStructureRenameLocalExecutionSnapshot({
+            executionId,
+            beforeName,
+            afterName
+          }));
         }
         case "duplicate_sheet": {
           const sourceSheet = findSheet(resolvedPlan.sheetName);

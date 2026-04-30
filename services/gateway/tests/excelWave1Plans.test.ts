@@ -692,6 +692,61 @@ describe("Excel wave 1 plan helpers", () => {
     expect(indexedRange.delete).not.toHaveBeenCalled();
   });
 
+  it("attaches local undo snapshots for Excel sheet rename writes", async () => {
+    const worksheet = {
+      name: "OldName",
+      position: 0,
+      visibility: "visible"
+    };
+    const worksheets = {
+      items: [worksheet],
+      load: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "rename_sheet",
+        sheetName: "OldName",
+        newSheetName: "NewName",
+        explanation: "Rename the staging sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_rename_sheet_snapshot_excel_001",
+      runId: "run_rename_sheet_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_rename_sheet_snapshot_excel_001"
+    });
+
+    expect(worksheet.name).toBe("NewName");
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "rename_sheet",
+      sheetName: "OldName",
+      newSheetName: "NewName",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_rename_sheet_snapshot_excel_001",
+        kind: "workbook_structure",
+        operation: "rename_sheet",
+        before: {
+          exists: true,
+          name: "OldName"
+        },
+        after: {
+          exists: true,
+          name: "NewName"
+        }
+      }
+    });
+  });
+
   it("fails closed when Excel cannot expose freeze pane operations", async () => {
     const worksheet = {
       getRangeByIndexes: vi.fn(() => ({ address: "Sheet1!B2" })),

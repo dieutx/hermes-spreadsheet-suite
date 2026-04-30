@@ -2511,6 +2511,78 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(currentCriteria).toEqual(beforeCriteria);
   });
 
+  it("restores Excel sheet rename snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_rename_sheet_001"],
+      executions: {
+        exec_rename_sheet_001: {
+          baseExecutionId: "exec_rename_sheet_001"
+        }
+      },
+      bases: {
+        exec_rename_sheet_001: {
+          baseExecutionId: "exec_rename_sheet_001",
+          kind: "workbook_structure",
+          operation: "rename_sheet",
+          before: {
+            exists: true,
+            name: "OldName"
+          },
+          after: {
+            exists: true,
+            name: "NewName"
+          }
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "workbook_structure_update",
+          operation: "rename_sheet",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    const worksheet = {
+      name: "NewName"
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("NewName");
+              return worksheet;
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_rename_sheet_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(worksheet.name).toBe("OldName");
+  });
+
   it("renders and applies native Excel table plans", async () => {
     const table = {
       name: "",
