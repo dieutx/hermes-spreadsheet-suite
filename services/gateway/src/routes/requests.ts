@@ -15,6 +15,7 @@ const NULL_OPTIONAL_PATHS = new Set([
   "context.referencedCells.*.formula",
   "context.referencedCells.*.note"
 ]);
+const REQUEST_STATUS_ID_MAX_LENGTH = 128;
 
 function isObject(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null;
@@ -154,12 +155,48 @@ function isSingleCellRange(value: string | undefined): boolean {
   return /^\$?[A-Z]{1,3}\$?[1-9][0-9]*$/i.test(value.trim());
 }
 
-function getRequestIdQueryValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+function parseRequiredStatusIdentifier(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0 || normalized.length > REQUEST_STATUS_ID_MAX_LENGTH) {
+    return undefined;
+  }
+
+  return normalized;
 }
 
-function getSessionIdQueryValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+function parseOptionalStatusIdentifier(value: unknown): { ok: true; value?: string } | { ok: false } {
+  if (value === undefined) {
+    return { ok: true };
+  }
+
+  if (typeof value !== "string") {
+    return { ok: false };
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return { ok: true };
+  }
+
+  if (normalized.length > REQUEST_STATUS_ID_MAX_LENGTH) {
+    return { ok: false };
+  }
+
+  return { ok: true, value: normalized };
+}
+
+function invalidRunStatusRequest() {
+  return {
+    error: {
+      code: "INVALID_REQUEST",
+      message: "Run status identifiers are invalid.",
+      userAction: "Retry status polling from the current Hermes session."
+    }
+  };
 }
 
 function shouldIncludeResponseTrace(value: unknown): boolean {
@@ -345,11 +382,19 @@ export function createRequestRouter(input: {
 
   router.get("/:runId", (req, res) => {
     const includeTrace = shouldIncludeResponseTrace(req.query.includeTrace);
-    const run = input.traceBus.peekRun(req.params.runId);
+    const runId = parseRequiredStatusIdentifier(req.params.runId);
+    const requestId = parseOptionalStatusIdentifier(req.query.requestId);
+    const sessionId = parseOptionalStatusIdentifier(req.query.sessionId);
+    if (!runId || !requestId.ok || !sessionId.ok) {
+      res.status(400).json(invalidRunStatusRequest());
+      return;
+    }
+
+    const run = input.traceBus.peekRun(runId);
     if (
       !run ||
-      !matchesStoredRunRequestId(run, getRequestIdQueryValue(req.query.requestId)) ||
-      !matchesStoredRunSessionId(run, getSessionIdQueryValue(req.query.sessionId))
+      !matchesStoredRunRequestId(run, requestId.value) ||
+      !matchesStoredRunSessionId(run, sessionId.value)
     ) {
       res.status(404).json({
         error: {
@@ -361,7 +406,7 @@ export function createRequestRouter(input: {
       return;
     }
 
-    const activeRun = input.traceBus.getRun(req.params.runId);
+    const activeRun = input.traceBus.getRun(runId);
     if (!activeRun) {
       res.status(404).json({
         error: {
