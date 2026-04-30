@@ -872,6 +872,24 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("stock/crypto market data");
   });
 
+  it("routes Excel external-data prompts toward explicit unsupported errors", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      source: {
+        ...baseRequest().source,
+        channel: "excel_windows"
+      },
+      host: {
+        ...baseRequest().host,
+        platform: "excel_windows"
+      },
+      userMessage: "Get the latest BTC price into Sheet2 starting at B2 using GOOGLEFINANCE."
+    }));
+
+    expect(prompt).toContain('Prefer type="error"');
+    expect(prompt).toContain('data.code="UNSUPPORTED_OPERATION"');
+    expect(prompt).not.toContain('Prefer type="external_data_plan"');
+  });
+
   it("routes public website-table import prompts toward external_data_plan", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "Import table 1 from a public website into Sheet2 starting at A1 using IMPORTHTML."
