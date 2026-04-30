@@ -1013,6 +1013,185 @@ describe("writeback confirmation flow", () => {
     );
   });
 
+  it("rejects workbook structure completion sheet labels that exceed the public contract limit", () => {
+    const traceBus = new TraceBus();
+    const plan = {
+      operation: "create_sheet" as const,
+      sheetName: "Bounded Sheet",
+      explanation: "Create a sheet for the label bound regression.",
+      confidence: 0.95,
+      requiresConfirmation: true as const,
+      overwriteRisk: "none" as const
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_workbook_label_overflow",
+      requestId: "req_workbook_label_overflow",
+      type: "workbook_structure_update",
+      traceEvent: "workbook_structure_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      path: "/approve",
+      body: {
+        requestId: "req_workbook_label_overflow",
+        runId: "run_workbook_label_overflow",
+        plan
+      }
+    });
+
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      path: "/complete",
+      body: {
+        requestId: "req_workbook_label_overflow",
+        runId: "run_workbook_label_overflow",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "workbook_structure_update",
+          hostPlatform: "excel_windows",
+          operation: "create_sheet",
+          sheetName: "A".repeat(129),
+          positionResolved: 0,
+          sheetCount: 1,
+          summary: "Created a sheet with an oversized reported label."
+        }
+      }
+    });
+
+    expectRouteError(
+      completion,
+      400,
+      "INVALID_REQUEST",
+      "That writeback completion request is invalid."
+    );
+  });
+
+  it("rejects sheet structure completion target labels that exceed the public contract limit", () => {
+    const traceBus = new TraceBus();
+    const plan = {
+      targetSheet: "Sheet1",
+      operation: "insert_rows",
+      startIndex: 4,
+      count: 2,
+      explanation: "Insert two spacer rows above totals.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_sheet_label_overflow",
+      requestId: "req_sheet_label_overflow",
+      type: "sheet_structure_update",
+      traceEvent: "sheet_structure_update_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      path: "/approve",
+      body: {
+        requestId: "req_sheet_label_overflow",
+        runId: "run_sheet_label_overflow",
+        plan
+      }
+    });
+
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      path: "/complete",
+      body: {
+        requestId: "req_sheet_label_overflow",
+        runId: "run_sheet_label_overflow",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "sheet_structure_update",
+          hostPlatform: "excel_windows",
+          targetSheet: "S".repeat(129),
+          operation: "insert_rows",
+          startIndex: 4,
+          count: 2,
+          summary: "Inserted rows with an oversized reported target sheet."
+        }
+      }
+    });
+
+    expectRouteError(
+      completion,
+      400,
+      "INVALID_REQUEST",
+      "That writeback completion request is invalid."
+    );
+  });
+
+  it("rejects sheet structure completion ranges that exceed the public contract limit", () => {
+    const traceBus = new TraceBus();
+    const plan = {
+      targetSheet: "Sheet1",
+      operation: "merge_cells",
+      targetRange: "A1:B2",
+      explanation: "Merge the heading cells.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_sheet_range_overflow",
+      requestId: "req_sheet_range_overflow",
+      type: "sheet_structure_update",
+      traceEvent: "sheet_structure_update_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      path: "/approve",
+      body: {
+        requestId: "req_sheet_range_overflow",
+        runId: "run_sheet_range_overflow",
+        plan
+      }
+    });
+
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      path: "/complete",
+      body: {
+        requestId: "req_sheet_range_overflow",
+        runId: "run_sheet_range_overflow",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "sheet_structure_update",
+          hostPlatform: "excel_windows",
+          targetSheet: "Sheet1",
+          operation: "merge_cells",
+          targetRange: `A1:A${"9".repeat(129)}`,
+          summary: "Merged an oversized reported target range."
+        }
+      }
+    });
+
+    expectRouteError(
+      completion,
+      400,
+      "INVALID_REQUEST",
+      "That writeback completion request is invalid."
+    );
+  });
+
   it("rejects replayed completion when the consumed approval is retried with a different result payload", () => {
     const traceBus = new TraceBus();
     const plan = {
