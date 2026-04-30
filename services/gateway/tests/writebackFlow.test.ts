@@ -220,6 +220,34 @@ function buildWorkbookCreateSheetResult(
 }
 
 describe("writeback confirmation flow", () => {
+  it("sanitizes validation issue details before returning invalid writeback errors", () => {
+    const traceBus = new TraceBus();
+
+    const response = invokeWritebackRoute({
+      traceBus,
+      path: "/approve",
+      body: {
+        requestId: "req_secret_issue_001",
+        runId: "run_secret_issue_001",
+        plan: {
+          targetSheet: "Sheet1",
+          targetRange: "A1",
+          operation: "replace_range",
+          values: [["ok"]],
+          explanation: "Write a safe value.",
+          confidence: 0.9,
+          requiresConfirmation: true,
+          shape: { rows: 1, columns: 1 },
+          "HERMES_API_SERVER_KEY=secret_123": "leak"
+        }
+      }
+    });
+
+    expectRouteError(response, 400, "INVALID_REQUEST");
+    expect(JSON.stringify((response.body as any).error.issues)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify((response.body as any).error.issues)).not.toContain("secret_123");
+  });
+
   it("records writeback history under the originating Hermes session id", () => {
     const traceBus = new TraceBus();
     const executionLedger = new ExecutionLedger();

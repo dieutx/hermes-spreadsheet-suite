@@ -168,6 +168,28 @@ describe("execution control routes", () => {
     });
   });
 
+  it("sanitizes validation issue details before returning invalid execution-control errors", () => {
+    const undo = invokeExecutionRoute({
+      path: "/undo",
+      method: "post",
+      body: {
+        executionId: "exec_secret_001",
+        requestId: "req_secret_001",
+        workbookSessionKey: "excel_windows::workbook-123",
+        "HERMES_API_SERVER_KEY=secret_123": "leak"
+      }
+    });
+
+    expect(undo.status).toBe(400);
+    expect(undo.body).toMatchObject({
+      error: {
+        code: "INVALID_REQUEST"
+      }
+    });
+    expect(JSON.stringify((undo.body as any).error.issues)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify((undo.body as any).error.issues)).not.toContain("secret_123");
+  });
+
   it("rejects invalid history cursors with INVALID_REQUEST", () => {
     const history = invokeExecutionRoute({
       path: "/history",

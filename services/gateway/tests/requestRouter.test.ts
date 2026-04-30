@@ -268,6 +268,23 @@ describe("request router", () => {
     expect((response.body as any).error.code).toBe("INVALID_REQUEST");
   });
 
+  it("sanitizes validation issue details before returning invalid request errors", async () => {
+    const { router } = createTestRouter();
+
+    const response = await invokePost(router, {
+      ...validRequestBody(),
+      source: {
+        ...validRequestBody().source,
+        channel: "HERMES_API_SERVER_KEY=secret_123"
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect((response.body as any).error.code).toBe("INVALID_REQUEST");
+    expect(JSON.stringify((response.body as any).error.issues)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify((response.body as any).error.issues)).not.toContain("secret_123");
+  });
+
   it("accepts legacy requests with null optional fields after normalization", async () => {
     const hermesClient = {
       processRequest: vi.fn(async () => undefined)

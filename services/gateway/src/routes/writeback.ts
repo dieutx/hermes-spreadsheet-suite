@@ -48,6 +48,7 @@ import {
   FreshDryRunRequiredError
 } from "../lib/executionLedger.js";
 import { normalizeCompositePlanForDigest } from "../lib/planNormalization.js";
+import { formatClientIssuePath, sanitizeClientIssueMessage } from "../lib/publicErrors.js";
 
 const APPROVAL_TOKEN_MAX_AGE_MS = 15 * 60 * 1000;
 
@@ -548,8 +549,8 @@ const HOST_COMPLETION_FAILED_ERROR = "Host reported a failed or partial writebac
 
 function formatIssues(issues: z.ZodIssue[]): Array<{ path: string; message: string }> {
   return issues.map((issue) => ({
-    path: issue.path.join("."),
-    message: issue.message
+    path: formatClientIssuePath(issue.path),
+    message: sanitizeClientIssueMessage(issue.message)
   }));
 }
 
