@@ -3956,11 +3956,37 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
         },
         content: "Prepared a cleanup plan for Contacts!A2:B20.",
         statusLine: ""
+      },
+      {
+        role: "assistant",
+        runId: "run_format_unsupported_001",
+        requestId: "req_format_unsupported_001",
+        response: {
+          type: "range_format_update",
+          data: {
+            targetSheet: "Sheet1",
+            targetRange: "B2:B20",
+            format: {
+              underline: true,
+              strikethrough: true
+            },
+            explanation: "Apply text line styling.",
+            confidence: 0.75,
+            requiresConfirmation: true
+          }
+        },
+        content: "Prepared a formatting update for Sheet1!B2:B20.",
+        statusLine: ""
       }
     ];
 
     expect(sidebar.isWritePlanResponse(hooks.state.messages[0].response)).toBe(false);
     expect(sidebar.isWritePlanResponse(hooks.state.messages[1].response)).toBe(false);
+    expect(sidebar.isWritePlanResponse(hooks.state.messages[2].response)).toBe(false);
+    expect(sidebar.renderStructuredPreview(hooks.state.messages[2].response, {
+      runId: "run_format_unsupported_001",
+      requestId: "req_format_unsupported_001"
+    })).toContain("Google Sheets cannot apply underline and strikethrough together as exact static formatting.");
     expect(sidebar.getLatestPendingWritePlanMessage("ok")).toBeNull();
     expect(sidebar.getLatestPendingWritePlanMessage('Confirm "Sheet1!B2:B20"')).toBeNull();
     expect(sidebar.getLatestPendingWritePlanMessage('Confirm "Contacts!A2:B20"')).toBeNull();

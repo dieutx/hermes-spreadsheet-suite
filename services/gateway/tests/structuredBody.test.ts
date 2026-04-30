@@ -351,6 +351,88 @@ describe("structured body normalization", () => {
     expect(parsed).toEqual(expectedBody);
   });
 
+  it("normalizes range format target and style aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_format_update",
+      data: {
+        sheet: "Sheet1",
+        range: "A1:B2",
+        background: "#ffeeaa",
+        fontColor: "#112233",
+        bold: true,
+        wrapText: true,
+        explanation: "Format the summary header.",
+        confidence: 0.89,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "range_format_update",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:B2",
+        format: {
+          backgroundColor: "#ffeeaa",
+          textColor: "#112233",
+          bold: true,
+          wrapStrategy: "wrap"
+        }
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes workbook structure action and sheet-name aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "workbook_structure_update",
+      data: {
+        action: "add",
+        name: "Summary",
+        position: "end",
+        explanation: "Create a summary worksheet.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "workbook_structure_update",
+      data: {
+        operation: "create_sheet",
+        sheetName: "Summary",
+        position: "end"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes sheet structure range aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "sheet_structure_update",
+      data: {
+        sheet: "Sheet1",
+        range: "A1:B2",
+        action: "merge",
+        explanation: "Merge the title cells.",
+        confidence: 0.88,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "sheet_structure_update",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:B2",
+        operation: "merge_cells",
+        confirmationLevel: "standard",
+        affectedRanges: ["Sheet1!A1:B2"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("synthesizes external data formulas from provider fields before validation", () => {
     const marketData = normalizeHermesStructuredBodyInput({
       type: "external_data_plan",
@@ -411,6 +493,39 @@ describe("structured body normalization", () => {
       }
     });
     expect(() => HermesStructuredBodySchema.parse(webImport)).not.toThrow();
+  });
+
+  it("normalizes sheet update aliases and infers shape before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "sheet_update",
+      data: {
+        sheet: "Sheet1",
+        range: "A1:B2",
+        operation: "set_values",
+        data: [
+          ["Region", "Revenue"],
+          ["North", 1200]
+        ],
+        explanation: "Write the summarized revenue table.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "sheet_update",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:B2",
+        operation: "replace_range",
+        values: [
+          ["Region", "Revenue"],
+          ["North", 1200]
+        ],
+        shape: { rows: 2, columns: 2 }
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
   it("normalizes chart legendPosition none to the contract-safe hidden alias", () => {
@@ -558,6 +673,123 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes range sort aliases and affected ranges before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_sort_plan",
+      data: {
+        sheet: "Sales",
+        range: "A1:D50",
+        header: true,
+        sortKeys: [
+          { column: "Revenue", order: "descending" },
+          { field: "Region", order: "ascending" }
+        ],
+        explanation: "Sort sales by revenue and region.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "range_sort_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:D50",
+        hasHeader: true,
+        keys: [
+          { columnRef: "Revenue", direction: "desc" },
+          { columnRef: "Region", direction: "asc" }
+        ],
+        affectedRanges: ["Sales!A1:D50"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes analysis report source and output aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "analysis_report_plan",
+      data: {
+        dataRange: "Support!A1:H50",
+        output: "sheet",
+        outputRange: "Summary!A1:F12",
+        reportSections: ["sla risk summary", "next actions"],
+        explanation: "Create a materialized support analysis report.",
+        confidence: 0.88
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "analysis_report_plan",
+      data: {
+        sourceSheet: "Support",
+        sourceRange: "A1:H50",
+        targetSheet: "Summary",
+        targetRange: "A1:F12",
+        outputMode: "materialize_report",
+        requiresConfirmation: true,
+        sections: [
+          {
+            type: "anomalies",
+            title: "Sla Risk Summary",
+            sourceRanges: ["Support!A1:H50"]
+          },
+          {
+            type: "next_actions",
+            title: "Next Actions",
+            sourceRanges: ["Support!A1:H50"]
+          }
+        ],
+        affectedRanges: ["Support!A1:H50", "Summary!A1:F12"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes conditional format aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        sheet: "Support",
+        range: "G2:G50",
+        mode: "replace",
+        rule: {
+          type: "formula",
+          customFormula: '=$G2="Breached"',
+          format: {
+            background: "#FDECEC",
+            fontColor: "#9C0006",
+            bold: true
+          }
+        },
+        explanation: "Highlight breached SLA rows.",
+        confidence: 0.92,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Support",
+        targetRange: "G2:G50",
+        managementMode: "replace_all_on_target",
+        replacesExistingRules: true,
+        ruleType: "custom_formula",
+        formula: '=$G2="Breached"',
+        style: {
+          backgroundColor: "#FDECEC",
+          textColor: "#9C0006",
+          bold: true
+        },
+        affectedRanges: ["Support!G2:G50"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes data validation prompt and error-message aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "data_validation_plan",
@@ -682,6 +914,33 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes named range define aliases and qualified references before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "named_range_update",
+      data: {
+        operation: "define",
+        rangeName: "SalesData",
+        refersTo: "Sales!A1:D20",
+        explanation: "Define a named range for the sales table.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "named_range_update",
+      data: {
+        operation: "create",
+        scope: "workbook",
+        name: "SalesData",
+        targetSheet: "Sales",
+        targetRange: "A1:D20",
+        affectedRanges: ["Sales!A1:D20"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes table plans before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "table_plan",
@@ -724,6 +983,78 @@ describe("structured body normalization", () => {
         affectedRanges: ["Sales!A1:F50"],
         overwriteRisk: "low",
         confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes table plan aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "table_plan",
+      data: {
+        sheet: "Sales",
+        range: "A1:F50",
+        tableName: "SalesTable",
+        hasHeader: true,
+        tableStyle: "TableStyleMedium2",
+        bandedRows: true,
+        bandedColumns: false,
+        filterButton: true,
+        totalsRow: true,
+        explanation: "Create a native table for the sales range.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "table_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        styleName: "TableStyleMedium2",
+        showBandedRows: true,
+        showBandedColumns: false,
+        showFilterButton: true,
+        showTotalsRow: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes cleanup split-column aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "data_cleanup_plan",
+      data: {
+        sheet: "Sales",
+        range: "C2:C20",
+        action: "split",
+        column: "C",
+        separator: ",",
+        startColumn: "D",
+        explanation: "Split customer name values into separate columns.",
+        confidence: 0.87,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "data_cleanup_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "C2:C20",
+        operation: "split_column",
+        sourceColumn: "C",
+        delimiter: ",",
+        targetStartColumn: "D",
+        affectedRanges: ["Sales!C2:C20"],
+        overwriteRisk: "high",
+        confirmationLevel: "destructive"
       }
     });
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
