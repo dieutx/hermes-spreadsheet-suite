@@ -807,6 +807,73 @@ describe("Excel wave 1 plan helpers", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel sheet move writes", async () => {
+    const firstWorksheet = {
+      name: "Sheet1",
+      position: 0,
+      visibility: "visible"
+    };
+    const secondWorksheet = {
+      name: "Sheet2",
+      position: 1,
+      visibility: "visible"
+    };
+    const targetWorksheet = {
+      name: "Sheet3",
+      position: 2,
+      visibility: "visible"
+    };
+    const worksheets = {
+      items: [firstWorksheet, secondWorksheet, targetWorksheet],
+      load: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "move_sheet",
+        sheetName: "Sheet3",
+        position: 0,
+        explanation: "Move the staging sheet to the front.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_move_sheet_snapshot_excel_001",
+      runId: "run_move_sheet_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_move_sheet_snapshot_excel_001"
+    });
+
+    expect(targetWorksheet.position).toBe(0);
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "move_sheet",
+      sheetName: "Sheet3",
+      positionResolved: 0,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_move_sheet_snapshot_excel_001",
+        kind: "workbook_structure",
+        operation: "move_sheet",
+        before: {
+          exists: true,
+          name: "Sheet3",
+          position: 2
+        },
+        after: {
+          exists: true,
+          name: "Sheet3",
+          position: 0
+        }
+      }
+    });
+  });
+
   it("fails closed when Excel cannot expose freeze pane operations", async () => {
     const worksheet = {
       getRangeByIndexes: vi.fn(() => ({ address: "Sheet1!B2" })),

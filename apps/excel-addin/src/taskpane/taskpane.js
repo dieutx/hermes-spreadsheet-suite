@@ -1362,6 +1362,39 @@ function createWorkbookStructureVisibilityLocalExecutionSnapshot({
   };
 }
 
+function createWorkbookStructureMoveLocalExecutionSnapshot({
+  executionId,
+  sheetName,
+  beforePosition,
+  afterPosition
+}) {
+  if (
+    !executionId ||
+    !sheetName ||
+    !Number.isInteger(beforePosition) ||
+    !Number.isInteger(afterPosition) ||
+    beforePosition === afterPosition
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "workbook_structure",
+    operation: "move_sheet",
+    before: {
+      exists: true,
+      name: sheetName,
+      position: beforePosition
+    },
+    after: {
+      exists: true,
+      name: sheetName,
+      position: afterPosition
+    }
+  };
+}
+
 function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
   if (!executionId || !Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -1904,8 +1937,25 @@ function assertWorkbookStructureVisibilitySnapshotState(state) {
   }
 }
 
+function assertWorkbookStructureMoveSnapshotState(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0 ||
+    !Number.isInteger(state.position) ||
+    state.position < 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
 function getWorkbookStructureSnapshotTransitionForMode(snapshot, mode) {
-  if (snapshot?.operation !== "rename_sheet" && snapshot?.operation !== "sheet_visibility") {
+  if (
+    snapshot?.operation !== "rename_sheet" &&
+    snapshot?.operation !== "sheet_visibility" &&
+    snapshot?.operation !== "move_sheet"
+  ) {
     throw new Error("That workbook structure history entry cannot be restored exactly.");
   }
 
@@ -1928,6 +1978,24 @@ async function applyWorkbookStructureSnapshotTransition(context, transition) {
     }
 
     sheet.visibility = transition.to.visibility;
+    return;
+  }
+
+  if (transition.operation === "move_sheet") {
+    assertWorkbookStructureMoveSnapshotState(transition.from);
+    assertWorkbookStructureMoveSnapshotState(transition.to);
+
+    const sheet = context.workbook.worksheets.getItem(transition.from.name);
+    if (typeof sheet.load === "function") {
+      sheet.load(["name", "position"]);
+      await context.sync();
+    }
+
+    if (typeof sheet.position === "number" && sheet.position !== transition.from.position) {
+      throw new Error("Sheet position changed since this history entry was captured.");
+    }
+
+    sheet.position = transition.to.position;
     return;
   }
 
@@ -1958,6 +2026,9 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
     if (transition.operation === "sheet_visibility") {
       assertWorkbookStructureVisibilitySnapshotState(transition.from);
       assertWorkbookStructureVisibilitySnapshotState(transition.to);
+    } else if (transition.operation === "move_sheet") {
+      assertWorkbookStructureMoveSnapshotState(transition.from);
+      assertWorkbookStructureMoveSnapshotState(transition.to);
     } else {
       assertWorkbookStructureRenameSnapshotState(transition.from);
       assertWorkbookStructureRenameSnapshotState(transition.to);
@@ -1965,8 +2036,20 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
 
     const sheet = context.workbook.worksheets.getItem(transition.from.name);
     if (typeof sheet.load === "function") {
-      sheet.load(transition.operation === "sheet_visibility" ? ["name", "visibility"] : ["name"]);
+      sheet.load(transition.operation === "sheet_visibility"
+        ? ["name", "visibility"]
+        : transition.operation === "move_sheet"
+          ? ["name", "position"]
+          : ["name"]);
       await context.sync();
+    }
+
+    if (
+      transition.operation === "move_sheet" &&
+      typeof sheet.position === "number" &&
+      sheet.position !== transition.from.position
+    ) {
+      throw new Error("Sheet position changed since this history entry was captured.");
     }
   });
 }
@@ -8612,17 +8695,25 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             throw new Error(`Target sheet not found: ${resolvedPlan.sheetName}`);
           }
 
-          sheet.position = clampExistingPosition(resolvedPlan.position, orderedSheets.length);
+          const beforePosition = sheet.position;
+          const desiredPosition = clampExistingPosition(resolvedPlan.position, orderedSheets.length);
+          sheet.position = desiredPosition;
           await context.sync();
-          return {
+          const afterPosition = Number.isInteger(sheet.position) ? sheet.position : desiredPosition;
+          return attachLocalExecutionSnapshot({
             kind: "workbook_structure_update",
             hostPlatform: platform,
             sheetName: resolvedPlan.sheetName,
             operation: resolvedPlan.operation,
-            positionResolved: clampExistingPosition(resolvedPlan.position, orderedSheets.length),
+            positionResolved: afterPosition,
             sheetCount: orderedSheets.length,
             summary: getWorkbookStructureStatusSummary(resolvedPlan)
-          };
+          }, createWorkbookStructureMoveLocalExecutionSnapshot({
+            executionId,
+            sheetName: resolvedPlan.sheetName,
+            beforePosition,
+            afterPosition
+          }));
         }
         case "hide_sheet": {
           const sheet = findSheet(resolvedPlan.sheetName);
