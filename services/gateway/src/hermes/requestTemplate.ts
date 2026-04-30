@@ -540,7 +540,8 @@ function isLikelyAdvisoryOnlyArtifactQuestion(userMessage: string): boolean {
   return isLikelyPivotTableRequest(userMessage) ||
     isLikelyChartRequest(userMessage) ||
     isLikelyTablePlanRequest(userMessage) ||
-    isLikelyConditionalFormatRequest(userMessage);
+    isLikelyConditionalFormatRequest(userMessage) ||
+    isLikelyExternalDataRequest(userMessage);
 }
 
 function hasFormulaContext(request: HermesRequest): boolean {
@@ -691,6 +692,9 @@ function getPreferredResponseType(
   if (hasInputLayoutConflictRisk(request, rawMessage, userMessage)) {
     return "composite_plan";
   }
+  if (isLikelyAdvisoryOnlyArtifactQuestion(userMessage)) {
+    return "chat";
+  }
   if (isLikelyExternalDataRequest(userMessage)) {
     if (isExcelHost(request)) {
       return "error";
@@ -713,9 +717,6 @@ function getPreferredResponseType(
   }
   if (isLikelyFormulaDebugRequest(request, rawMessage, userMessage)) {
     return "formula";
-  }
-  if (isLikelyAdvisoryOnlyArtifactQuestion(userMessage)) {
-    return "chat";
   }
   if (isLikelyTablePlanRequest(userMessage)) {
     return "table_plan";
