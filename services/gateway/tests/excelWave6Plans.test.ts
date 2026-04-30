@@ -1998,6 +1998,185 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(wrapTextSet).not.toHaveBeenCalled();
   });
 
+  it("attaches local undo snapshots for Excel range format writes", async () => {
+    let targetRange: any;
+    targetRange = {
+      rowCount: 1,
+      columnCount: 1,
+      values: [["Revenue"]],
+      formulas: [[""]],
+      numberFormat: [["General"]],
+      load: vi.fn(),
+      getCell: vi.fn(() => targetRange),
+      format: {
+        fill: { color: "#FFFFFF" },
+        font: {
+          color: "#000000",
+          name: "Calibri",
+          size: 11,
+          bold: false,
+          italic: false,
+          underline: "None",
+          strikethrough: false
+        },
+        horizontalAlignment: "Left",
+        verticalAlignment: "Bottom",
+        wrapText: false,
+        columnWidth: 64,
+        rowHeight: 18
+      }
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "B2",
+        format: {
+          backgroundColor: "#FFF2CC",
+          bold: true,
+          numberFormat: "$#,##0"
+        },
+        explanation: "Format revenue.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      },
+      requestId: "req_range_format_snapshot_excel_001",
+      runId: "run_range_format_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_range_format_snapshot_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_format_update",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_format_snapshot_excel_001",
+        kind: "range_format",
+        targetSheet: "Sales",
+        targetRange: "B2",
+        shape: {
+          rows: 1,
+          columns: 1
+        },
+        beforeFormatCells: [[{
+          backgroundColor: "#FFFFFF",
+          bold: false,
+          numberFormat: [["General"]]
+        }]],
+        afterFormatCells: [[{
+          backgroundColor: "#FFF2CC",
+          bold: true,
+          numberFormat: [["$#,##0"]]
+        }]]
+      }
+    });
+  });
+
+  it("restores Excel range format snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_range_format_001"],
+      executions: {
+        exec_range_format_001: {
+          baseExecutionId: "exec_range_format_001"
+        }
+      },
+      bases: {
+        exec_range_format_001: {
+          baseExecutionId: "exec_range_format_001",
+          kind: "range_format",
+          targetSheet: "Sales",
+          targetRange: "B2",
+          shape: {
+            rows: 1,
+            columns: 1
+          },
+          beforeFormatCells: [[{
+            backgroundColor: "#FFFFFF",
+            bold: false,
+            numberFormat: [["General"]]
+          }]],
+          afterFormatCells: [[{
+            backgroundColor: "#FFF2CC",
+            bold: true,
+            numberFormat: [["$#,##0"]]
+          }]]
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "range_format_update",
+          operation: "range_format_update",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    let targetRange: any;
+    targetRange = {
+      rowCount: 1,
+      columnCount: 1,
+      numberFormat: [["$#,##0"]],
+      load: vi.fn(),
+      getCell: vi.fn(() => targetRange),
+      format: {
+        fill: { color: "#FFF2CC" },
+        font: {
+          bold: true
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem() {
+              return {
+                getRange() {
+                  return targetRange;
+                }
+              };
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_range_format_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(targetRange.format.fill.color).toBe("#FFFFFF");
+    expect(targetRange.format.font.bold).toBe(false);
+    expect(targetRange.numberFormat).toEqual([["General"]]);
+  });
+
   it("renders and applies native Excel table plans", async () => {
     const table = {
       name: "",

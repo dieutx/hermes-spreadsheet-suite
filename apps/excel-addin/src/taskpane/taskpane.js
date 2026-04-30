@@ -816,6 +816,281 @@ function createLocalExecutionSnapshot({
   };
 }
 
+function getExcelRangeFormatSnapshotFields(format) {
+  const fields = [];
+  const addField = (planField, snapshotField) => {
+    if (format?.[planField] !== undefined) {
+      fields.push(snapshotField || planField);
+    }
+  };
+
+  addField("backgroundColor");
+  addField("textColor");
+  addField("fontFamily");
+  addField("fontSize");
+  addField("bold");
+  addField("italic");
+  addField("underline");
+  addField("strikethrough");
+  addField("horizontalAlignment");
+  addField("verticalAlignment");
+  addField("wrapStrategy", "wrapText");
+  addField("numberFormat");
+  addField("columnWidth");
+  addField("rowHeight");
+
+  return fields;
+}
+
+function getExcelRangeFormatSnapshotBorderSides(format) {
+  if (!format?.border) {
+    return [];
+  }
+
+  return [...new Set(
+    expandRangeBorderLines(format.border)
+      .map(({ side }) => side)
+      .filter(Boolean)
+  )];
+}
+
+function getExcelRangeFormatSnapshotLoadPaths(fields) {
+  const paths = [];
+
+  if (fields.includes("backgroundColor")) {
+    paths.push("format/fill/color");
+  }
+
+  if (fields.includes("textColor")) {
+    paths.push("format/font/color");
+  }
+
+  if (fields.includes("fontFamily")) {
+    paths.push("format/font/name");
+  }
+
+  if (fields.includes("fontSize")) {
+    paths.push("format/font/size");
+  }
+
+  if (fields.includes("bold")) {
+    paths.push("format/font/bold");
+  }
+
+  if (fields.includes("italic")) {
+    paths.push("format/font/italic");
+  }
+
+  if (fields.includes("underline")) {
+    paths.push("format/font/underline");
+  }
+
+  if (fields.includes("strikethrough")) {
+    paths.push("format/font/strikethrough");
+  }
+
+  if (fields.includes("horizontalAlignment")) {
+    paths.push("format/horizontalAlignment");
+  }
+
+  if (fields.includes("verticalAlignment")) {
+    paths.push("format/verticalAlignment");
+  }
+
+  if (fields.includes("wrapText")) {
+    paths.push("format/wrapText");
+  }
+
+  if (fields.includes("numberFormat")) {
+    paths.push("numberFormat");
+  }
+
+  if (fields.includes("columnWidth")) {
+    paths.push("format/columnWidth");
+  }
+
+  if (fields.includes("rowHeight")) {
+    paths.push("format/rowHeight");
+  }
+
+  return paths;
+}
+
+function prepareExcelRangeFormatSnapshotTargets(target, format) {
+  const fields = getExcelRangeFormatSnapshotFields(format);
+  const borderSides = getExcelRangeFormatSnapshotBorderSides(format);
+  if (fields.length === 0 && borderSides.length === 0) {
+    return null;
+  }
+
+  const rowCount = Math.max(0, Number(target?.rowCount) || 0);
+  const columnCount = Math.max(0, Number(target?.columnCount) || 0);
+  const cells = Array.from({ length: rowCount }, (_, rowIndex) =>
+    Array.from({ length: columnCount }, (_, columnIndex) => target.getCell(rowIndex, columnIndex))
+  );
+  const borders = {};
+  for (const side of borderSides) {
+    const excelSide = mapRangeBorderSideToExcel(side);
+    if (excelSide) {
+      borders[side] = target.format.borders.getItem(excelSide);
+    }
+  }
+
+  return {
+    fields,
+    borderSides,
+    cells,
+    borders
+  };
+}
+
+function loadExcelRangeFormatSnapshotTargets(snapshotTargets) {
+  if (!snapshotTargets) {
+    return;
+  }
+
+  const loadPaths = getExcelRangeFormatSnapshotLoadPaths(snapshotTargets.fields);
+  for (const row of snapshotTargets.cells) {
+    for (const cell of row) {
+      if (loadPaths.length > 0 && typeof cell?.load === "function") {
+        cell.load(loadPaths);
+      }
+    }
+  }
+
+  for (const border of Object.values(snapshotTargets.borders || {})) {
+    if (typeof border?.load === "function") {
+      border.load(["lineStyle", "color", "weight"]);
+    }
+  }
+}
+
+function cloneExcelNumberFormatSnapshot(numberFormat) {
+  return Array.isArray(numberFormat) ? cloneMatrix(numberFormat) : numberFormat;
+}
+
+function readExcelRangeFormatCellSnapshot(cell, fields) {
+  const format = cell?.format || {};
+  const font = format.font || {};
+  const fill = format.fill || {};
+  const snapshot = {};
+
+  if (fields.includes("backgroundColor")) {
+    snapshot.backgroundColor = fill.color;
+  }
+
+  if (fields.includes("textColor")) {
+    snapshot.textColor = font.color;
+  }
+
+  if (fields.includes("fontFamily")) {
+    snapshot.fontFamily = font.name;
+  }
+
+  if (fields.includes("fontSize")) {
+    snapshot.fontSize = font.size;
+  }
+
+  if (fields.includes("bold")) {
+    snapshot.bold = font.bold;
+  }
+
+  if (fields.includes("italic")) {
+    snapshot.italic = font.italic;
+  }
+
+  if (fields.includes("underline")) {
+    snapshot.underline = font.underline;
+  }
+
+  if (fields.includes("strikethrough")) {
+    snapshot.strikethrough = font.strikethrough;
+  }
+
+  if (fields.includes("horizontalAlignment")) {
+    snapshot.horizontalAlignment = format.horizontalAlignment;
+  }
+
+  if (fields.includes("verticalAlignment")) {
+    snapshot.verticalAlignment = format.verticalAlignment;
+  }
+
+  if (fields.includes("wrapText")) {
+    snapshot.wrapText = format.wrapText;
+  }
+
+  if (fields.includes("numberFormat")) {
+    snapshot.numberFormat = cloneExcelNumberFormatSnapshot(cell.numberFormat);
+  }
+
+  if (fields.includes("columnWidth")) {
+    snapshot.columnWidth = format.columnWidth;
+  }
+
+  if (fields.includes("rowHeight")) {
+    snapshot.rowHeight = format.rowHeight;
+  }
+
+  return snapshot;
+}
+
+function readExcelRangeFormatBorderSnapshot(snapshotTargets) {
+  const snapshot = {};
+  for (const [side, border] of Object.entries(snapshotTargets?.borders || {})) {
+    snapshot[side] = {
+      lineStyle: border?.lineStyle,
+      color: border?.color,
+      weight: border?.weight
+    };
+  }
+
+  return snapshot;
+}
+
+function readExcelRangeFormatCellsSnapshot(snapshotTargets) {
+  return (snapshotTargets?.cells || []).map((row) =>
+    (row || []).map((cell) => readExcelRangeFormatCellSnapshot(cell, snapshotTargets.fields))
+  );
+}
+
+function createRangeFormatLocalExecutionSnapshot({
+  executionId,
+  targetSheet,
+  targetRange,
+  target,
+  beforeFormatCells,
+  afterFormatCells,
+  beforeBorders,
+  afterBorders
+}) {
+  if (
+    !executionId ||
+    !targetSheet ||
+    !targetRange ||
+    !Array.isArray(beforeFormatCells) ||
+    beforeFormatCells.length === 0 ||
+    !Array.isArray(afterFormatCells) ||
+    afterFormatCells.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "range_format",
+    targetSheet,
+    targetRange,
+    shape: {
+      rows: Number(target?.rowCount) || beforeFormatCells.length,
+      columns: Number(target?.columnCount) || (beforeFormatCells[0]?.length || 0)
+    },
+    beforeFormatCells,
+    afterFormatCells,
+    ...(beforeBorders && Object.keys(beforeBorders).length > 0 ? { beforeBorders } : {}),
+    ...(afterBorders && Object.keys(afterBorders).length > 0 ? { afterBorders } : {})
+  };
+}
+
 function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
   if (!executionId || !Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -829,6 +1104,10 @@ function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
 
 function isCompositeLocalExecutionSnapshot(snapshot) {
   return Array.isArray(snapshot?.entries) && snapshot.entries.length > 0;
+}
+
+function isRangeFormatLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "range_format";
 }
 
 function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
@@ -951,12 +1230,170 @@ function prepareGatewayWritebackResult(result, executionId, workbookSessionKey) 
   };
 }
 
+function hasSnapshotField(snapshot, field) {
+  return Object.prototype.hasOwnProperty.call(snapshot || {}, field) &&
+    snapshot[field] !== undefined;
+}
+
+function getRangeFormatSnapshotCellsForMode(snapshot, mode) {
+  return mode === "undo" ? snapshot?.beforeFormatCells : snapshot?.afterFormatCells;
+}
+
+function getRangeFormatSnapshotBordersForMode(snapshot, mode) {
+  return mode === "undo" ? snapshot?.beforeBorders : snapshot?.afterBorders;
+}
+
+function assertRangeFormatSnapshotShape(snapshot, target, cells) {
+  const expectedRows = Number(snapshot?.shape?.rows) || cells?.length || 0;
+  const expectedColumns = Number(snapshot?.shape?.columns) || cells?.[0]?.length || 0;
+  if (!snapshot?.targetSheet || !snapshot?.targetRange || !Array.isArray(cells) || expectedRows <= 0 || expectedColumns <= 0) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  if (
+    target.rowCount !== expectedRows ||
+    target.columnCount !== expectedColumns ||
+    cells.length !== expectedRows ||
+    (cells[0]?.length || 0) !== expectedColumns
+  ) {
+    throw new Error("The saved undo snapshot no longer matches the current range shape.");
+  }
+}
+
+function applyExcelRangeFormatCellSnapshot(cell, snapshot) {
+  const format = cell?.format || {};
+
+  if (hasSnapshotField(snapshot, "backgroundColor") && format.fill) {
+    format.fill.color = snapshot.backgroundColor;
+  }
+
+  if (hasSnapshotField(snapshot, "textColor") && format.font) {
+    format.font.color = snapshot.textColor;
+  }
+
+  if (hasSnapshotField(snapshot, "fontFamily") && format.font) {
+    format.font.name = snapshot.fontFamily;
+  }
+
+  if (hasSnapshotField(snapshot, "fontSize") && format.font) {
+    format.font.size = snapshot.fontSize;
+  }
+
+  if (hasSnapshotField(snapshot, "bold") && format.font) {
+    format.font.bold = snapshot.bold;
+  }
+
+  if (hasSnapshotField(snapshot, "italic") && format.font) {
+    format.font.italic = snapshot.italic;
+  }
+
+  if (hasSnapshotField(snapshot, "underline") && format.font) {
+    format.font.underline = snapshot.underline;
+  }
+
+  if (hasSnapshotField(snapshot, "strikethrough") && format.font) {
+    format.font.strikethrough = snapshot.strikethrough;
+  }
+
+  if (hasSnapshotField(snapshot, "horizontalAlignment")) {
+    format.horizontalAlignment = snapshot.horizontalAlignment;
+  }
+
+  if (hasSnapshotField(snapshot, "verticalAlignment")) {
+    format.verticalAlignment = snapshot.verticalAlignment;
+  }
+
+  if (hasSnapshotField(snapshot, "wrapText")) {
+    format.wrapText = snapshot.wrapText;
+  }
+
+  if (hasSnapshotField(snapshot, "numberFormat")) {
+    cell.numberFormat = cloneExcelNumberFormatSnapshot(snapshot.numberFormat);
+  }
+
+  if (hasSnapshotField(snapshot, "columnWidth")) {
+    format.columnWidth = snapshot.columnWidth;
+  }
+
+  if (hasSnapshotField(snapshot, "rowHeight")) {
+    format.rowHeight = snapshot.rowHeight;
+  }
+}
+
+function applyExcelRangeFormatBorderSnapshot(target, borders) {
+  if (!borders || typeof borders !== "object") {
+    return;
+  }
+
+  for (const [side, snapshot] of Object.entries(borders)) {
+    const excelSide = mapRangeBorderSideToExcel(side);
+    if (!excelSide) {
+      continue;
+    }
+
+    const border = target.format.borders.getItem(excelSide);
+    if (hasSnapshotField(snapshot, "lineStyle")) {
+      border.lineStyle = snapshot.lineStyle;
+    }
+
+    if (hasSnapshotField(snapshot, "color")) {
+      border.color = snapshot.color;
+    }
+
+    if (hasSnapshotField(snapshot, "weight")) {
+      border.weight = snapshot.weight;
+    }
+  }
+}
+
+async function restoreRangeFormatLocalExecutionSnapshotForMode(snapshot, mode) {
+  const cells = getRangeFormatSnapshotCellsForMode(snapshot, mode);
+  const borders = getRangeFormatSnapshotBordersForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+    const target = sheet.getRange(snapshot.targetRange);
+    target.load(["rowCount", "columnCount"]);
+    await context.sync();
+
+    assertRangeFormatSnapshotShape(snapshot, target, cells);
+
+    for (let rowIndex = 0; rowIndex < cells.length; rowIndex += 1) {
+      for (let columnIndex = 0; columnIndex < (cells[rowIndex] || []).length; columnIndex += 1) {
+        applyExcelRangeFormatCellSnapshot(target.getCell(rowIndex, columnIndex), cells[rowIndex][columnIndex]);
+      }
+    }
+
+    applyExcelRangeFormatBorderSnapshot(target, borders);
+    await context.sync();
+  });
+}
+
+async function validateRangeFormatLocalExecutionSnapshotForMode(snapshot, mode) {
+  const cells = getRangeFormatSnapshotCellsForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+    const target = sheet.getRange(snapshot.targetRange);
+    target.load(["rowCount", "columnCount"]);
+    await context.sync();
+
+    assertRangeFormatSnapshotShape(snapshot, target, cells);
+  });
+}
+
 async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
   if (isCompositeLocalExecutionSnapshot(snapshot)) {
     for (const entry of getLocalExecutionSnapshotEntriesForMode(snapshot, mode)) {
       await restoreLocalExecutionSnapshotForMode(entry, mode);
     }
     return;
+  }
+
+  if (isRangeFormatLocalExecutionSnapshot(snapshot)) {
+    return restoreRangeFormatLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -1007,6 +1444,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
       await validateLocalExecutionSnapshotForMode(entry, mode);
     }
     return;
+  }
+
+  if (isRangeFormatLocalExecutionSnapshot(snapshot)) {
+    return validateRangeFormatLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -8148,6 +8589,12 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         throw new Error(rangeFormatSupportError);
       }
 
+      const formatSnapshotTargets = prepareExcelRangeFormatSnapshotTargets(target, plan.format);
+      loadExcelRangeFormatSnapshotTargets(formatSnapshotTargets);
+      await context.sync();
+      const beforeFormatCells = readExcelRangeFormatCellsSnapshot(formatSnapshotTargets);
+      const beforeBorders = readExcelRangeFormatBorderSnapshot(formatSnapshotTargets);
+
       if (plan.format.backgroundColor) {
         target.format.fill.color = plan.format.backgroundColor;
       }
@@ -8215,13 +8662,25 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         target.format.rowHeight = plan.format.rowHeight;
       }
 
+      loadExcelRangeFormatSnapshotTargets(formatSnapshotTargets);
       await context.sync();
-      return {
+      const afterFormatCells = readExcelRangeFormatCellsSnapshot(formatSnapshotTargets);
+      const afterBorders = readExcelRangeFormatBorderSnapshot(formatSnapshotTargets);
+      return attachLocalExecutionSnapshot({
         kind: "range_format_update",
         hostPlatform: platform,
         ...plan,
         summary: getRangeFormatStatusSummary(plan)
-      };
+      }, createRangeFormatLocalExecutionSnapshot({
+        executionId,
+        targetSheet: plan.targetSheet,
+        targetRange: plan.targetRange,
+        target,
+        beforeFormatCells,
+        afterFormatCells,
+        beforeBorders,
+        afterBorders
+      }));
     }
 
     if (target.rowCount !== plan.shape.rows || target.columnCount !== plan.shape.columns) {
