@@ -884,6 +884,23 @@ describe("shared client render helpers", () => {
     expect(metaLine).not.toContain("/srv/hermes");
     expect(metaLine).not.toContain("internal.example");
     expect(metaLine).not.toContain("provider https://internal");
+
+    const embeddedResponse = baseResponse({
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        "qa_HERMES_API_SERVER_KEY"
+      ],
+      downstreamProvider: {
+        label: "Hermes Gateway",
+        model: "gpt-5 qa_HERMES_AGENT_BASE_URL"
+      }
+    });
+
+    const embeddedMetaLine = getResponseMetaLine(embeddedResponse);
+
+    expect(embeddedMetaLine).toContain("skills SelectionExplainerSkill");
+    expect(embeddedMetaLine).toContain("provider Hermes Gateway");
+    expect(embeddedMetaLine).not.toContain("qa_HERMES");
   });
 
   it("formats the wave 2 trace labels", () => {
