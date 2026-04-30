@@ -803,7 +803,14 @@
       throw new Error(message);
     }
 
-    return response.json();
+    try {
+      return await response.json();
+    } catch (_error) {
+      throw new Error(
+        "The Hermes service returned a response Google Sheets could not use.\n\n" +
+        "Retry the request, then reload the sidebar if it keeps happening."
+      );
+    }
   }
 
   function containsSensitiveGatewayErrorText(text) {

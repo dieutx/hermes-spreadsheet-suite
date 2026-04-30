@@ -5420,7 +5420,14 @@ async function parseJson(response) {
     throw new Error(message);
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(
+      "The Hermes service returned a response Excel could not use.\n\n" +
+      "Retry the request, then reload the client if it keeps happening."
+    );
+  }
 }
 
 function containsSensitiveGatewayErrorText(text) {
