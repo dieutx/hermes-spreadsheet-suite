@@ -17,6 +17,10 @@ function getRequestIdQueryValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+function getSessionIdQueryValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
 export function createTraceRouter(input: {
   traceBus: TraceBus;
 }): Router {
@@ -36,7 +40,11 @@ export function createTraceRouter(input: {
     }
 
     const run = input.traceBus.peekRun(req.params.runId);
-    if (!run || (run.requestId && getRequestIdQueryValue(req.query.requestId) !== run.requestId)) {
+    if (
+      !run ||
+      (run.requestId && getRequestIdQueryValue(req.query.requestId) !== run.requestId) ||
+      (run.sessionId && getSessionIdQueryValue(req.query.sessionId) !== run.sessionId)
+    ) {
       res.status(404).json({
         error: {
           code: "RUN_NOT_FOUND",

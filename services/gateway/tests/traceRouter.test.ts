@@ -66,6 +66,35 @@ describe("trace router", () => {
     expect((validRequestId.body as any).events).toHaveLength(1);
   });
 
+  it("requires the matching sessionId when the run is session-scoped", async () => {
+    const traceBus = new TraceBus();
+    traceBus.ensureRun("run_trace_session_001", "req_trace_session_001");
+    (traceBus.peekRun("run_trace_session_001") as any).sessionId = "sess_trace_001";
+    traceBus.append("run_trace_session_001", {
+      event: "request_received",
+      timestamp: "2026-04-22T00:00:00.000Z"
+    });
+    const router = createTraceRouter({ traceBus });
+
+    const missingSessionId = await invokeGet(router, "run_trace_session_001", {
+      requestId: "req_trace_session_001"
+    });
+    expect(missingSessionId.statusCode).toBe(404);
+
+    const wrongSessionId = await invokeGet(router, "run_trace_session_001", {
+      requestId: "req_trace_session_001",
+      sessionId: "sess_other"
+    });
+    expect(wrongSessionId.statusCode).toBe(404);
+
+    const matchingSessionId = await invokeGet(router, "run_trace_session_001", {
+      requestId: "req_trace_session_001",
+      sessionId: "sess_trace_001"
+    });
+    expect(matchingSessionId.statusCode).toBe(200);
+    expect((matchingSessionId.body as any).events).toHaveLength(1);
+  });
+
   it("rejects malformed trace cursors instead of coercing them through Number()", async () => {
     const traceBus = new TraceBus();
     traceBus.ensureRun("run_trace_002", "req_trace_002");
