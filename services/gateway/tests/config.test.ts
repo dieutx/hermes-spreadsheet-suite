@@ -150,6 +150,14 @@ describe("gateway config", () => {
     });
   });
 
+  it("fails closed when the explicit CORS allowlist contains invalid origins", () => {
+    process.env.GATEWAY_ALLOWED_ORIGINS = "https://docs.google.com,not-a-url";
+
+    expect(() => getConfig()).toThrow(
+      "GATEWAY_ALLOWED_ORIGINS contains an invalid origin: not-a-url."
+    );
+  });
+
   it("rejects wildcard CORS allowlists for public gateway base urls", () => {
     process.env.GATEWAY_PUBLIC_BASE_URL = "https://gateway.example.test/hermes-gateway";
     process.env.GATEWAY_ALLOWED_ORIGINS = "*";
