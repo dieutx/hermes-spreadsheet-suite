@@ -150,6 +150,33 @@ function buildQualifiedRangeRef(sheet: unknown, range: unknown): string | undefi
   return `${sheet.trim()}!${range.trim()}`;
 }
 
+function parseQualifiedRangeRef(value: unknown): { sheet?: string; range?: string } | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const separatorIndex = trimmed.lastIndexOf("!");
+  if (separatorIndex < 1 || separatorIndex === trimmed.length - 1) {
+    return { range: trimmed };
+  }
+
+  const rawSheet = trimmed.slice(0, separatorIndex).trim();
+  const rawRange = trimmed.slice(separatorIndex + 1).trim();
+  const sheet = rawSheet.startsWith("'") && rawSheet.endsWith("'")
+    ? rawSheet.slice(1, -1).replace(/''/g, "'")
+    : rawSheet;
+
+  return {
+    sheet: sheet || undefined,
+    range: rawRange || undefined
+  };
+}
+
 function humanizeIdentifier(value: string): string {
   return value
     .trim()
@@ -1163,6 +1190,42 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
   return normalized;
 }
 
+function normalizeRangeFilterOperator(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value.trim();
+  const operatorAliases: Record<string, string> = {
+    equal_to: "equals",
+    equals: "equals",
+    not_equal_to: "notEquals",
+    not_equals: "notEquals",
+    notEquals: "notEquals",
+    contains: "contains",
+    starts_with: "startsWith",
+    startsWith: "startsWith",
+    ends_with: "endsWith",
+    endsWith: "endsWith",
+    greater_than: "greaterThan",
+    greaterThan: "greaterThan",
+    greater_than_or_equal_to: "greaterThanOrEqual",
+    greaterThanOrEqual: "greaterThanOrEqual",
+    less_than: "lessThan",
+    lessThan: "lessThan",
+    less_than_or_equal_to: "lessThanOrEqual",
+    lessThanOrEqual: "lessThanOrEqual",
+    is_empty: "isEmpty",
+    isEmpty: "isEmpty",
+    is_not_empty: "isNotEmpty",
+    isNotEmpty: "isNotEmpty",
+    top_n: "topN",
+    topN: "topN"
+  };
+
+  return operatorAliases[normalized] ?? value;
+}
+
 function normalizeRangeFilterPlanData(value: unknown): unknown {
   if (!isObject(value)) {
     return value;
@@ -1171,13 +1234,41 @@ function normalizeRangeFilterPlanData(value: unknown): unknown {
   const normalized: JsonRecord = { ...value };
 
   if (hasOwn(value, "conditions") && Array.isArray(value.conditions)) {
-    normalized.conditions = value.conditions.map((item) => isObject(item)
-      ? pickFields(item, ["columnRef", "operator", "value", "value2"])
-      : item);
+    normalized.conditions = value.conditions.map((item) => {
+      if (!isObject(item)) {
+        return item;
+      }
+
+      const condition = pickFields(item, ["columnRef", "operator", "value", "value2"]);
+      if (!hasOwn(condition, "columnRef")) {
+        if (hasOwn(item, "field")) {
+          condition.columnRef = item.field;
+        } else if (hasOwn(item, "column")) {
+          condition.columnRef = item.column;
+        }
+      }
+      condition.operator = normalizeRangeFilterOperator(condition.operator);
+      return condition;
+    });
   }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!normalized.combiner || typeof normalized.combiner !== "string") {
+    normalized.combiner = "and";
+  }
+
+  if (!hasOwn(normalized, "clearExistingFilters")) {
+    normalized.clearExistingFilters = true;
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
   }
 
   return normalized;
@@ -1220,8 +1311,47 @@ function normalizeDataValidationPlanData(value: unknown): unknown {
     normalized.values = [...value.values];
   }
 
+  if (!hasOwn(normalized, "values")) {
+    if (hasOwn(value, "options") && Array.isArray(value.options)) {
+      normalized.values = [...value.options];
+    } else if (hasOwn(value, "allowedValues") && Array.isArray(value.allowedValues)) {
+      normalized.values = [...value.allowedValues];
+    } else if (hasOwn(value, "listValues") && Array.isArray(value.listValues)) {
+      normalized.values = [...value.listValues];
+    }
+  }
+
+  if (normalized.ruleType === "dropdown" || normalized.ruleType === "pick_list") {
+    normalized.ruleType = "list";
+  } else if (normalized.ruleType === "integer") {
+    normalized.ruleType = "whole_number";
+  } else if (normalized.ruleType === "number") {
+    normalized.ruleType = "decimal";
+  } else if (normalized.ruleType === "formula") {
+    normalized.ruleType = "custom_formula";
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
+  }
+
+  if (!hasOwn(normalized, "allowBlank")) {
+    normalized.allowBlank = true;
+  }
+
+  if (!hasOwn(normalized, "invalidDataBehavior")) {
+    normalized.invalidDataBehavior = "reject";
+  }
+
+  if (normalized.ruleType === "list" && !hasOwn(normalized, "showDropdown")) {
+    normalized.showDropdown = true;
   }
 
   if (!hasOwn(normalized, "inputTitle") && hasOwn(value, "promptTitle")) {
@@ -1263,8 +1393,64 @@ function normalizeNamedRangeUpdateData(value: unknown): unknown {
     "overwriteRisk"
   ]);
 
+  if (typeof normalized.operation === "string") {
+    const operation = normalized.operation.trim().toLowerCase();
+    normalized.operation =
+      operation === "define" || operation === "add"
+        ? "create"
+        : operation === "update" || operation === "change_range" || operation === "set_range"
+        ? "retarget"
+        : operation === "remove"
+        ? "delete"
+        : operation;
+  }
+
+  if (!hasOwn(normalized, "scope")) {
+    normalized.scope = typeof normalized.sheetName === "string" && normalized.sheetName.trim()
+      ? "sheet"
+      : "workbook";
+  }
+
+  if (!hasOwn(normalized, "name")) {
+    if (typeof value.rangeName === "string" && value.rangeName.trim()) {
+      normalized.name = value.rangeName.trim();
+    } else if (typeof value.namedRangeName === "string" && value.namedRangeName.trim()) {
+      normalized.name = value.namedRangeName.trim();
+    } else if (typeof value.namedRange === "string" && value.namedRange.trim()) {
+      normalized.name = value.namedRange.trim();
+    }
+  }
+
+  if (!hasOwn(normalized, "newName")) {
+    if (typeof value.newRangeName === "string" && value.newRangeName.trim()) {
+      normalized.newName = value.newRangeName.trim();
+    } else if (typeof value.new_name === "string" && value.new_name.trim()) {
+      normalized.newName = value.new_name.trim();
+    }
+  }
+
+  const qualifiedRef =
+    parseQualifiedRangeRef(value.refersTo) ??
+    parseQualifiedRangeRef(value.range) ??
+    parseQualifiedRangeRef(value.target);
+  if (qualifiedRef) {
+    if (!hasOwn(normalized, "targetSheet")) {
+      normalized.targetSheet = qualifiedRef.sheet;
+    }
+    if (!hasOwn(normalized, "targetRange")) {
+      normalized.targetRange = qualifiedRef.range;
+    }
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
+  }
+
+  if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
+    const targetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    if (targetRef) {
+      normalized.affectedRanges = [targetRef];
+    }
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {
@@ -1383,12 +1569,41 @@ function normalizePivotTablePlanData(value: unknown): unknown {
     normalized.rowGroups = [...value.rowGroups];
   }
 
+  if (!hasOwn(normalized, "rowGroups") && hasOwn(value, "rows") && Array.isArray(value.rows)) {
+    normalized.rowGroups = [...value.rows];
+  }
+
   if (hasOwn(value, "columnGroups") && Array.isArray(value.columnGroups)) {
     normalized.columnGroups = [...value.columnGroups];
   }
 
+  if (!hasOwn(normalized, "columnGroups") && hasOwn(value, "columns") && Array.isArray(value.columns)) {
+    normalized.columnGroups = [...value.columns];
+  }
+
   if (hasOwn(value, "valueAggregations") && Array.isArray(value.valueAggregations)) {
     normalized.valueAggregations = value.valueAggregations.map((item) => isObject(item) ? { ...item } : item);
+  }
+
+  if (!hasOwn(normalized, "valueAggregations") && hasOwn(value, "values") && Array.isArray(value.values)) {
+    const defaultAggregation = typeof value.aggregation === "string" ? value.aggregation : undefined;
+    normalized.valueAggregations = value.values.map((item) => {
+      if (typeof item === "string") {
+        return {
+          field: item,
+          aggregation: defaultAggregation
+        };
+      }
+
+      if (isObject(item)) {
+        return {
+          ...item,
+          aggregation: typeof item.aggregation === "string" ? item.aggregation : defaultAggregation
+        };
+      }
+
+      return item;
+    });
   }
 
   if (hasOwn(value, "filters") && Array.isArray(value.filters)) {
@@ -1436,6 +1651,30 @@ function normalizeChartPlanData(value: unknown): unknown {
 
   if (hasOwn(value, "series") && Array.isArray(value.series)) {
     normalized.series = value.series.map((item) => normalizeChartSeriesValue(item));
+  }
+
+  if (!hasOwn(normalized, "sourceRange") && hasOwn(value, "dataRange")) {
+    const dataRange = parseQualifiedRangeRef(value.dataRange);
+    if (!hasOwn(normalized, "sourceSheet") && dataRange?.sheet) {
+      normalized.sourceSheet = dataRange.sheet;
+    }
+    if (dataRange?.range) {
+      normalized.sourceRange = dataRange.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "targetRange") && hasOwn(value, "insertAt")) {
+    const insertAt = parseQualifiedRangeRef(value.insertAt);
+    if (!hasOwn(normalized, "targetSheet") && insertAt?.sheet) {
+      normalized.targetSheet = insertAt.sheet;
+    }
+    if (insertAt?.range) {
+      normalized.targetRange = insertAt.range;
+    }
+  }
+
+  if (!hasOwn(normalized, "title") && hasOwn(value, "chartTitle")) {
+    normalized.title = value.chartTitle;
   }
 
   if (!hasOwn(normalized, "horizontalAxisTitle") && hasOwn(value, "xAxisTitle")) {
@@ -1540,6 +1779,77 @@ function normalizeTablePlanData(value: unknown): unknown {
   return normalized;
 }
 
+function normalizeExternalDataProvider(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return ["googlefinance", "importhtml", "importxml", "importdata"].includes(normalized)
+    ? normalized
+    : undefined;
+}
+
+function quoteSpreadsheetFormulaString(value: string): string {
+  return `"${value.replace(/"/g, "\"\"")}"`;
+}
+
+function buildGoogleFinanceFormula(query: unknown): string | undefined {
+  if (!isObject(query) || typeof query.symbol !== "string" || !query.symbol.trim()) {
+    return undefined;
+  }
+
+  const args = [
+    query.symbol,
+    query.attribute,
+    query.startDate,
+    query.endDate,
+    query.interval
+  ]
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => quoteSpreadsheetFormulaString(item.trim()));
+
+  return `=GOOGLEFINANCE(${args.join(",")})`;
+}
+
+function buildWebImportFormula(
+  provider: string,
+  sourceUrl: unknown,
+  selectorType: unknown,
+  selector: unknown
+): string | undefined {
+  if (typeof sourceUrl !== "string" || !sourceUrl.trim()) {
+    return undefined;
+  }
+
+  const quotedUrl = quoteSpreadsheetFormulaString(sourceUrl.trim());
+  if (provider === "importdata") {
+    return `=IMPORTDATA(${quotedUrl})`;
+  }
+
+  if (provider === "importhtml") {
+    if (
+      typeof selectorType !== "string" ||
+      (selectorType !== "table" && selectorType !== "list") ||
+      !(typeof selector === "number" || typeof selector === "string")
+    ) {
+      return undefined;
+    }
+
+    return `=IMPORTHTML(${quotedUrl},${quoteSpreadsheetFormulaString(selectorType)},${selector})`;
+  }
+
+  if (provider === "importxml") {
+    if (typeof selector !== "string" || !selector.trim()) {
+      return undefined;
+    }
+
+    return `=IMPORTXML(${quotedUrl},${quoteSpreadsheetFormulaString(selector.trim())})`;
+  }
+
+  return undefined;
+}
+
 function normalizeExternalDataPlanData(value: unknown): unknown {
   if (!isObject(value)) {
     return value;
@@ -1570,6 +1880,35 @@ function normalizeExternalDataPlanData(value: unknown): unknown {
       "endDate",
       "interval"
     ]);
+  }
+
+  const provider = normalizeExternalDataProvider(normalized.provider);
+  if (provider) {
+    normalized.provider = provider;
+  }
+
+  if (!normalized.sourceType && provider === "googlefinance") {
+    normalized.sourceType = "market_data";
+  } else if (
+    !normalized.sourceType &&
+    (provider === "importhtml" || provider === "importxml" || provider === "importdata")
+  ) {
+    normalized.sourceType = "web_table_import";
+  }
+
+  if (!hasOwn(normalized, "formula") && provider === "googlefinance") {
+    const formula = buildGoogleFinanceFormula(normalized.query);
+    if (formula) {
+      normalized.formula = formula;
+    }
+  } else if (
+    !hasOwn(normalized, "formula") &&
+    (provider === "importhtml" || provider === "importxml" || provider === "importdata")
+  ) {
+    const formula = buildWebImportFormula(provider, normalized.sourceUrl, normalized.selectorType, normalized.selector);
+    if (formula) {
+      normalized.formula = formula;
+    }
   }
 
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
@@ -1661,12 +2000,42 @@ function normalizeRangeTransferPlanData(value: unknown): unknown {
     "confirmationLevel"
   ]);
 
+  if (!hasOwn(normalized, "operation") && hasOwn(value, "transferOperation")) {
+    normalized.operation = value.transferOperation;
+  }
+
+  if (!hasOwn(normalized, "transpose")) {
+    normalized.transpose = false;
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
     normalized.affectedRanges = [...value.affectedRanges];
   }
 
   if (hasOwn(normalized, "overwriteRisk")) {
     normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+  } else if (normalized.operation === "move") {
+    normalized.overwriteRisk = "high";
+  } else if (normalized.operation === "append") {
+    normalized.overwriteRisk = "medium";
+  } else if (normalized.operation === "copy") {
+    normalized.overwriteRisk = "low";
+  }
+
+  if (
+    (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0)
+  ) {
+    const refs = [
+      buildQualifiedRangeRef(normalized.sourceSheet, normalized.sourceRange),
+      buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange)
+    ].filter((item): item is string => typeof item === "string" && item.length > 0);
+    if (refs.length > 0) {
+      normalized.affectedRanges = refs;
+    }
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel = normalized.operation === "move" ? "destructive" : "standard";
   }
 
   return normalized;
