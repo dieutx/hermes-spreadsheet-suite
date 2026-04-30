@@ -84,12 +84,19 @@ function getAllowedCorsOrigins(
   gatewayPublicBaseUrl: string,
   configuredOrigins: string | undefined
 ): string[] {
-  const configured = String(configuredOrigins || "")
+  const configuredValues = String(configuredOrigins || "")
     .split(",")
-    .map((value) => tryNormalizeOrigin(value))
-    .filter((value): value is string => Boolean(value));
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 
-  if (configured.length > 0) {
+  if (configuredValues.length > 0) {
+    const configured = configuredValues.map((value) => {
+      const normalized = tryNormalizeOrigin(value);
+      if (!normalized) {
+        throw new Error(`GATEWAY_ALLOWED_ORIGINS contains an invalid origin: ${value}.`);
+      }
+      return normalized;
+    });
     return [...new Set(configured)];
   }
 
