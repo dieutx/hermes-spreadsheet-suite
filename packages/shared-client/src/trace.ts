@@ -49,6 +49,23 @@ const EVENT_LABELS: Record<string, string> = {
   failed: "Failed"
 };
 
+const UNSAFE_PROOF_VALUE_PATTERN = /(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp)\/[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})[^\s]*/i;
+const PUBLIC_PROOF_IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]+$/;
+
+function safeProofValue(value: unknown, fallback = "unavailable"): string {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!normalized || normalized.length > 256 || UNSAFE_PROOF_VALUE_PATTERN.test(normalized)) {
+    return fallback;
+  }
+
+  return normalized;
+}
+
+function safeProofIdentifier(value: unknown, fallback = "unavailable"): string {
+  const normalized = safeProofValue(value, fallback);
+  return PUBLIC_PROOF_IDENTIFIER_PATTERN.test(normalized) ? normalized : fallback;
+}
+
 export function formatTraceEvent(event: HermesTraceEvent): string {
   if (event.label && event.label.trim().length > 0) {
     return event.label;
@@ -79,10 +96,10 @@ export function formatTraceTimeline(trace: HermesTraceEvent[]): string {
 export function formatProofLine(response: HermesResponse): string {
   return [
     "Processed by Hermes",
-    `requestId ${response.requestId}`,
-    `hermesRunId ${response.hermesRunId}`,
-    `service ${response.serviceLabel}`,
-    `environment ${response.environmentLabel}`,
+    `requestId ${safeProofIdentifier(response.requestId)}`,
+    `hermesRunId ${safeProofIdentifier(response.hermesRunId)}`,
+    `service ${safeProofValue(response.serviceLabel)}`,
+    `environment ${safeProofValue(response.environmentLabel)}`,
     `${response.durationMs}ms`
   ].join(" • ");
 }
