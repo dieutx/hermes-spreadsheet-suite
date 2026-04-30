@@ -591,6 +591,48 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes analysis report source and output aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "analysis_report_plan",
+      data: {
+        dataRange: "Support!A1:H50",
+        output: "sheet",
+        outputRange: "Summary!A1:F12",
+        reportSections: ["sla risk summary", "next actions"],
+        explanation: "Create a materialized support analysis report.",
+        confidence: 0.88
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "analysis_report_plan",
+      data: {
+        sourceSheet: "Support",
+        sourceRange: "A1:H50",
+        targetSheet: "Summary",
+        targetRange: "A1:F12",
+        outputMode: "materialize_report",
+        requiresConfirmation: true,
+        sections: [
+          {
+            type: "anomalies",
+            title: "Sla Risk Summary",
+            sourceRanges: ["Support!A1:H50"]
+          },
+          {
+            type: "next_actions",
+            title: "Next Actions",
+            sourceRanges: ["Support!A1:H50"]
+          }
+        ],
+        affectedRanges: ["Support!A1:H50", "Summary!A1:F12"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes data validation prompt and error-message aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "data_validation_plan",
