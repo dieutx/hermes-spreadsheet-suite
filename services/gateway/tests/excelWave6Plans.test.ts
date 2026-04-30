@@ -3158,6 +3158,100 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(pivotTable.delete).toHaveBeenCalledTimes(1);
   });
 
+  it("restores Excel table snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_table_001"],
+      executions: {
+        exec_table_001: {
+          baseExecutionId: "exec_table_001"
+        }
+      },
+      bases: {
+        exec_table_001: {
+          baseExecutionId: "exec_table_001",
+          kind: "table",
+          targetSheet: "Sales",
+          targetRange: "A1:F50",
+          tableName: "SalesTable",
+          before: {
+            exists: false,
+            name: "SalesTable"
+          },
+          after: {
+            exists: true,
+            name: "SalesTable"
+          },
+          plan: {
+            targetSheet: "Sales",
+            targetRange: "A1:F50",
+            name: "SalesTable",
+            hasHeaders: true,
+            styleName: "TableStyleMedium2",
+            showBandedRows: true,
+            showBandedColumns: false,
+            showFilterButton: true,
+            showTotalsRow: false
+          }
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "table_update",
+          operation: "table_update",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    const table = {
+      name: "SalesTable",
+      load: vi.fn(),
+      delete: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("Sales");
+              return {
+                tables: {
+                  getItem(tableName: string) {
+                    expect(tableName).toBe("SalesTable");
+                    return table;
+                  }
+                }
+              };
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_table_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(table.delete).toHaveBeenCalledTimes(1);
+  });
+
   it("renders and applies native Excel table plans", async () => {
     const table = {
       name: "",
@@ -3219,13 +3313,15 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       requestId: "req_table_preview_excel_001"
     })).toContain("Confirm Table");
 
-    await expect(taskpane.applyWritePlan({
+    const result = await taskpane.applyWritePlan({
       plan: response.data,
       requestId: "req_table_apply_excel_001",
       runId: "run_table_apply_excel_001",
       approvalToken: "token",
       executionId: "exec_table_apply_excel_001"
-    })).resolves.toMatchObject({
+    });
+
+    expect(result).toMatchObject({
       kind: "table_update",
       operation: "table_update",
       hostPlatform: "excel_windows",
@@ -3233,7 +3329,28 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       targetRange: "A1:F50",
       name: "SalesTable",
       hasHeaders: true,
-      summary: "Created table SalesTable on Sales!A1:F50."
+      summary: "Created table SalesTable on Sales!A1:F50.",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_table_apply_excel_001",
+        kind: "table",
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        tableName: "SalesTable",
+        before: {
+          exists: false,
+          name: "SalesTable"
+        },
+        after: {
+          exists: true,
+          name: "SalesTable"
+        },
+        plan: {
+          targetSheet: "Sales",
+          targetRange: "A1:F50",
+          name: "SalesTable",
+          hasHeaders: true
+        }
+      }
     });
     expect(worksheet.tables.add).toHaveBeenCalledWith(targetRange, true);
     expect(table).toMatchObject({
