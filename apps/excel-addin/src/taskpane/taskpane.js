@@ -80,6 +80,20 @@ function getDefaultGatewayBaseUrl() {
   return "http://127.0.0.1:8787";
 }
 
+function normalizeGatewayBaseUrl(value) {
+  const trimmed = String(value || "").trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:" ? trimmed : "";
+  } catch {
+    return "";
+  }
+}
+
 function generateClientUuid() {
   const cryptoObject = globalThis.crypto;
   if (cryptoObject && typeof cryptoObject.randomUUID === "function") {
@@ -101,15 +115,15 @@ function generateClientUuid() {
 function resolveGatewayBaseUrl() {
   const configuredGateway = new URLSearchParams(window.location.search).get("gateway");
   if (configuredGateway && configuredGateway.trim()) {
-    return configuredGateway.trim();
+    return normalizeGatewayBaseUrl(configuredGateway);
   }
 
   const storedGateway = safeStorageGetItem(window.localStorage, "hermesGatewayBaseUrl");
   if (storedGateway && storedGateway.trim()) {
-    return storedGateway.trim();
+    return normalizeGatewayBaseUrl(storedGateway);
   }
 
-  return getDefaultGatewayBaseUrl();
+  return normalizeGatewayBaseUrl(getDefaultGatewayBaseUrl());
 }
 
 const gatewayBaseUrl = resolveGatewayBaseUrl();
@@ -5452,6 +5466,14 @@ function assertWritebackApprovalPayload(payload) {
   }
 }
 
+function getGatewayUrl(path) {
+  if (!gatewayBaseUrl) {
+    throw new Error("Hermes gateway URL is not configured.");
+  }
+
+  return `${gatewayBaseUrl}${String(path).startsWith("/") ? path : `/${path}`}`;
+}
+
 const gateway = {
   async uploadImage(input) {
     const form = new FormData();
@@ -5459,7 +5481,7 @@ const gateway = {
     form.set("source", input.source);
     form.set("sessionId", sessionId);
     form.set("workbookId", getWorkbookIdentity());
-    const payload = await parseJson(await fetch(`${gatewayBaseUrl}/api/uploads/image`, {
+    const payload = await parseJson(await fetch(getGatewayUrl("/api/uploads/image"), {
       method: "POST",
       body: form
     }));
@@ -5467,7 +5489,7 @@ const gateway = {
   },
 
   async startRun(request) {
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/requests`, {
+    return parseJson(await fetch(getGatewayUrl("/api/requests"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(request)
@@ -5482,7 +5504,7 @@ const gateway = {
     params.set("sessionId", sessionId);
 
     return parseJson(await fetch(
-      `${gatewayBaseUrl}/api/requests/${runId}${params.size > 0 ? `?${params.toString()}` : ""}`
+      getGatewayUrl(`/api/requests/${runId}${params.size > 0 ? `?${params.toString()}` : ""}`)
     ));
   },
 
@@ -5495,11 +5517,11 @@ const gateway = {
     }
     params.set("sessionId", sessionId);
 
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/trace/${runId}?${params.toString()}`));
+    return parseJson(await fetch(getGatewayUrl(`/api/trace/${runId}?${params.toString()}`)));
   },
 
   async approveWrite(input) {
-    const payload = await parseJson(await fetch(`${gatewayBaseUrl}/api/writeback/approve`, {
+    const payload = await parseJson(await fetch(getGatewayUrl("/api/writeback/approve"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)
@@ -5509,7 +5531,7 @@ const gateway = {
   },
 
   async completeWrite(input) {
-    const payload = await parseJson(await fetch(`${gatewayBaseUrl}/api/writeback/complete`, {
+    const payload = await parseJson(await fetch(getGatewayUrl("/api/writeback/complete"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)
@@ -5519,7 +5541,7 @@ const gateway = {
   },
 
   async dryRunPlan(input) {
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/execution/dry-run`, {
+    return parseJson(await fetch(getGatewayUrl("/api/execution/dry-run"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)
@@ -5539,11 +5561,11 @@ const gateway = {
     if (input.cursor) {
       params.set("cursor", input.cursor);
     }
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/execution/history?${params.toString()}`));
+    return parseJson(await fetch(getGatewayUrl(`/api/execution/history?${params.toString()}`)));
   },
 
   async undoExecution(input) {
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/execution/undo`, {
+    return parseJson(await fetch(getGatewayUrl("/api/execution/undo"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)
@@ -5551,7 +5573,7 @@ const gateway = {
   },
 
   async prepareUndoExecution(input) {
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/execution/undo/prepare`, {
+    return parseJson(await fetch(getGatewayUrl("/api/execution/undo/prepare"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)
@@ -5559,7 +5581,7 @@ const gateway = {
   },
 
   async redoExecution(input) {
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/execution/redo`, {
+    return parseJson(await fetch(getGatewayUrl("/api/execution/redo"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)
@@ -5567,7 +5589,7 @@ const gateway = {
   },
 
   async prepareRedoExecution(input) {
-    return parseJson(await fetch(`${gatewayBaseUrl}/api/execution/redo/prepare`, {
+    return parseJson(await fetch(getGatewayUrl("/api/execution/redo/prepare"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input)

@@ -447,6 +447,25 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     );
   });
 
+  it("fails closed before fetch when the Excel gateway override is invalid or non-http", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    }));
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    }, {
+      fetchImpl: fetchMock,
+      locationSearch: "?gateway=javascript%3Aalert(1)"
+    });
+
+    await expect(taskpane.listExecutionHistory({
+      workbookSessionKey: "excel_windows::workbook-123",
+      limit: 5
+    })).rejects.toThrow("Hermes gateway URL is not configured.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("sanitizes raw text gateway failures before display in Excel", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})
