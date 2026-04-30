@@ -1127,6 +1127,74 @@ describe("Excel wave 2 plan helpers", () => {
     expect(workbookNamedRange.delete).toHaveBeenCalled();
   });
 
+  it("attaches undo snapshots for Excel named range retarget updates", async () => {
+    const workbookNamedRange = {
+      reference: "Sheet1!A1:A10",
+      name: "InputRange",
+      load: vi.fn()
+    };
+    const workbookNames = {
+      getItem: vi.fn(() => workbookNamedRange)
+    };
+    const targetRange = {
+      address: "Sheet1!B2:B20"
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange),
+      names: {
+        getItem: vi.fn()
+      }
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        },
+        names: workbookNames
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "retarget",
+        scope: "workbook",
+        name: "InputRange",
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        explanation: "Move the workbook-scoped name.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      },
+      requestId: "req_named_range_snapshot_excel_001",
+      runId: "run_named_range_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_named_range_snapshot_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "named_range_update",
+      operation: "retarget",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_named_range_snapshot_excel_001",
+        kind: "named_range",
+        scope: "workbook",
+        before: {
+          exists: true,
+          name: "InputRange",
+          reference: "Sheet1!A1:A10"
+        },
+        after: {
+          exists: true,
+          name: "InputRange",
+          reference: "Sheet1!B2:B20"
+        }
+      }
+    });
+    expect(workbookNamedRange.reference).toBe("Sheet1!B2:B20");
+  });
+
   it("fails closed when creating an Excel named range that already exists", async () => {
     const existingNamedRange = {
       isNullObject: false,
