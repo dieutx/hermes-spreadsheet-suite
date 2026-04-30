@@ -29,6 +29,13 @@ const StrictA1RangeStringSchema = z.string().min(1).max(128).refine(
   { message: "must be a valid A1 range." }
 );
 
+const StrictSingleCellA1StringSchema = z.string().min(1).max(128).refine((value) => {
+  const parsed = parseA1Range(value);
+  return parsed !== null && parsed.rows === 1 && parsed.columns === 1;
+}, {
+  message: "must be a single-cell A1 range."
+});
+
 const MAX_CONTEXT_CELL_TEXT_LENGTH = 4000;
 const MAX_CONTEXT_FORMULA_TEXT_LENGTH = 16000;
 const MAX_CONTEXT_MATRIX_ROWS = 500;
@@ -401,7 +408,7 @@ export const ChatDataSchema = strictObject({
 
 export const FormulaDataSchema = strictObject({
   intent: z.enum(["suggest", "fix", "explain", "translate"]),
-  targetCell: z.string().min(1).max(128).optional(),
+  targetCell: StrictSingleCellA1StringSchema.optional(),
   formula: z.string().min(1).max(16000),
   formulaLanguage: z.enum(["excel", "google_sheets"]),
   explanation: z.string().min(1).max(12000),
