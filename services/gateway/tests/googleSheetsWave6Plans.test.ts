@@ -199,6 +199,7 @@ function loadCodeModule(options: {
       showSidebar
     },
     uploadGatewayImageAttachment: context.uploadGatewayImageAttachment,
+    proxyGatewayJson: context.proxyGatewayJson,
     extractGatewayErrorMessage: context.extractGatewayErrorMessage_,
     sanitizeHostExecutionError: context.sanitizeHostExecutionError_,
     flush
@@ -2917,6 +2918,29 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       headers: {},
       body: { requestId: "req_proxy_001" }
     });
+  });
+
+  it("rejects non-api paths and unsafe methods in the Apps Script proxy", () => {
+    const fetch = vi.fn(() => {
+      throw new Error("Unexpected proxy fetch");
+    });
+    const code = loadCodeModule({
+      scriptProperties: {
+        HERMES_GATEWAY_URL: "https://gateway.test"
+      },
+      urlFetchApp: { fetch }
+    });
+
+    expect(() => code.proxyGatewayJson({
+      path: "/health"
+    })).toThrow("Hermes gateway proxy only supports /api/ routes.");
+
+    expect(() => code.proxyGatewayJson({
+      path: "/api/requests",
+      method: "delete"
+    })).toThrow("Hermes gateway proxy only supports GET and POST.");
+
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("preserves userAction guidance when Apps Script formats gateway errors", () => {
