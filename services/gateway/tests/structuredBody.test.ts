@@ -558,6 +558,39 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes range sort aliases and affected ranges before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_sort_plan",
+      data: {
+        sheet: "Sales",
+        range: "A1:D50",
+        header: true,
+        sortKeys: [
+          { column: "Revenue", order: "descending" },
+          { field: "Region", order: "ascending" }
+        ],
+        explanation: "Sort sales by revenue and region.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "range_sort_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:D50",
+        hasHeader: true,
+        keys: [
+          { columnRef: "Revenue", direction: "desc" },
+          { columnRef: "Region", direction: "asc" }
+        ],
+        affectedRanges: ["Sales!A1:D50"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes data validation prompt and error-message aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "data_validation_plan",
