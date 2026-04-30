@@ -1506,6 +1506,29 @@ function createChartLocalExecutionSnapshot({ executionId, chartName, targetSheet
   };
 }
 
+function createTableLocalExecutionSnapshot({ executionId, tableName, targetSheet, targetRange, plan }) {
+  if (!executionId || !tableName || !targetSheet || !targetRange || !plan) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "table",
+    targetSheet,
+    targetRange,
+    tableName,
+    before: {
+      exists: false,
+      name: tableName
+    },
+    after: {
+      exists: true,
+      name: tableName
+    },
+    plan: cloneLocalExecutionSnapshotValue(plan)
+  };
+}
+
 function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
   if (!executionId || !Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -1547,6 +1570,10 @@ function isPivotTableLocalExecutionSnapshot(snapshot) {
 
 function isChartLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "chart";
+}
+
+function isTableLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "table";
 }
 
 function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
@@ -2581,6 +2608,94 @@ async function validateChartLocalExecutionSnapshotForMode(snapshot, mode) {
   });
 }
 
+function assertTableSnapshotState(state) {
+  if (
+    !state ||
+    typeof state.exists !== "boolean" ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
+function getTableSnapshotTransitionForMode(snapshot, mode) {
+  if (
+    !snapshot ||
+    snapshot.kind !== "table" ||
+    typeof snapshot.targetSheet !== "string" ||
+    snapshot.targetSheet.trim().length === 0 ||
+    typeof snapshot.targetRange !== "string" ||
+    snapshot.targetRange.trim().length === 0 ||
+    typeof snapshot.tableName !== "string" ||
+    snapshot.tableName.trim().length === 0 ||
+    !snapshot.plan
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  assertTableSnapshotState(snapshot.before);
+  assertTableSnapshotState(snapshot.after);
+
+  return {
+    from: mode === "undo" ? snapshot.after : snapshot.before,
+    to: mode === "undo" ? snapshot.before : snapshot.after
+  };
+}
+
+async function restoreTableLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getTableSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+
+    if (transition.from.exists === true && transition.to.exists === false) {
+      const table = sheet.tables?.getItem ? sheet.tables.getItem(snapshot.tableName) : null;
+      if (!table || typeof table.delete !== "function") {
+        throw new Error("Excel host cannot restore the saved table creation.");
+      }
+
+      if (typeof table.load === "function") {
+        table.load(["name"]);
+        await context.sync();
+      }
+
+      table.delete();
+      await context.sync();
+      return;
+    }
+
+    if (transition.from.exists === false && transition.to.exists === true) {
+      await createExcelTableFromPlan(context, worksheets, snapshot.plan, snapshot.tableName);
+      return;
+    }
+
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  });
+}
+
+async function validateTableLocalExecutionSnapshotForMode(snapshot, mode) {
+  const transition = getTableSnapshotTransitionForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+
+    if (transition.from.exists === true) {
+      const table = sheet.tables?.getItem ? sheet.tables.getItem(snapshot.tableName) : null;
+      if (!table || typeof table.delete !== "function") {
+        throw new Error("Excel host cannot restore the saved table creation.");
+      }
+      return;
+    }
+
+    if (!snapshot.plan?.targetSheet || !snapshot.plan?.targetRange) {
+      throw new Error("That history entry is no longer available in this spreadsheet session.");
+    }
+  });
+}
+
 async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
   if (isCompositeLocalExecutionSnapshot(snapshot)) {
     for (const entry of getLocalExecutionSnapshotEntriesForMode(snapshot, mode)) {
@@ -2615,6 +2730,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isChartLocalExecutionSnapshot(snapshot)) {
     return restoreChartLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isTableLocalExecutionSnapshot(snapshot)) {
+    return restoreTableLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -2693,6 +2812,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isChartLocalExecutionSnapshot(snapshot)) {
     return validateChartLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isTableLocalExecutionSnapshot(snapshot)) {
+    return validateTableLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -6675,7 +6798,7 @@ function setExcelTableProperty(table, propertyName, value, supportMessage) {
   table[propertyName] = value;
 }
 
-async function applyExcelTablePlan(context, worksheets, plan, platform) {
+async function createExcelTableFromPlan(context, worksheets, plan, tableName) {
   assertExcelTablePlanSupport(plan);
 
   const worksheet = worksheets.getItem(plan.targetSheet);
@@ -6696,11 +6819,11 @@ async function applyExcelTablePlan(context, worksheets, plan, platform) {
     throw new Error("Excel host did not create a native table.");
   }
 
-  if (plan.name) {
+  if (tableName || plan.name) {
     setExcelTableProperty(
       table,
       "name",
-      plan.name,
+      tableName || plan.name,
       "Excel host does not support exact-safe table naming."
     );
   }
@@ -6741,7 +6864,19 @@ async function applyExcelTablePlan(context, worksheets, plan, platform) {
 
   await context.sync();
 
-  return {
+  return table;
+}
+
+async function applyExcelTablePlan(context, worksheets, plan, platform, executionId) {
+  const requestedTableName = typeof plan.name === "string" && plan.name.trim().length > 0
+    ? plan.name.trim()
+    : null;
+  const table = await createExcelTableFromPlan(context, worksheets, plan, requestedTableName);
+  const appliedTableName = typeof table?.name === "string" && table.name.trim().length > 0
+    ? table.name.trim()
+    : requestedTableName;
+
+  return attachLocalExecutionSnapshot({
     kind: "table_update",
     operation: "table_update",
     hostPlatform: platform,
@@ -6755,7 +6890,13 @@ async function applyExcelTablePlan(context, worksheets, plan, platform) {
     showFilterButton: plan.showFilterButton,
     showTotalsRow: plan.showTotalsRow,
     summary: getTableStatusSummary(plan)
-  };
+  }, createTableLocalExecutionSnapshot({
+    executionId,
+    tableName: appliedTableName,
+    targetSheet: plan.targetSheet,
+    targetRange: normalizeA1(plan.targetRange),
+    plan
+  }));
 }
 
 function getStructuredPreview(response) {
@@ -9942,7 +10083,7 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
     }
 
     if (isTablePlan(resolvedPlan)) {
-      return applyExcelTablePlan(context, worksheets, resolvedPlan, platform);
+      return applyExcelTablePlan(context, worksheets, resolvedPlan, platform, executionId);
     }
 
     const sheet = worksheets.getItem(plan.targetSheet);
