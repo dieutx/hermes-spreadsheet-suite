@@ -140,6 +140,10 @@ function formatRawGatewayTextFailure(status: number): string {
   return `Hermes gateway request failed with HTTP ${status}.`;
 }
 
+function encodePathSegment(value: string): string {
+  return encodeURIComponent(value);
+}
+
 export function createGatewayClient(baseUrl: string): GatewayClient {
   const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
 
@@ -182,7 +186,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
 
       return parseJson(
         await fetch(
-          `${normalizedBaseUrl}/api/requests/${runId}${params.size > 0 ? `?${params.toString()}` : ""}`
+          `${normalizedBaseUrl}/api/requests/${encodePathSegment(runId)}${params.size > 0 ? `?${params.toString()}` : ""}`
         )
       );
     },
@@ -199,7 +203,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       }
 
       return parseJson(
-        await fetch(`${normalizedBaseUrl}/api/trace/${runId}?${params.toString()}`)
+        await fetch(`${normalizedBaseUrl}/api/trace/${encodePathSegment(runId)}?${params.toString()}`)
       );
     },
 
