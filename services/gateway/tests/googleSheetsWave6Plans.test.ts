@@ -4367,6 +4367,128 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(sidebar.fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("passes Google Sheets chart snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    const plan = {
+      sourceSheet: "Sales",
+      sourceRange: "A1:C20",
+      targetSheet: "Sales Chart",
+      targetRange: "A1",
+      chartType: "line",
+      categoryField: "Month",
+      series: [{ field: "Revenue", label: "Revenue" }],
+      title: "Revenue",
+      legendPosition: "none",
+      explanation: "Chart revenue.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    };
+    const before = {
+      exists: false,
+      targetRange: "A1"
+    };
+    const after = {
+      exists: true,
+      targetRange: "A1",
+      chartId: 202
+    };
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_chart_001"],
+      executions: {
+        exec_chart_001: {
+          baseExecutionId: "exec_chart_001"
+        }
+      },
+      bases: {
+        exec_chart_001: {
+          baseExecutionId: "exec_chart_001",
+          kind: "chart",
+          targetSheet: "Sales Chart",
+          targetRange: "A1",
+          chartId: 202,
+          before,
+          after,
+          plan
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "chart_update",
+          operation: "chart_update",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_chart_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "chart",
+          targetSheet: "Sales Chart",
+          targetRange: "A1",
+          chartId: 202,
+          from: after,
+          to: before,
+          plan
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "chart",
+          targetSheet: "Sales Chart",
+          targetRange: "A1",
+          chartId: 202,
+          from: after,
+          to: before,
+          plan
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("applies Google Sheets sheet create snapshots on the server", () => {
     const createdSheet = {
       getName: vi.fn(() => "Staging"),
@@ -4461,6 +4583,87 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
 
     expect(sheets.map((sheet) => sheet.getName())).toEqual(["Template", "Summary"]);
     expect(spreadsheet.deleteSheet).toHaveBeenCalledWith(copiedSheet);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("applies Google Sheets chart snapshots on the server", () => {
+    const chart = {
+      getChartId: vi.fn(() => 202)
+    };
+    const charts = [chart];
+    const chartSheet = {
+      getCharts: vi.fn(() => [...charts]),
+      removeChart: vi.fn((removedChart: typeof chart) => {
+        const index = charts.indexOf(removedChart);
+        if (index >= 0) {
+          charts.splice(index, 1);
+        }
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sales Chart");
+        return chartSheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.validateExecutionCellSnapshot({
+      kind: "chart",
+      targetSheet: "Sales Chart",
+      targetRange: "A1",
+      chartId: 202,
+      from: {
+        exists: true,
+        targetRange: "A1",
+        chartId: 202
+      },
+      to: {
+        exists: false,
+        targetRange: "A1"
+      },
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:C20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartType: "line"
+      }
+    })).toMatchObject({
+      ok: true,
+      targetSheet: "Sales Chart",
+      targetRange: "A1"
+    });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "chart",
+      targetSheet: "Sales Chart",
+      targetRange: "A1",
+      chartId: 202,
+      from: {
+        exists: true,
+        targetRange: "A1",
+        chartId: 202
+      },
+      to: {
+        exists: false,
+        targetRange: "A1"
+      },
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:C20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartType: "line"
+      }
+    })).toMatchObject({
+      ok: true,
+      targetSheet: "Sales Chart",
+      targetRange: "A1"
+    });
+
+    expect(chartSheet.removeChart).toHaveBeenCalledWith(chart);
+    expect(charts).toEqual([]);
     expect(code.flush).toHaveBeenCalled();
   });
 
