@@ -20,6 +20,7 @@ const NULL_OPTIONAL_PATHS = new Set([
   "context.referencedCells.*.note"
 ]);
 const REQUEST_STATUS_ID_MAX_LENGTH = 128;
+const MAX_REQUEST_ID_LENGTH = 128;
 
 function isObject(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null;
@@ -203,6 +204,15 @@ function invalidRunStatusRequest() {
   };
 }
 
+function getSafeInvalidRequestId(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= MAX_REQUEST_ID_LENGTH ? trimmed : undefined;
+}
+
 function shouldIncludeResponseTrace(value: unknown): boolean {
   if (value === undefined) {
     return true;
@@ -290,8 +300,8 @@ export function createRequestRouter(input: {
     const parsed = HermesRequestSchema.safeParse(normalizedBody);
 
     if (!parsed.success) {
-      const requestId = isObject(normalizedBody) && typeof normalizedBody.requestId === "string"
-        ? normalizedBody.requestId
+      const requestId = isObject(normalizedBody)
+        ? getSafeInvalidRequestId(normalizedBody.requestId)
         : undefined;
       console.warn("[gateway] invalid Step 2 request", {
         requestId,

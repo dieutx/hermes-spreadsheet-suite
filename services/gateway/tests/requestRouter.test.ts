@@ -247,6 +247,22 @@ describe("request router", () => {
     );
   });
 
+  it("does not reflect oversized request ids from invalid request envelopes", async () => {
+    const { router } = createTestRouter();
+    const oversizedRequestId = "R".repeat(129);
+
+    const response = await invokePost(router, {
+      schemaVersion: "v1",
+      requestId: oversizedRequestId,
+      userMessage: "Explain this"
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect((response.body as any).requestId).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toContain(oversizedRequestId);
+    expect((response.body as any).error.code).toBe("INVALID_REQUEST");
+  });
+
   it("rejects non-MVP attachment types in the request envelope", async () => {
     const { router } = createTestRouter();
 
