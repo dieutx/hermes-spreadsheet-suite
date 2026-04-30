@@ -383,6 +383,21 @@ describe("shared client render helpers", () => {
     );
   });
 
+  it("fails closed before fetch when the gateway client base url is invalid or non-http", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient("javascript:alert(1)");
+
+    await expect(client.startRun({} as HermesRequest)).rejects.toThrow(
+      "Hermes gateway URL is not configured."
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("surfaces legacy string-shaped JSON errors from gateway responses", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       error: "That Hermes request is no longer available.",

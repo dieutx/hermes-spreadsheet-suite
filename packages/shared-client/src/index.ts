@@ -140,8 +140,29 @@ function formatRawGatewayTextFailure(status: number): string {
   return `Hermes gateway request failed with HTTP ${status}.`;
 }
 
+function normalizeGatewayBaseUrl(baseUrl: string): string {
+  const trimmed = String(baseUrl || "").trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:" ? trimmed : "";
+  } catch {
+    return "";
+  }
+}
+
 export function createGatewayClient(baseUrl: string): GatewayClient {
-  const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+  const normalizedBaseUrl = normalizeGatewayBaseUrl(baseUrl);
+  const gatewayUrl = (path: string): string => {
+    if (!normalizedBaseUrl) {
+      throw new Error("Hermes gateway URL is not configured.");
+    }
+
+    return `${normalizedBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+  };
 
   return {
     async uploadImage(input) {
@@ -152,7 +173,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       form.set("workbookId", input.workbookId);
 
       const payload = await parseJson<{ attachment: ImageAttachment }>(
-        await fetch(`${normalizedBaseUrl}/api/uploads/image`, {
+        await fetch(gatewayUrl("/api/uploads/image"), {
           method: "POST",
           body: form
         })
@@ -163,7 +184,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
 
     async startRun(request) {
       return parseJson(
-        await fetch(`${normalizedBaseUrl}/api/requests`, {
+        await fetch(gatewayUrl("/api/requests"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(request)
@@ -182,7 +203,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
 
       return parseJson(
         await fetch(
-          `${normalizedBaseUrl}/api/requests/${runId}${params.size > 0 ? `?${params.toString()}` : ""}`
+          gatewayUrl(`/api/requests/${runId}${params.size > 0 ? `?${params.toString()}` : ""}`)
         )
       );
     },
@@ -199,13 +220,13 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       }
 
       return parseJson(
-        await fetch(`${normalizedBaseUrl}/api/trace/${runId}?${params.toString()}`)
+        await fetch(gatewayUrl(`/api/trace/${runId}?${params.toString()}`))
       );
     },
 
     async dryRunPlan(input) {
       return parseJson(
-        await fetch(`${normalizedBaseUrl}/api/execution/dry-run`, {
+        await fetch(gatewayUrl("/api/execution/dry-run"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(input)
@@ -231,13 +252,13 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       }
 
       return parseJson(
-        await fetch(`${normalizedBaseUrl}/api/execution/history?${params.toString()}`)
+        await fetch(gatewayUrl(`/api/execution/history?${params.toString()}`))
       );
     },
 
     async undoExecution(input) {
       return parseJson(
-        await fetch(`${normalizedBaseUrl}/api/execution/undo`, {
+        await fetch(gatewayUrl("/api/execution/undo"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(input)
@@ -247,7 +268,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
 
     async prepareUndoExecution(input) {
       return parseJson(
-        await fetch(`${normalizedBaseUrl}/api/execution/undo/prepare`, {
+        await fetch(gatewayUrl("/api/execution/undo/prepare"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(input)
@@ -257,7 +278,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
 
     async redoExecution(input) {
       return parseJson(
-        await fetch(`${normalizedBaseUrl}/api/execution/redo`, {
+        await fetch(gatewayUrl("/api/execution/redo"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(input)
@@ -267,7 +288,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
 
     async prepareRedoExecution(input) {
       return parseJson(
-        await fetch(`${normalizedBaseUrl}/api/execution/redo/prepare`, {
+        await fetch(gatewayUrl("/api/execution/redo/prepare"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(input)
@@ -278,7 +299,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
     async approveWrite(input) {
       return parseContractPayload(
         await parseJson(
-          await fetch(`${normalizedBaseUrl}/api/writeback/approve`, {
+          await fetch(gatewayUrl("/api/writeback/approve"), {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(input)
@@ -292,7 +313,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
     async completeWrite(input) {
       return parseContractPayload(
         await parseJson(
-          await fetch(`${normalizedBaseUrl}/api/writeback/complete`, {
+          await fetch(gatewayUrl("/api/writeback/complete"), {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(input)
