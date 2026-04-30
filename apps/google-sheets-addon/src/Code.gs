@@ -263,7 +263,24 @@ function extractGatewayErrorMessage_(statusCode, bodyText) {
     // Fall back to the raw text when the gateway does not return JSON.
   }
 
+  if (containsSensitiveGatewayErrorText_(bodyText)) {
+    return fallback;
+  }
+
   return bodyText;
+}
+
+function containsSensitiveGatewayErrorText_(text) {
+  var value = String(text || '');
+  return (
+    /\b(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)\s*[:=]/i.test(value) ||
+    /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(value) ||
+    /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(value) ||
+    /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(value) ||
+    /(?:^|\s)[A-Za-z]:\\[^\s]+/.test(value) ||
+    /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(value) ||
+    /\b(?:stack trace|traceback)\b/i.test(value)
+  );
 }
 
 function formatUserFacingErrorText_(message, userAction) {

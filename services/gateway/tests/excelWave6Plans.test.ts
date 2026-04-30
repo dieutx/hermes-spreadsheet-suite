@@ -437,6 +437,24 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     );
   });
 
+  it("sanitizes raw text gateway failures before display in Excel", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    });
+
+    await expect(taskpane.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return "ReferenceError at /srv/hermes/services/gateway/src/app.ts:99 HERMES_API_SERVER_KEY=secret_123";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+  });
+
   it("routes natural-language undo prompts to execution control instead of sending them through the model", async () => {
     const workbookSessionId = "workbook-123";
     const workbookSessionKey = `excel_windows::${workbookSessionId}`;

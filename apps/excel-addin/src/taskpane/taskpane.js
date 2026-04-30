@@ -5344,6 +5344,8 @@ async function parseJson(response) {
             `The Hermes request was sent to a page that is not the Hermes gateway (${responseUrl}, HTTP ${response.status}).`,
             "Close Excel, reopen the add-in, and retry. If it keeps happening, clear the add-in cache and reload Hermes."
           );
+        } else if (containsSensitiveGatewayErrorText(trimmed)) {
+          message = formatRawGatewayTextFailure(response.status);
         } else {
           message = text;
         }
@@ -5353,6 +5355,23 @@ async function parseJson(response) {
   }
 
   return response.json();
+}
+
+function containsSensitiveGatewayErrorText(text) {
+  const value = String(text || "");
+  return (
+    /\b(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)\s*[:=]/i.test(value) ||
+    /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(value) ||
+    /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(value) ||
+    /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(value) ||
+    /(?:^|\s)[A-Za-z]:\\[^\s]+/.test(value) ||
+    /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(value) ||
+    /\b(?:stack trace|traceback)\b/i.test(value)
+  );
+}
+
+function formatRawGatewayTextFailure(status) {
+  return `Hermes gateway request failed with HTTP ${status}.`;
 }
 
 function assertWritebackCompletionAck(payload) {
@@ -8312,6 +8331,7 @@ export {
   trimMessageTraceEvents,
   renderMessages,
   executeWritePlanMessage,
+  parseJson as parseGatewayJsonResponse,
   undoExecution,
   getStructuredPreview,
   isWritePlanResponse
