@@ -694,4 +694,25 @@ describe("request router", () => {
     expect((response.body as any).response?.ui?.showTrace).toBe(false);
     expect((response.body as any).response?.data?.message).toBe("Done");
   });
+
+  it("sanitizes stored run errors before status polling returns them", async () => {
+    const { router, traceBus } = createTestRouter();
+    traceBus.ensureRun("run_status_error_001", "req_status_error_001", "sess_status_error_001");
+    traceBus.setError(
+      "run_status_error_001",
+      "ReferenceError stack trace /srv/hermes/internal.ts HERMES_API_SERVER_KEY=secret"
+    );
+
+    const response = await invokeGet(router, "run_status_error_001", {
+      requestId: "req_status_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect((response.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((response.body as any).error).not.toContain("HERMES_API_SERVER_KEY");
+    expect((response.body as any).error).not.toContain("/srv/hermes");
+  });
 });
