@@ -253,6 +253,15 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       "Hermes could not read the current workbook or selection.\n\n" +
       "Select a normal worksheet cell, reload the add-in, and retry. If it keeps happening, reopen the workbook in Excel and try again."
     );
+
+    expect(taskpane.sanitizeHostExecutionError(
+      new Error("Unhandled failure at /srv/hermes/services/gateway/src/routes/writeback.ts:42 client_secret=secret_123")
+    )).toBe("Write-back failed.");
+
+    expect(taskpane.sanitizeHostExecutionError(
+      new Error("Request failed at https://internal.example/api with HERMES_API_SERVER_KEY=secret_123"),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
   });
 
   it("formats gateway request issue paths into a visible request-details summary", async () => {
