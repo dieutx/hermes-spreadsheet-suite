@@ -22,10 +22,18 @@ const DryRunRequestSchema = z.object({
   plan: CompositePlanDataSchema
 });
 
+const HistoryCursorSchema = z.string()
+  .min(1)
+  .max(256)
+  .regex(/^(0|[1-9]\d*)$/)
+  .refine((value) => Number.isSafeInteger(Number(value)), {
+    message: "History cursor must be a safe integer."
+  });
+
 const HistoryQuerySchema = z.object({
   workbookSessionKey: z.string().min(1).max(256),
   sessionId: z.string().min(1).max(128).optional(),
-  cursor: z.string().min(1).max(256).regex(/^(0|[1-9]\d*)$/).optional(),
+  cursor: HistoryCursorSchema.optional(),
   limit: z.coerce.number().int().positive().max(100).optional()
 });
 
