@@ -7807,10 +7807,12 @@ function applyWritePlan(input) {
       throw new Error('Google Sheets host requires a single-cell target anchor for external data formulas.');
     }
 
+    const beforeValues = target.getValues();
+    const beforeFormulas = target.getFormulas();
     target.setFormula(plan.formula);
     SpreadsheetApp.flush();
     const appliedFormula = assertExternalDataFormulaApplied_(target, plan);
-    return {
+    return attachLocalExecutionSnapshot_({
       kind: 'external_data_update',
       hostPlatform: 'google_sheets',
       sourceType: plan.sourceType,
@@ -7829,7 +7831,15 @@ function applyWritePlan(input) {
       overwriteRisk: plan.overwriteRisk,
       confirmationLevel: plan.confirmationLevel,
       summary: getExternalDataStatusSummary_(plan)
-    };
+    }, createLocalExecutionSnapshot_({
+      executionId: input.executionId,
+      targetSheet: plan.targetSheet,
+      targetRange: plan.targetRange,
+      beforeValues: beforeValues,
+      beforeFormulas: beforeFormulas,
+      afterValues: target.getValues(),
+      afterFormulas: target.getFormulas()
+    }));
   }
 
   if (isConditionalFormatPlan_(plan)) {

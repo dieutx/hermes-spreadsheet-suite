@@ -4673,7 +4673,9 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       row: 2,
       column: 2,
       numRows: 1,
-      numColumns: 1
+      numColumns: 1,
+      values: [["previous price"]],
+      formulas: [[""]]
     });
     const sheet = {
       getRange: vi.fn((rangeA1: string) => {
@@ -4698,6 +4700,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       requestId: "req_external_data_apply_001",
       runId: "run_external_data_apply_001",
       approvalToken: "token",
+      executionId: "exec_external_data_apply_001",
       plan: {
         sourceType: "market_data",
         provider: "googlefinance",
@@ -4724,7 +4727,27 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       provider: "googlefinance",
       targetSheet: "Market Data",
       targetRange: "B2",
-      formula: '=GOOGLEFINANCE("CURRENCY:BTCUSD","price")'
+      formula: '=GOOGLEFINANCE("CURRENCY:BTCUSD","price")',
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_external_data_apply_001",
+        targetSheet: "Market Data",
+        targetRange: "B2",
+        beforeCells: [[
+          {
+            kind: "value",
+            value: {
+              type: "string",
+              value: "previous price"
+            }
+          }
+        ]],
+        afterCells: [[
+          {
+            kind: "formula",
+            formula: '=GOOGLEFINANCE("CURRENCY:BTCUSD","price")'
+          }
+        ]]
+      }
     });
     expect(targetRange.setFormula).toHaveBeenCalledWith('=GOOGLEFINANCE("CURRENCY:BTCUSD","price")');
     expect(targetRange.getFormulas()).toEqual([['=GOOGLEFINANCE("CURRENCY:BTCUSD","price")']]);
