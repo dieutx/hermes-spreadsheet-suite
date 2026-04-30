@@ -231,6 +231,19 @@
     return persistLocalExecutionSnapshot(workbookSessionKey, executionId, snapshot);
   }
 
+  function isCompositeLocalExecutionSnapshot(snapshot) {
+    return Array.isArray(snapshot && snapshot.entries) && snapshot.entries.length > 0;
+  }
+
+  function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
+    if (!isCompositeLocalExecutionSnapshot(snapshot)) {
+      return [snapshot];
+    }
+
+    const entries = snapshot.entries.filter((entry) => entry && typeof entry === "object");
+    return mode === "undo" ? [...entries].reverse() : entries;
+  }
+
   function assertLocalExecutionSnapshotStoreWritable(workbookSessionKey, snapshot, mode) {
     if (!workbookSessionKey || !snapshot || !snapshot.baseExecutionId) {
       throw new Error("That history entry is no longer available in this sheet session.");
@@ -281,6 +294,28 @@
       ...strippedResult,
       undoReady: true
     };
+  }
+
+  async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
+    const entries = getLocalExecutionSnapshotEntriesForMode(snapshot, mode);
+    for (const entry of entries) {
+      await callServer("validateExecutionCellSnapshot", {
+        targetSheet: entry.targetSheet,
+        targetRange: entry.targetRange,
+        cells: mode === "undo" ? entry.beforeCells : entry.afterCells
+      });
+    }
+  }
+
+  async function applyLocalExecutionSnapshotForMode(snapshot, mode) {
+    const entries = getLocalExecutionSnapshotEntriesForMode(snapshot, mode);
+    for (const entry of entries) {
+      await callServer("applyExecutionCellSnapshot", {
+        targetSheet: entry.targetSheet,
+        targetRange: entry.targetRange,
+        cells: mode === "undo" ? entry.beforeCells : entry.afterCells
+      });
+    }
   }
 
   const elements = {
@@ -1617,11 +1652,7 @@
       throw new Error("That history entry no longer has an exact undo snapshot in this sheet session.");
     }
 
-    await callServer("validateExecutionCellSnapshot", {
-      targetSheet: snapshot.targetSheet,
-      targetRange: snapshot.targetRange,
-      cells: snapshot.beforeCells
-    });
+    await validateLocalExecutionSnapshotForMode(snapshot, "undo");
     assertLocalExecutionSnapshotStoreWritable(workbookSessionKey, snapshot, "undo");
     const requestId = createRequestId();
     const request = {
@@ -1635,11 +1666,7 @@
       headers: { "content-type": "application/json" },
       body: request
     });
-    await callServer("applyExecutionCellSnapshot", {
-      targetSheet: snapshot.targetSheet,
-      targetRange: snapshot.targetRange,
-      cells: snapshot.beforeCells
-    });
+    await applyLocalExecutionSnapshotForMode(snapshot, "undo");
     const result = await callGatewayJson("/api/execution/undo", {
       method: "post",
       headers: { "content-type": "application/json" },
@@ -1658,11 +1685,7 @@
       throw new Error("That history entry no longer has an exact redo snapshot in this sheet session.");
     }
 
-    await callServer("validateExecutionCellSnapshot", {
-      targetSheet: snapshot.targetSheet,
-      targetRange: snapshot.targetRange,
-      cells: snapshot.afterCells
-    });
+    await validateLocalExecutionSnapshotForMode(snapshot, "redo");
     assertLocalExecutionSnapshotStoreWritable(workbookSessionKey, snapshot, "redo");
     const requestId = createRequestId();
     const request = {
@@ -1676,11 +1699,7 @@
       headers: { "content-type": "application/json" },
       body: request
     });
-    await callServer("applyExecutionCellSnapshot", {
-      targetSheet: snapshot.targetSheet,
-      targetRange: snapshot.targetRange,
-      cells: snapshot.afterCells
-    });
+    await applyLocalExecutionSnapshotForMode(snapshot, "redo");
     const result = await callGatewayJson("/api/execution/redo", {
       method: "post",
       headers: { "content-type": "application/json" },

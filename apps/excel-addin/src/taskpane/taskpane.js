@@ -816,6 +816,30 @@ function createLocalExecutionSnapshot({
   };
 }
 
+function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
+  if (!executionId || !Array.isArray(entries) || entries.length === 0) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    entries
+  };
+}
+
+function isCompositeLocalExecutionSnapshot(snapshot) {
+  return Array.isArray(snapshot?.entries) && snapshot.entries.length > 0;
+}
+
+function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
+  if (!isCompositeLocalExecutionSnapshot(snapshot)) {
+    return [snapshot];
+  }
+
+  const entries = snapshot.entries.filter((entry) => entry && typeof entry === "object");
+  return mode === "undo" ? [...entries].reverse() : entries;
+}
+
 function attachLocalExecutionSnapshot(result, snapshot) {
   if (!snapshot) {
     return result;
@@ -928,6 +952,13 @@ function prepareGatewayWritebackResult(result, executionId, workbookSessionKey) 
 }
 
 async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
+  if (isCompositeLocalExecutionSnapshot(snapshot)) {
+    for (const entry of getLocalExecutionSnapshotEntriesForMode(snapshot, mode)) {
+      await restoreLocalExecutionSnapshotForMode(entry, mode);
+    }
+    return;
+  }
+
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
   if (!snapshot?.targetSheet || !snapshot?.targetRange || !Array.isArray(cells) || cells.length === 0) {
     throw new Error("That history entry is no longer available in this spreadsheet session.");
@@ -971,6 +1002,13 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
 }
 
 async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
+  if (isCompositeLocalExecutionSnapshot(snapshot)) {
+    for (const entry of getLocalExecutionSnapshotEntriesForMode(snapshot, mode)) {
+      await validateLocalExecutionSnapshotForMode(entry, mode);
+    }
+    return;
+  }
+
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
   if (!snapshot?.targetSheet || !snapshot?.targetRange || !Array.isArray(cells) || cells.length === 0) {
     throw new Error("That history entry is no longer available in this spreadsheet session.");
@@ -7188,12 +7226,14 @@ async function applyCompositePlan({ plan, requestId, runId, approvalToken, execu
   }
 
   const stepResults = [];
+  const localSnapshots = [];
   const completedSteps = new Set();
   const failedSteps = new Set();
   const skippedSteps = new Set();
   let halted = false;
 
-  for (const step of plan.steps) {
+  for (let stepIndex = 0; stepIndex < plan.steps.length; stepIndex += 1) {
+    const step = plan.steps[stepIndex];
     if (halted) {
       stepResults.push({
         stepId: step.stepId,
@@ -7238,8 +7278,12 @@ async function applyCompositePlan({ plan, requestId, runId, approvalToken, execu
         plan: step.plan,
         requestId,
         runId,
-        approvalToken
+        approvalToken,
+        executionId: `${executionId}_${stepIndex + 1}_${step.stepId}`.slice(0, 160)
       });
+      if (result?.__hermesLocalExecutionSnapshot) {
+        localSnapshots.push(result.__hermesLocalExecutionSnapshot);
+      }
       const gatewayResult = stripLocalExecutionSnapshot(result);
       stepResults.push({
         stepId: step.stepId,
@@ -7262,7 +7306,7 @@ async function applyCompositePlan({ plan, requestId, runId, approvalToken, execu
     }
   }
 
-  return {
+  const result = {
     kind: "composite_update",
     operation: "composite_update",
     hostPlatform: detectExcelPlatform(),
@@ -7273,6 +7317,21 @@ async function applyCompositePlan({ plan, requestId, runId, approvalToken, execu
       summary: buildCompositeExecutionSummary(stepResults)
     })
   };
+  const completedStepCount = stepResults.filter((stepResult) => stepResult.status === "completed").length;
+  const canUndoComposite = plan.reversible === true &&
+    completedStepCount > 0 &&
+    completedStepCount === stepResults.length &&
+    localSnapshots.length === completedStepCount;
+
+  return canUndoComposite
+    ? attachLocalExecutionSnapshot({
+      ...result,
+      undoReady: true
+    }, createCompositeLocalExecutionSnapshot({
+      executionId,
+      entries: localSnapshots
+    }))
+    : result;
 }
 
 async function applyWritePlan({ plan, requestId, runId, approvalToken, executionId }) {

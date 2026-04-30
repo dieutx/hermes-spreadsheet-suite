@@ -3465,6 +3465,93 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(targetRange.values).toEqual([["Region", "Revenue"]]);
   });
 
+  it("attaches a composite undo snapshot when every Excel step captures a local snapshot", async () => {
+    const targetRange = {
+      rowCount: 1,
+      columnCount: 2,
+      values: [["", ""]],
+      formulas: [["", ""]],
+      load: vi.fn(),
+      getCell: vi.fn()
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        steps: [
+          {
+            stepId: "step_write",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              targetSheet: "Sales",
+              targetRange: "A1:B1",
+              operation: "replace_range",
+              values: [["Region", "Revenue"]],
+              explanation: "Write headers.",
+              confidence: 0.9,
+              requiresConfirmation: true,
+              overwriteRisk: "low",
+              shape: {
+                rows: 1,
+                columns: 2
+              }
+            }
+          }
+        ],
+        explanation: "Write headers.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:B1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: true,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      },
+      requestId: "req_composite_snapshot_excel_001",
+      runId: "run_composite_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_composite_snapshot_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "composite_update",
+      undoReady: true,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_composite_snapshot_excel_001",
+        entries: [
+          {
+            targetSheet: "Sales",
+            targetRange: "A1:B1",
+            beforeCells: [
+              [
+                { kind: "value", value: { type: "string", value: "" } },
+                { kind: "value", value: { type: "string", value: "" } }
+              ]
+            ],
+            afterCells: [
+              [
+                { kind: "value", value: { type: "string", value: "Region" } },
+                { kind: "value", value: { type: "string", value: "Revenue" } }
+              ]
+            ]
+          }
+        ]
+      }
+    });
+  });
+
   it("fails closed when a composite step appears before an unsatisfied dependency in Excel execution order", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {}),

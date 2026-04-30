@@ -3368,6 +3368,17 @@ function createLocalExecutionSnapshot_(input) {
   };
 }
 
+function createCompositeLocalExecutionSnapshot_(input) {
+  if (!input || !input.executionId || !Array.isArray(input.entries) || input.entries.length === 0) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    entries: input.entries
+  };
+}
+
 function attachLocalExecutionSnapshot_(result, snapshot) {
   if (!snapshot) {
     return result;
@@ -5009,12 +5020,13 @@ function applyCompositePlan_(input) {
   }
 
   const stepResults = [];
+  const localSnapshots = [];
   const completedSteps = {};
   const failedSteps = {};
   const skippedSteps = {};
   let halted = false;
 
-  input.plan.steps.forEach(function(step) {
+  input.plan.steps.forEach(function(step, stepIndex) {
     if (halted) {
       stepResults.push({
         stepId: step.stepId,
@@ -5058,8 +5070,12 @@ function applyCompositePlan_(input) {
         requestId: input.requestId,
         runId: input.runId,
         approvalToken: input.approvalToken,
+        executionId: (input.executionId + '_' + (stepIndex + 1) + '_' + step.stepId).slice(0, 160),
         plan: step.plan
       });
+      if (result && result.__hermesLocalExecutionSnapshot) {
+        localSnapshots.push(result.__hermesLocalExecutionSnapshot);
+      }
       const gatewayResult = stripLocalExecutionSnapshot_(result);
       stepResults.push({
         stepId: step.stepId,
@@ -5082,7 +5098,7 @@ function applyCompositePlan_(input) {
     }
   });
 
-  return {
+  const result = {
     kind: 'composite_update',
     operation: 'composite_update',
     hostPlatform: 'google_sheets',
@@ -5093,6 +5109,23 @@ function applyCompositePlan_(input) {
       summary: buildCompositeExecutionSummary_(stepResults)
     })
   };
+  const completedStepCount = stepResults.filter(function(stepResult) {
+    return stepResult.status === 'completed';
+  }).length;
+  const canUndoComposite = input.plan.reversible === true &&
+    completedStepCount > 0 &&
+    completedStepCount === stepResults.length &&
+    localSnapshots.length === completedStepCount;
+
+  return canUndoComposite
+    ? attachLocalExecutionSnapshot_(
+      Object.assign({}, result, { undoReady: true }),
+      createCompositeLocalExecutionSnapshot_({
+        executionId: input.executionId,
+        entries: localSnapshots
+      })
+    )
+    : result;
 }
 
 function applyWritePlan(input) {

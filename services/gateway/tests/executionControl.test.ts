@@ -607,25 +607,27 @@ describe("execution control routes", () => {
     });
   });
 
-  it("normalizes composite dry-run digests when the incoming plan still claims reversible execution", () => {
+  it("preserves reversible composite dry-run digests when the incoming plan supports exact undo", () => {
     const inputPlan = {
       dryRunRequired: true,
       reversible: true,
       confirmationLevel: "standard" as const,
       overwriteRisk: "none" as const,
-      affectedRanges: ["Report!A1"],
+      affectedRanges: ["Sales!A1:B1"],
       requiresConfirmation: true,
       confidence: 0.9,
-      explanation: "Create a report artifact shell.",
+      explanation: "Write a report header row.",
       steps: [
         {
           plan: {
-            position: "end" as const,
-            sheetName: "Report",
+            targetSheet: "Sales",
+            targetRange: "A1:B1",
+            operation: "replace_range" as const,
+            values: [["Region", "Revenue"]],
+            shape: { rows: 1, columns: 2 },
             confidence: 0.9,
-            explanation: "Create a report sheet.",
-            requiresConfirmation: true,
-            operation: "create_sheet" as const
+            explanation: "Write report headers.",
+            requiresConfirmation: true
           },
           continueOnError: false,
           dependsOn: [],
@@ -645,7 +647,7 @@ describe("execution control routes", () => {
 
     expect(dryRun.status).toBe(200);
     expect(dryRun.body).toMatchObject({
-      reversible: false,
+      reversible: true,
       planDigest: digestCanonicalPlan(normalizeCompositePlanForDigest(inputPlan))
     });
   });

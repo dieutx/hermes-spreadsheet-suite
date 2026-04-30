@@ -1512,6 +1512,42 @@ describe("structured body normalization", () => {
     });
   });
 
+  it("preserves explicit reversible composite plans when every child step can be snapshot-backed", () => {
+    const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
+      type: "composite_plan",
+      data: {
+        steps: [
+          {
+            stepId: "write_headers",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              targetSheet: "Sales",
+              targetRange: "A1:B1",
+              operation: "replace_range",
+              values: [["Region", "Revenue"]],
+              explanation: "Write report headers.",
+              confidence: 0.92,
+              requiresConfirmation: true,
+              shape: { rows: 1, columns: 2 }
+            }
+          }
+        ],
+        explanation: "Write the report headers.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:B1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: true,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      }
+    }));
+
+    expect(parsed.data.reversible).toBe(true);
+  });
+
   it("normalizes composite action aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "composite_plan",
