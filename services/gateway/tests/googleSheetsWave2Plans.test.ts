@@ -661,6 +661,27 @@ describe("Google Sheets wave 2 plans", () => {
       plan: {
         targetSheet: "Sheet1",
         targetRange: "B2:B20",
+        ruleType: "date",
+        comparator: "not_equal_to",
+        value: "2026-01-01",
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        explanation: "Reject a blocked reporting date.",
+        confidence: 0.87,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(setDataValidation).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: "custom_formula",
+      formula: "=AND(NOT(ISBLANK(B2)),AND(ISNUMBER(B2),B2<>DATE(2026,1,1)))",
+      allowInvalid: false
+    }));
+
+    applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
         ruleType: "text_length",
         comparator: "less_than_or_equal_to",
         value: 12,
@@ -675,6 +696,27 @@ describe("Google Sheets wave 2 plans", () => {
     expect(setDataValidation).toHaveBeenLastCalledWith(expect.objectContaining({
       kind: "text_length_less_than_or_equal_to",
       value: 12
+    }));
+
+    applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "text_length",
+        comparator: "not_equal_to",
+        value: 8,
+        allowBlank: true,
+        invalidDataBehavior: "warn",
+        explanation: "Disallow exactly eight-character codes.",
+        confidence: 0.86,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(setDataValidation).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: "custom_formula",
+      formula: "=OR(ISBLANK(B2),AND(LEN(B2)>=0,LEN(B2)<>8))",
+      allowInvalid: true
     }));
 
     applyWritePlan({
