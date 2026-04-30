@@ -751,6 +751,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
 
     await vi.advanceTimersByTimeAsync(900);
     expect(sidebar.fetch).toHaveBeenCalledTimes(1);
+    expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("sessionId=sess_");
 
     await vi.advanceTimersByTimeAsync(5000);
     expect(sidebar.fetch).toHaveBeenCalledTimes(1);
@@ -1261,6 +1262,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(sidebar.fetch).toHaveBeenCalledTimes(1);
     expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("/api/requests/run_poll_trace_gone_001");
     expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("includeTrace=0");
+    expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("sessionId=sess_");
     expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).not.toContain("/api/trace/");
     expect(message.content).toBe("Done.");
     expect(message.statusLine).not.toContain("Request failed");
@@ -1328,6 +1330,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(sidebar.fetch).toHaveBeenCalledTimes(1);
     expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("/api/requests/run_poll_quota_001");
     expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("includeTrace=0");
+    expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("sessionId=sess_");
     expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).not.toContain("/api/trace/");
     expect(message.content).toBe("Done.");
     expect(message.statusLine).not.toContain("Request failed");
@@ -1371,6 +1374,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(sidebar.fetch).toHaveBeenCalledTimes(1);
     expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("/api/requests/run_poll_no_proxy_001");
     expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("includeTrace=0");
+    expect(String(sidebar.fetch.mock.calls[0]?.[0] || "")).toContain("sessionId=sess_");
     expect(
       sidebar.callServer.mock.calls.filter((call: unknown[]) => call[0] === "proxyGatewayJson")
     ).toHaveLength(0);

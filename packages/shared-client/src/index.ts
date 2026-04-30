@@ -95,6 +95,10 @@ async function parseJson<T>(response: Response): Promise<T> {
       );
     }
 
+    if (trimmedBodyText && containsSensitiveGatewayErrorText(trimmedBodyText)) {
+      throw new Error(formatRawGatewayTextFailure(response.status));
+    }
+
     throw new Error(bodyText || `Request failed with ${response.status}`);
   }
 
@@ -118,6 +122,22 @@ function parseContractPayload<T>(
   } catch {
     throw new Error(invalidMessage);
   }
+}
+
+function containsSensitiveGatewayErrorText(text: string): boolean {
+  return (
+    /\b(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)\s*[:=]/i.test(text) ||
+    /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(text) ||
+    /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(text) ||
+    /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(text) ||
+    /(?:^|\s)[A-Za-z]:\\[^\s]+/.test(text) ||
+    /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(text) ||
+    /\b(?:stack trace|traceback)\b/i.test(text)
+  );
+}
+
+function formatRawGatewayTextFailure(status: number): string {
+  return `Hermes gateway request failed with HTTP ${status}.`;
 }
 
 export function createGatewayClient(baseUrl: string): GatewayClient {
@@ -151,10 +171,13 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       );
     },
 
-    async pollRun(runId, requestId) {
+    async pollRun(runId, requestId, sessionId) {
       const params = new URLSearchParams();
       if (requestId) {
         params.set("requestId", requestId);
+      }
+      if (sessionId) {
+        params.set("sessionId", sessionId);
       }
 
       return parseJson(
@@ -164,12 +187,15 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       );
     },
 
-    async pollTrace(runId, after = 0, requestId) {
+    async pollTrace(runId, after = 0, requestId, sessionId) {
       const params = new URLSearchParams({
         after: String(after)
       });
       if (requestId) {
         params.set("requestId", requestId);
+      }
+      if (sessionId) {
+        params.set("sessionId", sessionId);
       }
 
       return parseJson(
