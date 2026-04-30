@@ -19,7 +19,8 @@ PORT=8787
 GATEWAY_PUBLIC_BASE_URL=http://127.0.0.1:8787
 HERMES_SERVICE_LABEL=spreadsheet-gateway
 HERMES_ENVIRONMENT_LABEL=demo-review
-APPROVAL_SECRET=replace-with-a-long-random-secret
+# Required: replace with a long random value; never commit a real secret.
+APPROVAL_SECRET=<REPLACE_ME_LONG_RANDOM_SECRET>
 HERMES_AGENT_BASE_URL=http://127.0.0.1:9000
 ```
 
