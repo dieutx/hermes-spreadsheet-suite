@@ -869,6 +869,103 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes comparison aliases for validation conditional formatting and pivot filters", () => {
+    const validation = normalizeHermesStructuredBodyInput({
+      type: "data_validation_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "number",
+        comparator: "greaterThanOrEqual",
+        value: 100,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        explanation: "Require values greater than or equal to 100.",
+        confidence: 0.95,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(validation).toMatchObject({
+      type: "data_validation_plan",
+      data: {
+        ruleType: "decimal",
+        comparator: "greater_than_or_equal_to"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(validation)).not.toThrow();
+
+    const conditionalFormat = normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "C2:C20",
+        managementMode: "add",
+        ruleType: "number_compare",
+        comparator: "lessThanOrEqual",
+        value: 10,
+        style: {
+          backgroundColor: "#FDECEC"
+        },
+        explanation: "Highlight values at or below 10.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(conditionalFormat).toMatchObject({
+      type: "conditional_format_plan",
+      data: {
+        comparator: "less_than_or_equal_to"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(conditionalFormat)).not.toThrow();
+
+    const pivot = normalizeHermesStructuredBodyInput({
+      type: "pivot_table_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:E50",
+        targetSheet: "Pivot",
+        targetRange: "A1",
+        rowGroups: ["Region"],
+        valueAggregations: [
+          {
+            field: "Revenue",
+            aggregation: "sum"
+          }
+        ],
+        filters: [
+          {
+            field: "Revenue",
+            operator: "notEquals",
+            value: 0
+          }
+        ],
+        explanation: "Summarize non-zero revenue by region.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:E50", "Pivot!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(pivot).toMatchObject({
+      type: "pivot_table_plan",
+      data: {
+        filters: [
+          {
+            field: "Revenue",
+            operator: "not_equal_to",
+            value: 0
+          }
+        ]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(pivot)).not.toThrow();
+  });
+
   it("normalizes range transfer aliases and required defaults before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "range_transfer_plan",

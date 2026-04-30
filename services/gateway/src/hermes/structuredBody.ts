@@ -1193,6 +1193,49 @@ function normalizeConditionalFormatManagementModeValue(value: unknown): unknown 
   }
 }
 
+function normalizeSnakeComparatorValue(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+
+  switch (normalized) {
+    case "equal":
+    case "equals":
+    case "equal_to":
+      return "equal_to";
+    case "not_equal":
+    case "not_equals":
+    case "not_equal_to":
+      return "not_equal_to";
+    case "greater":
+    case "greater_than":
+      return "greater_than";
+    case "greater_or_equal":
+    case "greater_than_or_equal":
+    case "greater_than_or_equal_to":
+      return "greater_than_or_equal_to";
+    case "less":
+    case "less_than":
+      return "less_than";
+    case "less_or_equal":
+    case "less_than_or_equal":
+    case "less_than_or_equal_to":
+      return "less_than_or_equal_to";
+    case "between":
+      return "between";
+    case "not_between":
+      return "not_between";
+    default:
+      return value;
+  }
+}
+
 function normalizeConditionalFormatPlanData(value: unknown): unknown {
   if (!isObject(value)) {
     return value;
@@ -1311,6 +1354,10 @@ function normalizeConditionalFormatPlanData(value: unknown): unknown {
 
   if (!hasOwn(normalized, "formula") && hasOwn(value, "customFormula")) {
     normalized.formula = value.customFormula;
+  }
+
+  if (hasOwn(normalized, "comparator")) {
+    normalized.comparator = normalizeSnakeComparatorValue(normalized.comparator);
   }
 
   if (!hasOwn(normalized, "replacesExistingRules")) {
@@ -1741,6 +1788,10 @@ function normalizeDataValidationPlanData(value: unknown): unknown {
     normalized.showDropdown = true;
   }
 
+  if (hasOwn(normalized, "comparator")) {
+    normalized.comparator = normalizeSnakeComparatorValue(normalized.comparator);
+  }
+
   if (!hasOwn(normalized, "inputTitle") && hasOwn(value, "promptTitle")) {
     normalized.inputTitle = value.promptTitle;
   }
@@ -2052,7 +2103,17 @@ function normalizePivotTablePlanData(value: unknown): unknown {
   }
 
   if (hasOwn(value, "filters") && Array.isArray(value.filters)) {
-    normalized.filters = value.filters.map((item) => isObject(item) ? { ...item } : item);
+    normalized.filters = value.filters.map((item) => {
+      if (!isObject(item)) {
+        return item;
+      }
+
+      const normalizedFilter = { ...item };
+      if (hasOwn(normalizedFilter, "operator")) {
+        normalizedFilter.operator = normalizeSnakeComparatorValue(normalizedFilter.operator);
+      }
+      return normalizedFilter;
+    });
   }
 
   if (hasOwn(value, "sort") && isObject(value.sort)) {
