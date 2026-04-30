@@ -10,7 +10,8 @@ function parseAfterQuery(value: unknown): number | undefined {
     return undefined;
   }
 
-  return Number(value);
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
 function getRequestIdQueryValue(value: unknown): string | undefined {

@@ -115,6 +115,26 @@ describe("trace router", () => {
     });
   });
 
+  it("rejects trace cursors that exceed safe integer bounds", async () => {
+    const traceBus = new TraceBus();
+    traceBus.ensureRun("run_trace_large_cursor_001", "req_trace_large_cursor_001");
+    const router = createTraceRouter({ traceBus });
+
+    const response = await invokeGet(router, "run_trace_large_cursor_001", {
+      requestId: "req_trace_large_cursor_001",
+      after: String(Number.MAX_SAFE_INTEGER + 1)
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Trace cursor is invalid.",
+        userAction: "Retry the request trace from the current Hermes session."
+      }
+    });
+  });
+
   it("returns the shifted nextIndex when older trace events have been trimmed", async () => {
     const traceBus = new TraceBus({ maxEventsPerRun: 2 });
     traceBus.ensureRun("run_trace_003", "req_trace_003");
