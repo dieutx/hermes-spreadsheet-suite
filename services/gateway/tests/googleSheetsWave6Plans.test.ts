@@ -474,6 +474,10 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.sanitizeHostExecutionError(
       new Error("Request failed at https://internal.example/api with HERMES_API_SERVER_KEY=secret_123")
     )).toBe("Write-back failed.");
+
+    expect(sidebar.sanitizeHostExecutionError(
+      new Error("Writeback failed for qa_HERMES_API_SERVER_KEY")
+    )).toBe("Write-back failed.");
   });
 
   it("fails fast when Google Sheets image upload is pointed at a loopback gateway", () => {
@@ -3096,6 +3100,11 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       "ReferenceError at /srv/hermes/services/gateway/src/app.ts:99 HERMES_API_SERVER_KEY=secret_123"
     )).toBe("Hermes gateway request failed with 500.");
 
+    expect(code.extractGatewayErrorMessage(
+      500,
+      "Gateway failed for qa_HERMES_API_SERVER_KEY"
+    )).toBe("Hermes gateway request failed with 500.");
+
     await expect(hooks.parseGatewayJsonResponse({
       ok: false,
       status: 500,
@@ -3105,6 +3114,18 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       },
       async text() {
         return "ReferenceError at /srv/hermes/services/gateway/src/app.ts:99 HERMES_API_SERVER_KEY=secret_123";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return "Gateway failed for qa_HERMES_API_SERVER_KEY";
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
   });
