@@ -558,6 +558,27 @@ function hasFormulaContext(request: HermesRequest): boolean {
   ));
 }
 
+function buildPromptSafeRequest(request: HermesRequest): HermesRequest {
+  if (!request.context.attachments || request.context.attachments.length === 0) {
+    return request;
+  }
+
+  return {
+    ...request,
+    context: {
+      ...request.context,
+      attachments: request.context.attachments.map((attachment) => ({
+        id: attachment.id,
+        type: attachment.type,
+        mimeType: attachment.mimeType,
+        ...(attachment.fileName ? { fileName: attachment.fileName } : {}),
+        ...(typeof attachment.size === "number" ? { size: attachment.size } : {}),
+        source: attachment.source
+      }))
+    }
+  };
+}
+
 function hasCurrentRegionContext(request: HermesRequest): boolean {
   return typeof request.context.currentRegion?.range === "string" &&
     request.context.currentRegion.range.trim().length > 0;
@@ -999,6 +1020,6 @@ export function buildHermesSpreadsheetRequestPrompt(request: HermesRequest): str
       ? "Reviewer mode is forcing extractionMode=\"unavailable\". Never fabricate extracted_table or sheet_import_plan output. Prefer type=\"error\" with data.code=\"EXTRACTION_UNAVAILABLE\"."
       : "Never fabricate extracted_table or sheet_import_plan output when reviewer-safe unavailable mode is active.",
     "Serialized Step 2 backend request envelope JSON follows.",
-    JSON.stringify(request, null, 2)
+    JSON.stringify(buildPromptSafeRequest(request), null, 2)
   ].join("\n");
 }
