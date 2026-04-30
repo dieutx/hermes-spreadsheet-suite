@@ -747,6 +747,66 @@ describe("Excel wave 1 plan helpers", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel sheet visibility writes", async () => {
+    const worksheet = {
+      name: "Sheet1",
+      position: 0,
+      visibility: "visible"
+    };
+    const otherWorksheet = {
+      name: "Sheet2",
+      position: 1,
+      visibility: "visible"
+    };
+    const worksheets = {
+      items: [worksheet, otherWorksheet],
+      load: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "hide_sheet",
+        sheetName: "Sheet1",
+        explanation: "Hide the staging sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_hide_sheet_snapshot_excel_001",
+      runId: "run_hide_sheet_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_hide_sheet_snapshot_excel_001"
+    });
+
+    expect(worksheet.visibility).toBe("hidden");
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "hide_sheet",
+      sheetName: "Sheet1",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_hide_sheet_snapshot_excel_001",
+        kind: "workbook_structure",
+        operation: "sheet_visibility",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          visibility: "visible"
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          visibility: "hidden"
+        }
+      }
+    });
+  });
+
   it("fails closed when Excel cannot expose freeze pane operations", async () => {
     const worksheet = {
       getRangeByIndexes: vi.fn(() => ({ address: "Sheet1!B2" })),
