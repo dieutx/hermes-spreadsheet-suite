@@ -60,6 +60,42 @@ describe("TraceBus", () => {
     expect(event.details).not.toHaveProperty("sheet");
   });
 
+  it("sanitizes embedded secret markers in optional trace metadata", () => {
+    const bus = new TraceBus();
+
+    bus.append("run_embedded_trace", {
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      label: "Result_HERMES_API_SERVER_KEY",
+      skillName: "SelectionExplainerSkill",
+      toolName: "Tool_APPROVAL_SECRET",
+      providerLabel: "Gateway provider",
+      details: {
+        range: "A1:B2_HERMES_AGENT_BASE_URL",
+        sheet: "Budget",
+        attachmentId: "att_public_001",
+        mode: "demo"
+      }
+    });
+
+    const [event] = bus.list("run_embedded_trace", 0);
+
+    expect(event).toMatchObject({
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      skillName: "SelectionExplainerSkill",
+      providerLabel: "Gateway provider",
+      details: {
+        sheet: "Budget",
+        attachmentId: "att_public_001",
+        mode: "demo"
+      }
+    });
+    expect(event).not.toHaveProperty("label");
+    expect(event).not.toHaveProperty("toolName");
+    expect(event.details).not.toHaveProperty("range");
+  });
+
   it("keeps requestId, hermesRunId, and the validated final response together", () => {
     const bus = new TraceBus();
     bus.ensureRun("run_2", "req_2");
