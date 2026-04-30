@@ -649,6 +649,141 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     ]);
   });
 
+  it("attaches composite undo snapshots for Excel value move transfers", async () => {
+    const sourceRange = createRangeStub({
+      address: "RawData!A2:B3",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["Ada", "Lovelace"],
+        ["Grace", "Hopper"]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ]
+    });
+    sourceRange.clear = vi.fn(() => {
+      sourceRange.values = [
+        ["", ""],
+        ["", ""]
+      ];
+      sourceRange.formulas = [
+        ["", ""],
+        ["", ""]
+      ];
+    });
+
+    const targetRange = createRangeStub({
+      address: "Archive!D5:E6",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["Old", "Target"],
+        ["Keep", "Safe"]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ]
+    });
+
+    const worksheets = {
+      getItem: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return {
+            getRange: vi.fn((rangeName: string) => {
+              expect(rangeName).toBe("A2:B3");
+              return sourceRange;
+            })
+          };
+        }
+
+        expect(sheetName).toBe("Archive");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("D5:E6");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Archive",
+        targetRange: "D5:E6",
+        operation: "move",
+        pasteMode: "values",
+        transpose: false,
+        explanation: "Move finalized rows into the archive sheet.",
+        confidence: 0.95,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Archive!D5:E6"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_range_transfer_move_undo_excel_001",
+      runId: "run_range_transfer_move_undo_excel_001",
+      approvalToken: "token",
+      executionId: "exec_range_transfer_move_undo_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Archive",
+      targetRange: "D5:E6",
+      transferOperation: "move",
+      pasteMode: "values",
+      transpose: false,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_move_undo_excel_001",
+        entries: [
+          {
+            baseExecutionId: "exec_range_transfer_move_undo_excel_001",
+            targetSheet: "RawData",
+            targetRange: "A2:B3",
+            beforeCells: [
+              [{ kind: "value", value: { type: "string", value: "Ada" } }, { kind: "value", value: { type: "string", value: "Lovelace" } }],
+              [{ kind: "value", value: { type: "string", value: "Grace" } }, { kind: "value", value: { type: "string", value: "Hopper" } }]
+            ],
+            afterCells: [
+              [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }],
+              [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+            ]
+          },
+          {
+            baseExecutionId: "exec_range_transfer_move_undo_excel_001",
+            targetSheet: "Archive",
+            targetRange: "D5:E6",
+            beforeCells: [
+              [{ kind: "value", value: { type: "string", value: "Old" } }, { kind: "value", value: { type: "string", value: "Target" } }],
+              [{ kind: "value", value: { type: "string", value: "Keep" } }, { kind: "value", value: { type: "string", value: "Safe" } }]
+            ],
+            afterCells: [
+              [{ kind: "value", value: { type: "string", value: "Ada" } }, { kind: "value", value: { type: "string", value: "Lovelace" } }],
+              [{ kind: "value", value: { type: "string", value: "Grace" } }, { kind: "value", value: { type: "string", value: "Hopper" } }]
+            ]
+          }
+        ]
+      }
+    });
+    expect(sourceRange.clear).toHaveBeenCalledTimes(1);
+    expect(targetRange.values).toEqual([
+      ["Ada", "Lovelace"],
+      ["Grace", "Hopper"]
+    ]);
+  });
+
   it("attaches an undo snapshot for exact-safe Excel copy transfers", async () => {
     const sourceRange = createRangeStub({
       address: "RawData!A2:B3",
