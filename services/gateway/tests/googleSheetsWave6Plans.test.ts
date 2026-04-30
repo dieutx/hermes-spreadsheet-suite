@@ -4840,7 +4840,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     };
     const code = loadCodeModule({ spreadsheet });
 
-    expect(code.applyWritePlan({
+    const result = code.applyWritePlan({
       requestId: "req_table_apply_google_001",
       runId: "run_table_apply_google_001",
       approvalToken: "token",
@@ -4861,7 +4861,9 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    })).toMatchObject({
+    });
+
+    expect(result).toMatchObject({
       kind: "table_update",
       operation: "table_update",
       hostPlatform: "google_sheets",
@@ -4871,6 +4873,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       hasHeaders: true,
       summary: "Formatted table-like range SalesTable on Sales!A1:F50."
     });
+    expect(result).not.toHaveProperty("__hermesLocalExecutionSnapshot");
     expect(targetRange.applyRowBanding).toHaveBeenCalledTimes(1);
     expect(targetRange.createFilter).toHaveBeenCalledTimes(1);
     expect(spreadsheet.setNamedRange).toHaveBeenCalledWith("SalesTable", targetRange);
@@ -4932,8 +4935,129 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       targetSheet: "Sales",
       targetRange: "A1:F50",
       name: "SalesTable",
-      hasHeaders: true
+      hasHeaders: true,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_table_apply_google_002",
+        kind: "named_range",
+        scope: "workbook",
+        before: {
+          exists: false,
+          name: "SalesTable"
+        },
+        after: {
+          exists: true,
+          name: "SalesTable",
+          targetSheet: "Sales",
+          targetRange: "A1:F50"
+        }
+      }
     });
+    expect(spreadsheet.setNamedRange).toHaveBeenCalledWith("SalesTable", targetRange);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("attaches composite undo snapshots for Google Sheets table-like range names and filters", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6
+    });
+    let currentFilter: Record<string, unknown> | null = null;
+    const filter = {
+      getRange: vi.fn(() => targetRange),
+      getColumnFilterCriteria: vi.fn(() => null)
+    };
+    targetRange.createFilter = vi.fn(() => {
+      currentFilter = filter;
+      return filter;
+    });
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("A1:F50");
+        return targetRange;
+      }),
+      getFilter: vi.fn(() => currentFilter)
+    };
+    const spreadsheet = {
+      getNamedRanges: vi.fn(() => []),
+      getId() {
+        return "sheet-123";
+      },
+      setNamedRange: vi.fn(),
+      getSheetByName(name: string) {
+        if (name === "Sales") {
+          return sheet;
+        }
+        return null;
+      }
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyWritePlan({
+      requestId: "req_table_apply_google_filter_snapshot",
+      runId: "run_table_apply_google_filter_snapshot",
+      approvalToken: "token",
+      executionId: "exec_table_apply_google_filter_snapshot",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        showFilterButton: true,
+        explanation: "Create a named table-like range with a header filter.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    })).toMatchObject({
+      kind: "table_update",
+      operation: "table_update",
+      hostPlatform: "google_sheets",
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      name: "SalesTable",
+      hasHeaders: true,
+      showFilterButton: true,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_table_apply_google_filter_snapshot",
+        entries: [
+          {
+            baseExecutionId: "exec_table_apply_google_filter_snapshot",
+            kind: "named_range",
+            scope: "workbook",
+            before: {
+              exists: false,
+              name: "SalesTable"
+            },
+            after: {
+              exists: true,
+              name: "SalesTable",
+              targetSheet: "Sales",
+              targetRange: "A1:F50"
+            }
+          },
+          {
+            baseExecutionId: "exec_table_apply_google_filter_snapshot",
+            kind: "range_filter",
+            targetSheet: "Sales",
+            targetRange: "A1:F50",
+            beforeFilter: {
+              exists: false
+            },
+            afterFilter: {
+              exists: true,
+              targetRange: "A1:F50",
+              criteria: [null, null, null, null, null, null]
+            }
+          }
+        ]
+      }
+    });
+    expect(targetRange.createFilter).toHaveBeenCalledTimes(1);
     expect(spreadsheet.setNamedRange).toHaveBeenCalledWith("SalesTable", targetRange);
     expect(code.flush).toHaveBeenCalled();
   });

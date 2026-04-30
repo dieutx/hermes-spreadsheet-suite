@@ -1959,7 +1959,7 @@ function preflightGoogleSheetsTablePlanExecution_(spreadsheet, targetRange, plan
   }
 }
 
-function applyTablePlan_(spreadsheet, plan) {
+function applyTablePlan_(spreadsheet, plan, executionId) {
   validateGoogleSheetsTablePlanSupport_(plan);
   const sheet = spreadsheet.getSheetByName(plan.targetSheet);
 
@@ -1969,6 +1969,18 @@ function applyTablePlan_(spreadsheet, plan) {
 
   const targetRange = sheet.getRange(plan.targetRange);
   preflightGoogleSheetsTablePlanExecution_(spreadsheet, targetRange, plan);
+
+  const tableSnapshots = [];
+  const canSnapshotTableMetadata = executionId &&
+    plan.showBandedRows !== true &&
+    plan.showBandedColumns !== true;
+  const tableName = typeof plan.name === 'string' ? plan.name.trim() : '';
+  const beforeNamedRange = canSnapshotTableMetadata && tableName
+    ? readNamedRangeStateForSnapshot_(findNamedRange_(spreadsheet, tableName), tableName)
+    : null;
+  const beforeFilter = canSnapshotTableMetadata && plan.showFilterButton === true
+    ? readRangeFilterStateForSnapshot_(sheet, targetRange)
+    : null;
 
   if (typeof plan.name === 'string' && plan.name.trim()) {
     spreadsheet.setNamedRange(plan.name, targetRange);
@@ -1994,7 +2006,32 @@ function applyTablePlan_(spreadsheet, plan) {
 
   SpreadsheetApp.flush();
 
-  return {
+  if (canSnapshotTableMetadata && beforeNamedRange) {
+    const namedRangeSnapshot = createNamedRangeLocalExecutionSnapshot_({
+      executionId: executionId,
+      scope: 'workbook',
+      before: beforeNamedRange,
+      after: createNamedRangeStateForTarget_(tableName, plan.targetSheet, plan.targetRange)
+    });
+    if (namedRangeSnapshot) {
+      tableSnapshots.push(namedRangeSnapshot);
+    }
+  }
+
+  if (canSnapshotTableMetadata && beforeFilter) {
+    const filterSnapshot = createRangeFilterLocalExecutionSnapshot_({
+      executionId: executionId,
+      targetSheet: plan.targetSheet,
+      targetRange: plan.targetRange,
+      beforeFilter: beforeFilter,
+      afterFilter: readRangeFilterStateForSnapshot_(sheet, targetRange)
+    });
+    if (filterSnapshot) {
+      tableSnapshots.push(filterSnapshot);
+    }
+  }
+
+  return attachLocalExecutionSnapshot_({
     kind: 'table_update',
     operation: 'table_update',
     hostPlatform: 'google_sheets',
@@ -2007,7 +2044,12 @@ function applyTablePlan_(spreadsheet, plan) {
     showFilterButton: plan.showFilterButton,
     showTotalsRow: plan.showTotalsRow,
     summary: getTableStatusSummary_(plan)
-  };
+  }, tableSnapshots.length === 1
+    ? tableSnapshots[0]
+    : createCompositeLocalExecutionSnapshot_({
+      executionId: executionId,
+      entries: tableSnapshots
+    }));
 }
 
 function buildCellContext_(cell) {
@@ -7303,7 +7345,7 @@ function applyWritePlan(input) {
   }
 
   if (isTablePlan_(plan)) {
-    return applyTablePlan_(spreadsheet, plan);
+    return applyTablePlan_(spreadsheet, plan, input.executionId);
   }
 
   if (isWorkbookStructurePlan_(plan)) {
