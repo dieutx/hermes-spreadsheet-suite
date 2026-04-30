@@ -706,6 +706,42 @@ describe("request router", () => {
     });
   });
 
+  it("rejects unsafe request status identifiers without echoing sensitive substrings", async () => {
+    const { router, traceBus } = createTestRouter();
+    traceBus.ensureRun("run_status_safe_001", "req_status_safe_001", "sess_status_safe_001");
+
+    const unsafeRunId = await invokeGet(router, "run_status_HERMES_API_SERVER_KEY=secret", {
+      requestId: "req_status_safe_001",
+      sessionId: "sess_status_safe_001"
+    });
+    expect(unsafeRunId.statusCode).toBe(400);
+    expect(unsafeRunId.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Run status identifiers are invalid.",
+        userAction: "Retry status polling from the current Hermes session."
+      }
+    });
+    expect(JSON.stringify(unsafeRunId.body)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify(unsafeRunId.body)).not.toContain("secret");
+
+    const unsafeQueryIds = await invokeGet(router, "run_status_safe_001", {
+      requestId: "req_status_HERMES_API_SERVER_KEY=secret",
+      sessionId: "sess_status_APP_SECRET=secret"
+    });
+    expect(unsafeQueryIds.statusCode).toBe(400);
+    expect(unsafeQueryIds.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Run status identifiers are invalid.",
+        userAction: "Retry status polling from the current Hermes session."
+      }
+    });
+    expect(JSON.stringify(unsafeQueryIds.body)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify(unsafeQueryIds.body)).not.toContain("APP_SECRET");
+    expect(JSON.stringify(unsafeQueryIds.body)).not.toContain("secret");
+  });
+
   it("can omit response trace from stored run payloads when includeTrace=0 is requested", async () => {
     const { router, traceBus } = createTestRouter();
     traceBus.setResponse("run_status_trimmed_001", {
