@@ -1824,7 +1824,8 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       kind: "data_cleanup_update",
       operation: "split_column",
       targetSheet: "Contacts",
-      targetRange: "A2:C4"
+      targetRange: "A2:C4",
+      targetStartColumn: "B"
     });
     expect(targetRange.setValues).toHaveBeenCalledWith([
       [
@@ -1889,7 +1890,8 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       kind: "data_cleanup_update",
       operation: "join_columns",
       targetSheet: "Contacts",
-      targetRange: "A2:C4"
+      targetRange: "A2:C4",
+      targetColumn: "C"
     });
     expect(targetRange.setValues).toHaveBeenCalledWith([
       ["=A1", "Lovelace", '=TEXTJOIN(" ", FALSE, A1, "Lovelace")'],
