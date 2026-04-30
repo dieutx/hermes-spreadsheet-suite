@@ -69,6 +69,8 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("If you would naturally say none, emit hidden.");
     expect(prompt).toContain("range_transfer_plan: limited");
     expect(prompt).toContain("Supported pasteMode values: values, formulas, formats.");
+    expect(prompt).toContain("range_format_update: supported");
+    expect(prompt).toContain("Supported static formatting fields");
     expect(prompt).toContain("normalize_case only supports upper, lower, title, and sentence.");
     expect(prompt).toContain("named_range_update: limited");
     expect(prompt).toContain("external_data_plan: limited");
@@ -109,6 +111,8 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("note_writes: unsupported");
     expect(prompt).toContain("external_data_plan: unsupported");
     expect(prompt).toContain("Do not emit external_data_plan on Excel hosts.");
+    expect(prompt).toContain("range_format_update: supported");
+    expect(prompt).toContain("Supported static formatting fields");
     expect(prompt).toContain("Repeated conditions on the same column are exact-safe only when exactly two custom criteria can be combined with AND.");
   });
 
