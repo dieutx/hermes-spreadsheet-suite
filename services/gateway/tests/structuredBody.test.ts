@@ -433,6 +433,52 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes sheet import row-matrix aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "sheet_import_plan",
+      data: {
+        attachmentId: "att_200",
+        sheet: "Imported",
+        range: "A1:C3",
+        rows: [
+          ["Date", "Amount", "Region"],
+          ["2026-04-01", 15.5, "North"],
+          ["2026-04-02", 9, "South"]
+        ],
+        confidence: 0.88,
+        warnings: ["OCR column alignment is approximate."],
+        requiresConfirmation: true,
+        mode: "real"
+      }
+    });
+
+    expect(normalized).toEqual({
+      type: "sheet_import_plan",
+      data: {
+        sourceAttachmentId: "att_200",
+        targetSheet: "Imported",
+        targetRange: "A1:C3",
+        headers: ["Date", "Amount", "Region"],
+        values: [
+          ["2026-04-01", 15.5, "North"],
+          ["2026-04-02", 9, "South"]
+        ],
+        confidence: 0.88,
+        warnings: [
+          {
+            code: "MODEL_WARNING",
+            message: "OCR column alignment is approximate.",
+            severity: "warning"
+          }
+        ],
+        requiresConfirmation: true,
+        extractionMode: "real",
+        shape: { rows: 3, columns: 3 }
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("synthesizes external data formulas from provider fields before validation", () => {
     const marketData = normalizeHermesStructuredBodyInput({
       type: "external_data_plan",
