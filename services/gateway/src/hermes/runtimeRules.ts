@@ -282,7 +282,7 @@ For type="range_transfer_plan":
 - data.sourceSheet is required
 - data.sourceRange is required
 - data.targetSheet is required
-- data.targetRange is required and must be the full destination rectangle or A1 anchor that resolves to the full destination rectangle
+- data.targetRange is required and must be the full destination rectangle, never just an anchor cell
 - data.operation is required and must be copy, move, or append
 - data.pasteMode is required
 - data.transpose is required
@@ -295,7 +295,7 @@ For type="range_transfer_plan":
 - range_transfer_plan is for copy, move, append, and transpose-style transfer requests and is distinct from sheet_update
 - move transfer plans require data.confirmationLevel="destructive"
 - copy and append transfer plans require data.confirmationLevel="standard"
-- if the user only identifies the target sheet, target-sheet-only transfer defaults to data.targetRange="A1"
+- if the user only identifies the target sheet and the full destination rectangle cannot be resolved, return type="error" with data.code="UNSUPPORTED_OPERATION"; do not default data.targetRange to A1
 - if source/target overlap ambiguity cannot be resolved exactly, return type="error" with data.code="UNSUPPORTED_OPERATION"
 - overlap ambiguity must fail closed
 

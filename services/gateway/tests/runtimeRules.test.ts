@@ -70,12 +70,14 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('For type="range_transfer_plan"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('For type="data_cleanup_plan"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain(
-      "data.targetRange is required and must be the full destination rectangle or A1 anchor"
+      "data.targetRange is required and must be the full destination rectangle"
     );
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("do not default data.targetRange to A1");
+    expect(SPREADSHEET_RUNTIME_RULES).not.toContain("full destination rectangle or A1 anchor");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("distinct from sheet_update");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('move transfer plans require data.confirmationLevel="destructive"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('destructive cleanup operations require data.confirmationLevel="destructive"');
-    expect(SPREADSHEET_RUNTIME_RULES).toContain('target-sheet-only transfer defaults to data.targetRange="A1"');
+    expect(SPREADSHEET_RUNTIME_RULES).not.toContain('target-sheet-only transfer defaults to data.targetRange="A1"');
   });
 
   it("documents unsupported fuzzy cleanup and overlap ambiguity as fail-closed unsupported operations", () => {

@@ -829,7 +829,12 @@ describe("Hermes spreadsheet request prompt", () => {
 
     for (const prompt of prompts) {
       expect(prompt).toContain('Prefer type="range_transfer_plan"');
-      expect(prompt).toContain("data.targetRange is required and must be the full destination rectangle or A1 anchor");
+      expect(prompt).toContain("data.targetRange is required and must be the full destination rectangle");
+      expect(prompt).toContain("do not default data.targetRange to A1");
+      expect(prompt).not.toContain("full destination rectangle or A1 anchor");
+      expect(prompt).not.toContain(
+        "If the target sheet is known but no target range is specified by the user, default data.targetRange to A1"
+      );
     }
   });
 
