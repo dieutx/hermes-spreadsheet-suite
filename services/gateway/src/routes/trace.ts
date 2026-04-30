@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { TraceBus } from "../lib/traceBus.js";
 
 const TRACE_ID_MAX_LENGTH = 128;
+const PUBLIC_TRACE_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
 
 function parseAfterQuery(value: unknown): number | undefined {
   if (value === undefined) {
@@ -22,7 +23,11 @@ function parseRequiredTraceIdentifier(value: unknown): string | undefined {
   }
 
   const normalized = value.trim();
-  if (normalized.length === 0 || normalized.length > TRACE_ID_MAX_LENGTH) {
+  if (
+    normalized.length === 0 ||
+    normalized.length > TRACE_ID_MAX_LENGTH ||
+    !PUBLIC_TRACE_ID_PATTERN.test(normalized)
+  ) {
     return undefined;
   }
 
@@ -43,7 +48,10 @@ function parseOptionalTraceIdentifier(value: unknown): { ok: true; value?: strin
     return { ok: true };
   }
 
-  if (normalized.length > TRACE_ID_MAX_LENGTH) {
+  if (
+    normalized.length > TRACE_ID_MAX_LENGTH ||
+    !PUBLIC_TRACE_ID_PATTERN.test(normalized)
+  ) {
     return { ok: false };
   }
 

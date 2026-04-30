@@ -134,6 +134,44 @@ describe("trace router", () => {
     });
   });
 
+  it("rejects unsafe trace identifiers without echoing sensitive substrings", async () => {
+    const traceBus = new TraceBus();
+    traceBus.ensureRun("run_trace_safe_001", "req_trace_safe_001");
+    (traceBus.peekRun("run_trace_safe_001") as any).sessionId = "sess_trace_safe_001";
+    const router = createTraceRouter({ traceBus });
+
+    const unsafeRunId = await invokeGet(router, "run_trace_HERMES_API_SERVER_KEY=secret", {
+      requestId: "req_trace_safe_001",
+      sessionId: "sess_trace_safe_001"
+    });
+    expect(unsafeRunId.statusCode).toBe(400);
+    expect(unsafeRunId.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Trace identifiers are invalid.",
+        userAction: "Retry the request trace from the current Hermes session."
+      }
+    });
+    expect(JSON.stringify(unsafeRunId.body)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify(unsafeRunId.body)).not.toContain("secret");
+
+    const unsafeQueryIds = await invokeGet(router, "run_trace_safe_001", {
+      requestId: "req_trace_HERMES_API_SERVER_KEY=secret",
+      sessionId: "sess_trace_APP_SECRET=secret"
+    });
+    expect(unsafeQueryIds.statusCode).toBe(400);
+    expect(unsafeQueryIds.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Trace identifiers are invalid.",
+        userAction: "Retry the request trace from the current Hermes session."
+      }
+    });
+    expect(JSON.stringify(unsafeQueryIds.body)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify(unsafeQueryIds.body)).not.toContain("APP_SECRET");
+    expect(JSON.stringify(unsafeQueryIds.body)).not.toContain("secret");
+  });
+
   it("rejects malformed trace cursors instead of coercing them through Number()", async () => {
     const traceBus = new TraceBus();
     traceBus.ensureRun("run_trace_002", "req_trace_002");
