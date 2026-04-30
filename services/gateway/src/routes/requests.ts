@@ -22,6 +22,7 @@ const NULL_OPTIONAL_PATHS = new Set([
 const REQUEST_STATUS_ID_MAX_LENGTH = 128;
 const MAX_REQUEST_ID_LENGTH = 128;
 const PUBLIC_REQUEST_STATUS_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
+const PUBLIC_REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
 
 function isObject(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null;
@@ -218,7 +219,11 @@ function getSafeInvalidRequestId(value: unknown): string | undefined {
   }
 
   const trimmed = value.trim();
-  return trimmed.length > 0 && trimmed.length <= MAX_REQUEST_ID_LENGTH ? trimmed : undefined;
+  return trimmed.length > 0 &&
+    trimmed.length <= MAX_REQUEST_ID_LENGTH &&
+    PUBLIC_REQUEST_ID_PATTERN.test(trimmed)
+    ? trimmed
+    : undefined;
 }
 
 function shouldIncludeResponseTrace(value: unknown): boolean {

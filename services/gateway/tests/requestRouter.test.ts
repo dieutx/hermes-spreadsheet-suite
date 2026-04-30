@@ -263,6 +263,23 @@ describe("request router", () => {
     expect((response.body as any).error.code).toBe("INVALID_REQUEST");
   });
 
+  it("does not reflect unsafe request ids from invalid request envelopes", async () => {
+    const { router } = createTestRouter();
+    const unsafeRequestId = "req_HERMES_API_SERVER_KEY=secret_123";
+
+    const response = await invokePost(router, {
+      schemaVersion: "v1",
+      requestId: unsafeRequestId,
+      userMessage: "Explain this"
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect((response.body as any).requestId).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify(response.body)).not.toContain("secret_123");
+    expect((response.body as any).error.code).toBe("INVALID_REQUEST");
+  });
+
   it("rejects non-MVP attachment types in the request envelope", async () => {
     const { router } = createTestRouter();
 
