@@ -301,6 +301,28 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         confirmationLevel: "standard"
       }
     };
+    const unsupportedChartTargetResponse = {
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:C20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1:D8",
+        chartType: "line",
+        categoryField: "Month",
+        series: [
+          { field: "Revenue", label: "Gross Revenue" }
+        ],
+        title: "Revenue",
+        legendPosition: "bottom",
+        explanation: "Chart monthly revenue.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:C20", "Sales Chart!A1:D8"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
     const unsupportedPivotSortResponse = {
       type: "pivot_table_plan",
       data: {
@@ -396,6 +418,14 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
     expect(chartHtml).toContain("Will create a line chart on Sales Chart!A1.");
     expect(chartHtml).toContain("Confirm Chart");
     expect(chartHtml).not.toContain("can't create charts safely yet");
+
+    expect(taskpane.isWritePlanResponse(unsupportedChartTargetResponse)).toBe(false);
+    const unsupportedChartTargetHtml = taskpane.renderStructuredPreview(unsupportedChartTargetResponse, {
+      runId: "run_chart_target_preview",
+      requestId: "req_chart_target_preview"
+    });
+    expect(unsupportedChartTargetHtml).toContain("This Excel runtime requires a single-cell target anchor for charts.");
+    expect(unsupportedChartTargetHtml).not.toContain("Confirm Chart");
   });
 
   it("applies a materialized analysis report in Excel using the same resolved plan sent for approval", async () => {

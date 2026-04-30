@@ -1,10 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   allowPrivateNetworkPreflight,
   createApp,
   handleGatewayAppError,
   isCorsOriginAllowed
 } from "../src/app.ts";
+
+beforeEach(() => {
+  process.env.APPROVAL_SECRET = "test-approval-secret";
+});
+
+afterEach(() => {
+  delete process.env.APPROVAL_SECRET;
+});
 
 describe("gateway app", () => {
   it("allows private-network preflight only for allowed origins", () => {
