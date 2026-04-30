@@ -881,6 +881,16 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("public website-table imports into Google Sheets");
   });
 
+  it("keeps advisory external-data how-to prompts on the chat path", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Explain how to use IMPORTHTML to import a website table."
+    }));
+
+    expect(prompt).toContain('Prefer type="chat"');
+    expect(prompt).not.toContain('Prefer type="external_data_plan"');
+    expect(prompt).not.toContain("This request explicitly asks for a spreadsheet change.");
+  });
+
   it("includes exact chart, report, conditional-format, and cleanup contract hints for local-brain planning", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "Create a management summary, highlight SLA risks, and chart spend versus revenue."
