@@ -103,6 +103,39 @@ function loadCodeModule(options: {
         WRAP: "WRAP",
         CLIP: "CLIP",
         OVERFLOW: "OVERFLOW"
+      },
+      DataValidationCriteria: {
+        VALUE_IN_LIST: "VALUE_IN_LIST",
+        NUMBER_BETWEEN: "NUMBER_BETWEEN"
+      },
+      newDataValidation() {
+        let criteriaType: unknown = null;
+        let criteriaValues: unknown[] = [];
+        let allowInvalid: boolean | undefined;
+        let helpText: string | null | undefined;
+        return {
+          withCriteria(type: unknown, values: unknown[]) {
+            criteriaType = type;
+            criteriaValues = Array.isArray(values) ? values : [];
+            return this;
+          },
+          setAllowInvalid(value: boolean) {
+            allowInvalid = value;
+            return this;
+          },
+          setHelpText(value: string | null) {
+            helpText = value;
+            return this;
+          },
+          build() {
+            return {
+              criteriaType,
+              criteriaValues,
+              allowInvalid,
+              helpText
+            };
+          }
+        };
       }
     },
     HtmlService: {
@@ -2953,6 +2986,205 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(backgrounds).toEqual([["#ffffff"]]);
     expect(fontWeights).toEqual([["normal"]]);
     expect(numberFormats).toEqual([["General"]]);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("passes Google Sheets data validation snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_validation_001"],
+      executions: {
+        exec_validation_001: {
+          baseExecutionId: "exec_validation_001"
+        }
+      },
+      bases: {
+        exec_validation_001: {
+          baseExecutionId: "exec_validation_001",
+          kind: "data_validation",
+          targetSheet: "Sales",
+          targetRange: "B2:B20",
+          shape: {
+            rows: 19,
+            columns: 1
+          },
+          beforeValidation: {
+            rule: null
+          },
+          afterValidation: {
+            rule: {
+              criteriaType: "NUMBER_BETWEEN",
+              criteriaValues: [
+                { kind: "scalar", value: 1 },
+                { kind: "scalar", value: 10 }
+              ],
+              allowInvalid: false,
+              helpText: "Enter a number from 1 to 10."
+            }
+          }
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "data_validation_update",
+          operation: "data_validation_update",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_validation_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "data_validation",
+          targetSheet: "Sales",
+          targetRange: "B2:B20",
+          shape: {
+            rows: 19,
+            columns: 1
+          },
+          validation: {
+            rule: null
+          }
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "data_validation",
+          targetSheet: "Sales",
+          targetRange: "B2:B20",
+          shape: {
+            rows: 19,
+            columns: 1
+          },
+          validation: {
+            rule: null
+          }
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies Google Sheets data validation snapshots on the server", () => {
+    let validationRule: unknown = {
+      criteriaType: "NUMBER_BETWEEN",
+      criteriaValues: [1, 10],
+      allowInvalid: false,
+      helpText: "Enter a number from 1 to 10."
+    };
+    const setDataValidation = vi.fn((nextRule: unknown) => {
+      validationRule = nextRule;
+    });
+    const targetRange = {
+      getNumRows: vi.fn(() => 19),
+      getNumColumns: vi.fn(() => 1),
+      setDataValidation
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:B20");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "data_validation",
+      targetSheet: "Sales",
+      targetRange: "B2:B20",
+      shape: {
+        rows: 19,
+        columns: 1
+      },
+      validation: {
+        rule: null
+      }
+    })).toMatchObject({
+      ok: true,
+      targetSheet: "Sales",
+      targetRange: "B2:B20"
+    });
+
+    expect(setDataValidation).toHaveBeenCalledWith(null);
+    expect(validationRule).toBeNull();
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "data_validation",
+      targetSheet: "Sales",
+      targetRange: "B2:B20",
+      shape: {
+        rows: 19,
+        columns: 1
+      },
+      validation: {
+        rule: {
+          criteriaType: "NUMBER_BETWEEN",
+          criteriaValues: [
+            { kind: "scalar", value: 1 },
+            { kind: "scalar", value: 10 }
+          ],
+          allowInvalid: false,
+          helpText: "Enter a number from 1 to 10."
+        }
+      }
+    })).toMatchObject({
+      ok: true,
+      targetSheet: "Sales",
+      targetRange: "B2:B20"
+    });
+
+    expect(validationRule).toEqual({
+      criteriaType: "NUMBER_BETWEEN",
+      criteriaValues: [1, 10],
+      allowInvalid: false,
+      helpText: "Enter a number from 1 to 10."
+    });
     expect(code.flush).toHaveBeenCalled();
   });
 

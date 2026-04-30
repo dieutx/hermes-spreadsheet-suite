@@ -239,6 +239,10 @@
     return snapshot && snapshot.kind === "range_format";
   }
 
+  function isDataValidationLocalExecutionSnapshot(snapshot) {
+    return snapshot && snapshot.kind === "data_validation";
+  }
+
   function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
     if (!isCompositeLocalExecutionSnapshot(snapshot)) {
       return [snapshot];
@@ -290,6 +294,16 @@
         targetRange: entry.targetRange,
         shape: entry.shape,
         format: mode === "undo" ? entry.beforeFormat : entry.afterFormat
+      };
+    }
+
+    if (isDataValidationLocalExecutionSnapshot(entry)) {
+      return {
+        kind: "data_validation",
+        targetSheet: entry.targetSheet,
+        targetRange: entry.targetRange,
+        shape: entry.shape,
+        validation: mode === "undo" ? entry.beforeValidation : entry.afterValidation
       };
     }
 

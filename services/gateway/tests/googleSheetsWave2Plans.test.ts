@@ -740,6 +740,105 @@ describe("Google Sheets wave 2 plans", () => {
     }));
   });
 
+  it("attaches undo snapshots for Google Sheets data validation updates", () => {
+    const wrapValidationRule = (rule: Record<string, unknown>) => ({
+      getCriteriaType() {
+        if (rule.kind === "number_between") {
+          return "NUMBER_BETWEEN";
+        }
+
+        throw new Error(`Unexpected validation kind: ${String(rule.kind)}`);
+      },
+      getCriteriaValues() {
+        return [rule.value, rule.value2];
+      },
+      getAllowInvalid() {
+        return rule.allowInvalid;
+      },
+      getHelpText() {
+        return rule.helpText || null;
+      }
+    });
+    let currentValidation: unknown = null;
+    const setDataValidation = vi.fn((rule: Record<string, unknown> | null) => {
+      currentValidation = rule ? wrapValidationRule(rule) : null;
+    });
+    const targetRange = {
+      getA1Notation() {
+        return "B2:B20";
+      },
+      getNumRows() {
+        return 19;
+      },
+      getNumColumns() {
+        return 1;
+      },
+      getDataValidation() {
+        return currentValidation;
+      },
+      setDataValidation
+    };
+    const sheet = {
+      getRange: vi.fn((a1Notation: string) => {
+        expect(a1Notation).toBe("B2:B20");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName(sheetName: string) {
+        expect(sheetName).toBe("Sheet1");
+        return sheet;
+      }
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      executionId: "exec_validation_snapshot_sheets_001",
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "decimal",
+        comparator: "between",
+        value: 1,
+        value2: 10,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        inputMessage: "Enter a number from 1 to 10.",
+        explanation: "Restrict entries to a numeric range.",
+        confidence: 0.93,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "data_validation_update",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_validation_snapshot_sheets_001",
+        kind: "data_validation",
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        shape: {
+          rows: 19,
+          columns: 1
+        },
+        beforeValidation: {
+          rule: null
+        },
+        afterValidation: {
+          rule: {
+            criteriaType: "NUMBER_BETWEEN",
+            criteriaValues: [
+              { kind: "scalar", value: 1 },
+              { kind: "scalar", value: 10 }
+            ],
+            allowInvalid: false,
+            helpText: "Enter a number from 1 to 10."
+          }
+        }
+      }
+    });
+  });
+
   it("creates, renames, retargets, and deletes workbook named ranges in Google Sheets", () => {
     const targetRange = {
       getA1Notation() {
