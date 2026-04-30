@@ -433,6 +433,52 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes sheet import row-matrix aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "sheet_import_plan",
+      data: {
+        attachmentId: "att_200",
+        sheet: "Imported",
+        range: "A1:C3",
+        rows: [
+          ["Date", "Amount", "Region"],
+          ["2026-04-01", 15.5, "North"],
+          ["2026-04-02", 9, "South"]
+        ],
+        confidence: 0.88,
+        warnings: ["OCR column alignment is approximate."],
+        requiresConfirmation: true,
+        mode: "real"
+      }
+    });
+
+    expect(normalized).toEqual({
+      type: "sheet_import_plan",
+      data: {
+        sourceAttachmentId: "att_200",
+        targetSheet: "Imported",
+        targetRange: "A1:C3",
+        headers: ["Date", "Amount", "Region"],
+        values: [
+          ["2026-04-01", 15.5, "North"],
+          ["2026-04-02", 9, "South"]
+        ],
+        confidence: 0.88,
+        warnings: [
+          {
+            code: "MODEL_WARNING",
+            message: "OCR column alignment is approximate.",
+            severity: "warning"
+          }
+        ],
+        requiresConfirmation: true,
+        extractionMode: "real",
+        shape: { rows: 3, columns: 3 }
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("synthesizes external data formulas from provider fields before validation", () => {
     const marketData = normalizeHermesStructuredBodyInput({
       type: "external_data_plan",
@@ -1236,6 +1282,68 @@ describe("structured body normalization", () => {
         dryRunRequired: false
       }
     });
+  });
+
+  it("normalizes composite action aliases before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "composite_plan",
+      data: {
+        actions: [
+          {
+            id: "sort_sales",
+            type: "range_sort_plan",
+            data: {
+              targetSheet: "Sales",
+              targetRange: "A1:C10",
+              hasHeader: true,
+              keys: [{ columnRef: "Revenue", direction: "desc" }],
+              explanation: "Sort sales by revenue.",
+              confidence: 0.91,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!A1:C10"]
+            }
+          }
+        ],
+        explanation: "Run a one-step workflow.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:C10"],
+        overwriteRisk: "low"
+      }
+    });
+
+    expect(normalized).toEqual({
+      type: "composite_plan",
+      data: {
+        steps: [
+          {
+            stepId: "sort_sales",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              targetSheet: "Sales",
+              targetRange: "A1:C10",
+              hasHeader: true,
+              keys: [{ columnRef: "Revenue", direction: "desc" }],
+              explanation: "Sort sales by revenue.",
+              confidence: 0.91,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!A1:C10"]
+            }
+          }
+        ],
+        explanation: "Run a one-step workflow.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:C10"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: false,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
   it.each([

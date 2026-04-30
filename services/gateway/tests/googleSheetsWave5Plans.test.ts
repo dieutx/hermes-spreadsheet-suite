@@ -426,6 +426,23 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     expect(html).toContain("Will create a pivot table on Sales Pivot!A1.");
     expect(html).toContain("Confirm Pivot Table");
     expect(html).not.toContain("does not support exact-safe pivot table creation yet");
+
+    const singleCellRangeResponse = {
+      ...response,
+      data: {
+        ...response.data,
+        targetRange: "A1:A1",
+        affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1:A1"]
+      }
+    };
+
+    expect(sidebar.isWritePlanResponse(singleCellRangeResponse)).toBe(true);
+    const singleCellRangeHtml = sidebar.renderStructuredPreview(singleCellRangeResponse, {
+      runId: "run_pivot_single_cell_range_preview",
+      requestId: "req_pivot_single_cell_range_preview"
+    });
+    expect(singleCellRangeHtml).toContain("Confirm Pivot Table");
+    expect(singleCellRangeHtml).not.toContain("Choose one destination cell for the pivot table.");
   });
 
   it("fails closed in the sidebar for ambiguous pivot value sorting across both axes", () => {
