@@ -797,6 +797,28 @@ describe("shared client render helpers", () => {
     );
   });
 
+  it("redacts unsafe proof metadata in shared-client meta lines", () => {
+    const response = baseResponse({
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        "/srv/hermes/private-tool.ts",
+        "HERMES_API_SERVER_KEY=secret"
+      ],
+      downstreamProvider: {
+        label: "https://internal.example/provider",
+        model: "gpt-5 HERMES_API_SERVER_KEY=secret"
+      }
+    });
+
+    const metaLine = getResponseMetaLine(response);
+
+    expect(metaLine).toContain("skills SelectionExplainerSkill");
+    expect(metaLine).not.toContain("HERMES_API_SERVER_KEY");
+    expect(metaLine).not.toContain("/srv/hermes");
+    expect(metaLine).not.toContain("internal.example");
+    expect(metaLine).not.toContain("provider https://internal");
+  });
+
   it("formats the wave 2 trace labels", () => {
     expect(formatTraceTimeline([
       { event: "data_validation_plan_ready", timestamp: "2026-04-20T09:00:01.000Z" },

@@ -384,7 +384,7 @@ function loadSidebarContext(options: { disableRandomUUID?: boolean; throwOnStora
 
   vm.runInNewContext(scriptWithoutBootstrap, context, { filename: SIDEBAR_PATH });
   vm.runInNewContext(
-    "this.__sidebarTestHooks = { state, elements, renderMessages, sendPrompt, pollRun, sanitizeConversation, sanitizeHostExecutionError, buildRequestEnvelope, pruneStoredMessages, trimMessageTraceEvents, ensureRuntimeConfig, parseGatewayJsonResponse, initialize };",
+    "this.__sidebarTestHooks = { state, elements, renderMessages, sendPrompt, pollRun, sanitizeConversation, sanitizeHostExecutionError, getResponseMetaLine, buildRequestEnvelope, pruneStoredMessages, trimMessageTraceEvents, ensureRuntimeConfig, parseGatewayJsonResponse, initialize };",
     context,
     { filename: `${SIDEBAR_PATH}#test-hooks` }
   );
@@ -989,6 +989,38 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     hooks.renderMessages();
 
     expect(hooks.elements.messages.innerHTML).toContain("Write-back failed.");
+  });
+
+  it("redacts unsafe proof metadata in Google Sheets meta lines", () => {
+    const sidebar = loadSidebarContext();
+    const hooks = (sidebar as any).__sidebarTestHooks;
+
+    const metaLine = hooks.getResponseMetaLine({
+      type: "chat",
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        "/srv/hermes/private-tool.ts",
+        "HERMES_API_SERVER_KEY=secret"
+      ],
+      downstreamProvider: {
+        label: "https://internal.example/provider",
+        model: "gpt-5 HERMES_API_SERVER_KEY=secret"
+      },
+      ui: {
+        showConfidence: true,
+        showRequiresConfirmation: false
+      },
+      data: {
+        message: "Processed remotely.",
+        confidence: 0.9
+      }
+    });
+
+    expect(metaLine).toContain("skills SelectionExplainerSkill");
+    expect(metaLine).not.toContain("HERMES_API_SERVER_KEY");
+    expect(metaLine).not.toContain("/srv/hermes");
+    expect(metaLine).not.toContain("internal.example");
+    expect(metaLine).not.toContain("provider https://internal");
   });
 
   it("escapes quotes in Google Sheets preview action attributes", () => {

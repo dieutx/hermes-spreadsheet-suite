@@ -2544,18 +2544,44 @@ function getRequiresConfirmation(response) {
   return false;
 }
 
-function getResponseMetaLine(response) {
-  const parts = [];
+const UNSAFE_PROOF_METADATA_PATTERN = /\b(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)\b|(?:^|\s)\/(?:root|srv|home|tmp)\/[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})[^\s]*/i;
 
-  if (Array.isArray(response.skillsUsed) && response.skillsUsed.length > 0) {
-    parts.push(`skills ${response.skillsUsed.join(", ")}`);
+function hasUnsafeProofMetadata(value) {
+  return typeof value === "string" && UNSAFE_PROOF_METADATA_PATTERN.test(value);
+}
+
+function getSafeSkillsUsed(skillsUsed) {
+  return Array.isArray(skillsUsed)
+    ? skillsUsed.filter((skill) => !hasUnsafeProofMetadata(skill))
+    : [];
+}
+
+function getSafeDownstreamProvider(provider) {
+  if (!provider || hasUnsafeProofMetadata(provider.label)) {
+    return null;
   }
 
-  if (response.downstreamProvider?.label) {
+  if (provider.model && hasUnsafeProofMetadata(provider.model)) {
+    return { label: provider.label };
+  }
+
+  return provider;
+}
+
+function getResponseMetaLine(response) {
+  const parts = [];
+  const skillsUsed = getSafeSkillsUsed(response.skillsUsed);
+  const downstreamProvider = getSafeDownstreamProvider(response.downstreamProvider);
+
+  if (skillsUsed.length > 0) {
+    parts.push(`skills ${skillsUsed.join(", ")}`);
+  }
+
+  if (downstreamProvider?.label) {
     parts.push(
-      response.downstreamProvider.model
-        ? `provider ${response.downstreamProvider.label}/${response.downstreamProvider.model}`
-        : `provider ${response.downstreamProvider.label}`
+      downstreamProvider.model
+        ? `provider ${downstreamProvider.label}/${downstreamProvider.model}`
+        : `provider ${downstreamProvider.label}`
     );
   }
 
@@ -8351,6 +8377,7 @@ export {
   getRequiresConfirmation,
   getExecutionShortcutMode,
   getResponseBodyText,
+  getResponseMetaLine,
   listExecutionHistory,
   redoExecution,
   bindMessageAutoScrollObservers,

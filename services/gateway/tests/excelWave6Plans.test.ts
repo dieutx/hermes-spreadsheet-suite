@@ -665,6 +665,39 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(document.getElementById("messages").innerHTML).toContain("Write-back failed.");
   });
 
+  it("redacts unsafe proof metadata in Excel meta lines", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    });
+
+    const metaLine = taskpane.getResponseMetaLine({
+      type: "chat",
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        "/srv/hermes/private-tool.ts",
+        "HERMES_API_SERVER_KEY=secret"
+      ],
+      downstreamProvider: {
+        label: "https://internal.example/provider",
+        model: "gpt-5 HERMES_API_SERVER_KEY=secret"
+      },
+      ui: {
+        showConfidence: true,
+        showRequiresConfirmation: false
+      },
+      data: {
+        message: "Processed remotely.",
+        confidence: 0.9
+      }
+    });
+
+    expect(metaLine).toContain("skills SelectionExplainerSkill");
+    expect(metaLine).not.toContain("HERMES_API_SERVER_KEY");
+    expect(metaLine).not.toContain("/srv/hermes");
+    expect(metaLine).not.toContain("internal.example");
+    expect(metaLine).not.toContain("provider https://internal");
+  });
+
   it("escapes quotes in Excel preview action attributes", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})
