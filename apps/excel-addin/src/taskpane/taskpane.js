@@ -1091,6 +1091,60 @@ function createRangeFormatLocalExecutionSnapshot({
   };
 }
 
+function cloneLocalExecutionSnapshotValue(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return JSON.parse(JSON.stringify(value));
+}
+
+function loadExcelDataValidationSnapshotTarget(target) {
+  if (typeof target?.dataValidation?.load === "function") {
+    target.dataValidation.load(["rule", "ignoreBlanks", "prompt", "errorAlert"]);
+  }
+}
+
+function readExcelDataValidationSnapshot(target) {
+  const dataValidation = target?.dataValidation;
+  if (!dataValidation) {
+    return null;
+  }
+
+  return {
+    rule: cloneLocalExecutionSnapshotValue(dataValidation.rule),
+    ignoreBlanks: dataValidation.ignoreBlanks,
+    prompt: cloneLocalExecutionSnapshotValue(dataValidation.prompt),
+    errorAlert: cloneLocalExecutionSnapshotValue(dataValidation.errorAlert)
+  };
+}
+
+function createDataValidationLocalExecutionSnapshot({
+  executionId,
+  targetSheet,
+  targetRange,
+  target,
+  beforeValidation,
+  afterValidation
+}) {
+  if (!executionId || !targetSheet || !targetRange || !beforeValidation || !afterValidation) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "data_validation",
+    targetSheet,
+    targetRange,
+    shape: {
+      rows: Number(target?.rowCount) || 0,
+      columns: Number(target?.columnCount) || 0
+    },
+    beforeValidation,
+    afterValidation
+  };
+}
+
 function createCompositeLocalExecutionSnapshot({ executionId, entries }) {
   if (!executionId || !Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -1108,6 +1162,10 @@ function isCompositeLocalExecutionSnapshot(snapshot) {
 
 function isRangeFormatLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "range_format";
+}
+
+function isDataValidationLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "data_validation";
 }
 
 function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
@@ -1384,6 +1442,79 @@ async function validateRangeFormatLocalExecutionSnapshotForMode(snapshot, mode) 
   });
 }
 
+function getDataValidationSnapshotForMode(snapshot, mode) {
+  return mode === "undo" ? snapshot?.beforeValidation : snapshot?.afterValidation;
+}
+
+function assertDataValidationSnapshotShape(snapshot, target, validation) {
+  const expectedRows = Number(snapshot?.shape?.rows) || 0;
+  const expectedColumns = Number(snapshot?.shape?.columns) || 0;
+  if (!snapshot?.targetSheet || !snapshot?.targetRange || !validation || expectedRows <= 0 || expectedColumns <= 0) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  if (target.rowCount !== expectedRows || target.columnCount !== expectedColumns) {
+    throw new Error("The saved undo snapshot no longer matches the current range shape.");
+  }
+}
+
+function applyExcelDataValidationSnapshot(target, validation) {
+  const dataValidation = target?.dataValidation;
+  if (!dataValidation) {
+    throw new Error("Excel host does not support data validation on this range.");
+  }
+
+  if (validation.rule === undefined) {
+    if (typeof dataValidation.clear === "function") {
+      dataValidation.clear();
+      return;
+    }
+
+    throw new Error("Excel host cannot clear data validation exactly for this undo snapshot.");
+  }
+
+  dataValidation.rule = cloneLocalExecutionSnapshotValue(validation.rule);
+  if (validation.ignoreBlanks !== undefined) {
+    dataValidation.ignoreBlanks = validation.ignoreBlanks;
+  }
+  if (validation.prompt !== undefined) {
+    dataValidation.prompt = cloneLocalExecutionSnapshotValue(validation.prompt);
+  }
+  if (validation.errorAlert !== undefined) {
+    dataValidation.errorAlert = cloneLocalExecutionSnapshotValue(validation.errorAlert);
+  }
+}
+
+async function restoreDataValidationLocalExecutionSnapshotForMode(snapshot, mode) {
+  const validation = getDataValidationSnapshotForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+    const target = sheet.getRange(snapshot.targetRange);
+    target.load(["rowCount", "columnCount"]);
+    await context.sync();
+
+    assertDataValidationSnapshotShape(snapshot, target, validation);
+    applyExcelDataValidationSnapshot(target, validation);
+    await context.sync();
+  });
+}
+
+async function validateDataValidationLocalExecutionSnapshotForMode(snapshot, mode) {
+  const validation = getDataValidationSnapshotForMode(snapshot, mode);
+
+  return Excel.run(async (context) => {
+    const worksheets = context.workbook.worksheets;
+    const sheet = worksheets.getItem(snapshot.targetSheet);
+    const target = sheet.getRange(snapshot.targetRange);
+    target.load(["rowCount", "columnCount"]);
+    await context.sync();
+
+    assertDataValidationSnapshotShape(snapshot, target, validation);
+  });
+}
+
 async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
   if (isCompositeLocalExecutionSnapshot(snapshot)) {
     for (const entry of getLocalExecutionSnapshotEntriesForMode(snapshot, mode)) {
@@ -1394,6 +1525,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isRangeFormatLocalExecutionSnapshot(snapshot)) {
     return restoreRangeFormatLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isDataValidationLocalExecutionSnapshot(snapshot)) {
+    return restoreDataValidationLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -1448,6 +1583,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isRangeFormatLocalExecutionSnapshot(snapshot)) {
     return validateRangeFormatLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isDataValidationLocalExecutionSnapshot(snapshot)) {
+    return validateDataValidationLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   const cells = mode === "undo" ? snapshot?.beforeCells : snapshot?.afterCells;
@@ -8349,7 +8488,13 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         throw new Error("Excel host does not support data validation on this range.");
       }
 
-      target.dataValidation.rule = buildExcelValidationRule(plan);
+      const validationRule = buildExcelValidationRule(plan);
+      target.load(["rowCount", "columnCount"]);
+      loadExcelDataValidationSnapshotTarget(target);
+      await context.sync();
+      const beforeValidation = readExcelDataValidationSnapshot(target);
+
+      target.dataValidation.rule = validationRule;
       if (typeof plan.allowBlank === "boolean") {
         target.dataValidation.ignoreBlanks = plan.allowBlank;
       }
@@ -8369,13 +8514,22 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         style: plan.invalidDataBehavior === "reject" ? "stop" : "warning",
         showAlert: true
       };
+      loadExcelDataValidationSnapshotTarget(target);
       await context.sync();
-      return {
+      const afterValidation = readExcelDataValidationSnapshot(target);
+      return attachLocalExecutionSnapshot({
         kind: "data_validation_update",
         hostPlatform: platform,
         ...plan,
         summary: getDataValidationStatusSummary(plan)
-      };
+      }, createDataValidationLocalExecutionSnapshot({
+        executionId,
+        targetSheet: plan.targetSheet,
+        targetRange: plan.targetRange,
+        target,
+        beforeValidation,
+        afterValidation
+      }));
     }
 
     if (isNamedRangeUpdatePlan(plan)) {

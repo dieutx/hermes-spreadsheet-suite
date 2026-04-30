@@ -490,6 +490,150 @@ describe("Excel wave 2 plan helpers", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel data validation writes", async () => {
+    const oldRule = {
+      decimal: {
+        operator: "GreaterThanOrEqualTo",
+        formula1: 0
+      }
+    };
+    const oldPrompt = {
+      title: "Old validation",
+      message: "Old prompt"
+    };
+    const oldErrorAlert = {
+      title: "Old error",
+      message: "Old error message",
+      style: "warning",
+      showAlert: true
+    };
+    let currentRule = oldRule;
+    let currentIgnoreBlanks = true;
+    let currentPrompt = oldPrompt;
+    let currentErrorAlert = oldErrorAlert;
+    const dataValidation = {
+      load: vi.fn()
+    };
+    Object.defineProperty(dataValidation, "rule", {
+      configurable: true,
+      get() {
+        return currentRule;
+      },
+      set(rule) {
+        currentRule = rule;
+      }
+    });
+    Object.defineProperty(dataValidation, "ignoreBlanks", {
+      configurable: true,
+      get() {
+        return currentIgnoreBlanks;
+      },
+      set(value) {
+        currentIgnoreBlanks = value;
+      }
+    });
+    Object.defineProperty(dataValidation, "prompt", {
+      configurable: true,
+      get() {
+        return currentPrompt;
+      },
+      set(value) {
+        currentPrompt = value;
+      }
+    });
+    Object.defineProperty(dataValidation, "errorAlert", {
+      configurable: true,
+      get() {
+        return currentErrorAlert;
+      },
+      set(value) {
+        currentErrorAlert = value;
+      }
+    });
+    const targetRange = {
+      load: vi.fn(),
+      address: "Sheet1!B2:B20",
+      rowCount: 19,
+      columnCount: 1,
+      dataValidation
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "whole_number",
+        comparator: "between",
+        value: 1,
+        value2: 10,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        inputTitle: "Entry guidance",
+        inputMessage: "Enter a whole number from 1 to 10.",
+        errorTitle: "Invalid entry",
+        errorMessage: "Only whole numbers from 1 to 10 are allowed.",
+        explanation: "Restrict values to whole numbers between 1 and 10.",
+        confidence: 0.96,
+        requiresConfirmation: true
+      },
+      requestId: "req_validation_snapshot_excel_001",
+      runId: "run_validation_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_validation_snapshot_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "data_validation_update",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_validation_snapshot_excel_001",
+        kind: "data_validation",
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        shape: {
+          rows: 19,
+          columns: 1
+        },
+        beforeValidation: {
+          rule: oldRule,
+          ignoreBlanks: true,
+          prompt: oldPrompt,
+          errorAlert: oldErrorAlert
+        },
+        afterValidation: {
+          rule: {
+            wholeNumber: {
+              operator: "Between",
+              formula1: 1,
+              formula2: 10
+            }
+          },
+          ignoreBlanks: false,
+          prompt: {
+            title: "Entry guidance",
+            message: "Enter a whole number from 1 to 10."
+          },
+          errorAlert: {
+            title: "Invalid entry",
+            message: "Only whole numbers from 1 to 10 are allowed.",
+            style: "stop",
+            showAlert: true
+          }
+        }
+      }
+    });
+  });
+
   it("maps Excel data validation comparators to Office.js operators", async () => {
     const validationRule = { set: vi.fn() };
     const ignoreBlanks = { set: vi.fn() };
