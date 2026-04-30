@@ -189,6 +189,9 @@ export function buildGoogleSheetsDeploymentConfigSource(
   if (!gatewayBaseUrl) {
     throw new Error("gatewayBaseUrl is required.");
   }
+  if (!isAppsScriptReachableGatewayBaseUrl(gatewayBaseUrl)) {
+    throw new Error("gatewayBaseUrl must be a public HTTPS URL reachable from Google Apps Script.");
+  }
 
   const forceExtractionMode = input.forceExtractionMode ?? null;
   if (
