@@ -24,6 +24,42 @@ describe("TraceBus", () => {
     ]);
   });
 
+  it("sanitizes unsafe optional trace metadata before storage", () => {
+    const bus = new TraceBus();
+
+    bus.append("run_sanitized_trace", {
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      label: "ReferenceError stack trace /srv/hermes/internal.ts",
+      skillName: "HERMES_API_SERVER_KEY=secret",
+      toolName: "SelectionExplainerSkill",
+      providerLabel: "http://internal.example/provider",
+      details: {
+        range: "A1:B2",
+        sheet: "/root/secrets",
+        attachmentId: "att_public_001",
+        mode: "demo"
+      }
+    });
+
+    const [event] = bus.list("run_sanitized_trace", 0);
+
+    expect(event).toMatchObject({
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      toolName: "SelectionExplainerSkill",
+      details: {
+        range: "A1:B2",
+        attachmentId: "att_public_001",
+        mode: "demo"
+      }
+    });
+    expect(event).not.toHaveProperty("label");
+    expect(event).not.toHaveProperty("skillName");
+    expect(event).not.toHaveProperty("providerLabel");
+    expect(event.details).not.toHaveProperty("sheet");
+  });
+
   it("keeps requestId, hermesRunId, and the validated final response together", () => {
     const bus = new TraceBus();
     bus.ensureRun("run_2", "req_2");

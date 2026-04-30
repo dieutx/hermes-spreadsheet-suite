@@ -173,21 +173,87 @@ function eventKey(event: HermesTraceEvent): string {
   return JSON.stringify(event);
 }
 
+const UNSAFE_TRACE_METADATA_PATTERN = /\b(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)\b|(?:^|\s)\/(?:root|srv|home|tmp)\/[^\s]+|https?:\/\/[^\s]+/i;
+
+function isUnsafeTraceText(value: unknown): boolean {
+  return typeof value === "string" && UNSAFE_TRACE_METADATA_PATTERN.test(value);
+}
+
+function sanitizeTraceDetails(
+  details: HermesTraceEvent["details"] | undefined
+): HermesTraceEvent["details"] | undefined {
+  if (!details) {
+    return undefined;
+  }
+
+  const sanitized: NonNullable<HermesTraceEvent["details"]> = {};
+
+  if (details.range && !isUnsafeTraceText(details.range)) {
+    sanitized.range = details.range;
+  }
+
+  if (details.sheet && !isUnsafeTraceText(details.sheet)) {
+    sanitized.sheet = details.sheet;
+  }
+
+  if (details.attachmentId && !isUnsafeTraceText(details.attachmentId)) {
+    sanitized.attachmentId = details.attachmentId;
+  }
+
+  if (details.mode) {
+    sanitized.mode = details.mode;
+  }
+
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
+function sanitizeTraceEvent(event: HermesTraceEvent): HermesTraceEvent {
+  const sanitized: HermesTraceEvent = {
+    event: event.event,
+    timestamp: event.timestamp
+  };
+
+  if (event.label && !isUnsafeTraceText(event.label)) {
+    sanitized.label = event.label;
+  }
+
+  if (event.skillName && !isUnsafeTraceText(event.skillName)) {
+    sanitized.skillName = event.skillName;
+  }
+
+  if (event.toolName && !isUnsafeTraceText(event.toolName)) {
+    sanitized.toolName = event.toolName;
+  }
+
+  if (event.providerLabel && !isUnsafeTraceText(event.providerLabel)) {
+    sanitized.providerLabel = event.providerLabel;
+  }
+
+  const details = sanitizeTraceDetails(event.details);
+  if (details) {
+    sanitized.details = details;
+  }
+
+  return sanitized;
+}
+
 function mergeTrace(
   existing: HermesTraceEvent[],
   incoming: HermesTraceEvent[]
 ): HermesTraceEvent[] {
-  const seen = new Set(existing.map(eventKey));
-  const merged = [...existing];
+  const sanitizedExisting = existing.map((event) => sanitizeTraceEvent(event));
+  const seen = new Set(sanitizedExisting.map(eventKey));
+  const merged = [...sanitizedExisting];
 
   for (const event of incoming) {
-    const key = eventKey(event);
+    const sanitizedEvent = sanitizeTraceEvent(event);
+    const key = eventKey(sanitizedEvent);
     if (seen.has(key)) {
       continue;
     }
 
     seen.add(key);
-    merged.push(event);
+    merged.push(sanitizedEvent);
   }
 
   return merged;
@@ -303,7 +369,7 @@ export class TraceBus {
 
   append(runId: string, event: HermesTraceEvent): void {
     const run = this.ensureRun(runId);
-    run.events.push(event);
+    run.events.push(sanitizeTraceEvent(event));
     this.trimRunEvents(run);
     this.touchRun(run);
   }
