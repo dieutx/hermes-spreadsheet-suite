@@ -3457,6 +3457,95 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(chartSheet.insertChart).toHaveBeenCalledWith(builtChart);
   });
 
+  it("attaches a composite undo snapshot when every Google Sheets step captures a local snapshot", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1:B1",
+      row: 1,
+      column: 1,
+      numRows: 1,
+      numColumns: 2,
+      values: [["", ""]],
+      formulas: [["", ""]]
+    });
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("A1:B1");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_composite_snapshot_sheets_001",
+      runId: "run_composite_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_composite_snapshot_sheets_001",
+      plan: {
+        steps: [
+          {
+            stepId: "step_write",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              targetSheet: "Sales",
+              targetRange: "A1:B1",
+              operation: "replace_range",
+              values: [["Region", "Revenue"]],
+              explanation: "Write headers.",
+              confidence: 0.9,
+              requiresConfirmation: true,
+              overwriteRisk: "low",
+              shape: {
+                rows: 1,
+                columns: 2
+              }
+            }
+          }
+        ],
+        explanation: "Write headers.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:B1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: true,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "composite_update",
+      undoReady: true,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_composite_snapshot_sheets_001",
+        entries: [
+          {
+            targetSheet: "Sales",
+            targetRange: "A1:B1",
+            beforeCells: [
+              [
+                { kind: "value", value: { type: "string", value: "" } },
+                { kind: "value", value: { type: "string", value: "" } }
+              ]
+            ],
+            afterCells: [
+              [
+                { kind: "value", value: { type: "string", value: "Region" } },
+                { kind: "value", value: { type: "string", value: "Revenue" } }
+              ]
+            ]
+          }
+        ]
+      }
+    });
+  });
+
   it("fails closed when a composite step appears before an unsatisfied dependency in Code.gs execution order", () => {
     const code = loadCodeModule({
       spreadsheet: {
