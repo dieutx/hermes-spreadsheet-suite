@@ -381,6 +381,20 @@ describe("shared client render helpers", () => {
     await expect(client.pollRun("run_123")).rejects.toThrow(
       "Hermes gateway request failed with HTTP 500."
     );
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      "Gateway failed for qa_HERMES_API_SERVER_KEY",
+      {
+        status: 500,
+        headers: {
+          "content-type": "text/plain"
+        }
+      }
+    )));
+
+    await expect(client.pollRun("run_456")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
   });
 
   it("sanitizes sensitive JSON gateway errors from shared-client responses", async () => {
@@ -399,6 +413,21 @@ describe("shared client render helpers", () => {
     const client = createGatewayClient("http://localhost:18787");
 
     await expect(client.pollRun("run_123")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: "Gateway failed for qa_HERMES_API_SERVER_KEY"
+      }
+    }), {
+      status: 500,
+      headers: {
+        "content-type": "application/json"
+      }
+    })));
+
+    await expect(client.pollRun("run_456")).rejects.toThrow(
       "Hermes gateway request failed with HTTP 500."
     );
   });
