@@ -10,6 +10,7 @@ import { digestCanonicalPlan } from "../lib/approval.js";
 import {
   StaleExecutionError,
   UnsupportedExecutionControlError,
+  sanitizeExecutionSummary,
   type ExecutionLedger
 } from "../lib/executionLedger.js";
 import { normalizeCompositePlanForDigest } from "../lib/planNormalization.js";
@@ -72,14 +73,14 @@ function internalExecutionError(message: string, userAction: string): RouteError
 
 function summarizeCompositeDryRunStep(step: z.infer<typeof CompositePlanDataSchema>["steps"][number]): string {
   if ("explanation" in step.plan && typeof step.plan.explanation === "string") {
-    return step.plan.explanation;
+    return sanitizeExecutionSummary(step.plan.explanation);
   }
 
   if ("operation" in step.plan && typeof step.plan.operation === "string") {
-    return `Would execute ${step.plan.operation}.`;
+    return sanitizeExecutionSummary(`Would execute ${step.plan.operation}.`);
   }
 
-  return `Would execute ${step.stepId}.`;
+  return sanitizeExecutionSummary(`Would execute ${step.stepId}.`);
 }
 
 function toPredictedSummaries(
@@ -87,7 +88,10 @@ function toPredictedSummaries(
 ): string[] | undefined {
   const summaries = values
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-    .map((value) => value.length > 4000 ? value.slice(0, 4000) : value);
+    .map((value) => {
+      const sanitized = sanitizeExecutionSummary(value);
+      return sanitized.length > 4000 ? sanitized.slice(0, 4000) : sanitized;
+    });
 
   return summaries.length > 0 ? summaries : undefined;
 }

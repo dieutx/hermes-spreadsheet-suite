@@ -30,6 +30,40 @@ describe("ExecutionLedger", () => {
     expect(entry).not.toHaveProperty("workbookSessionKey");
   });
 
+  it("sanitizes unsafe execution history summaries before storage", () => {
+    const ledger = new ExecutionLedger();
+
+    ledger.recordCompleted({
+      executionId: "exec_unsafe",
+      workbookSessionKey: "excel_windows::workbook-123",
+      requestId: "req_unsafe",
+      runId: "run_unsafe",
+      planType: "sheet_update",
+      planDigest: "digest_unsafe",
+      status: "completed",
+      timestamp: "2026-04-20T13:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "ReferenceError stack trace /srv/hermes/internal.ts HERMES_API_SERVER_KEY=secret",
+      stepEntries: [
+        {
+          stepId: "step_unsafe",
+          planType: "sheet_update",
+          status: "completed",
+          summary: "http://internal.example/provider"
+        }
+      ]
+    });
+
+    const entry = ledger.listHistory("excel_windows::workbook-123").entries[0];
+
+    expect(entry.summary).toBe("Execution summary hidden because it contained internal details.");
+    expect(entry.stepEntries?.[0]?.summary).toBe(
+      "Execution summary hidden because it contained internal details."
+    );
+  });
+
   it("rejects invalid pagination cursors instead of silently paging from the wrong index", () => {
     const ledger = new ExecutionLedger();
 
