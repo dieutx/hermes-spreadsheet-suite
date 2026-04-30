@@ -308,6 +308,57 @@ describe("upload router", () => {
     });
   });
 
+  it("bounds upload session and workbook ids before saving attachments", async () => {
+    const { uploadRouter, attachmentStore } = createTestApp();
+    const saveSpy = vi.spyOn(attachmentStore, "save");
+
+    const oversizedSession = await invokeUploadImage(uploadRouter, {
+      body: {
+        source: "upload",
+        sessionId: "s".repeat(129),
+        workbookId: "sheet_import_demo"
+      },
+      file: {
+        buffer: PNG_SIGNATURE_BYTES,
+        mimetype: "image/png",
+        originalname: "table.png",
+        size: PNG_SIGNATURE_BYTES.length
+      }
+    });
+    expect(oversizedSession.statusCode).toBe(400);
+    expect(oversizedSession.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Image uploads require a Hermes session id no longer than 128 characters.",
+        userAction: "Reload the spreadsheet sidebar or add-in, then try the upload again."
+      }
+    });
+
+    const oversizedWorkbook = await invokeUploadImage(uploadRouter, {
+      body: {
+        source: "upload",
+        sessionId: "sess_img_real_001",
+        workbookId: "w".repeat(257)
+      },
+      file: {
+        buffer: PNG_SIGNATURE_BYTES,
+        mimetype: "image/png",
+        originalname: "table.png",
+        size: PNG_SIGNATURE_BYTES.length
+      }
+    });
+    expect(oversizedWorkbook.statusCode).toBe(400);
+    expect(oversizedWorkbook.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Image uploads require a workbook id no longer than 256 characters.",
+        userAction: "Reload the spreadsheet, then try the upload again from the workbook where you want to use it."
+      }
+    });
+
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
+
   it("returns a JSON upload error when multer rejects an oversized image", async () => {
     const { uploadRouter } = createTestApp();
     const error = new multer.MulterError("LIMIT_FILE_SIZE");
