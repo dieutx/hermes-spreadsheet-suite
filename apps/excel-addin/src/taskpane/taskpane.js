@@ -1716,6 +1716,10 @@ function assertExcelChartPlanSupport(plan) {
 }
 
 function getExcelChartSupportError(preview) {
+  if (!isSingleCellA1Anchor(preview?.targetRange)) {
+    return "This Excel runtime requires a single-cell target anchor for charts.";
+  }
+
   try {
     assertExcelChartPlanSupport(preview);
     return "";
@@ -3357,6 +3361,22 @@ function resolveExactMatrixTargetRange(targetRange, expectedRows, expectedColumn
 function resolveFullMatrixTargetRange(targetRange, expectedRows, expectedColumns, shapeLabel) {
   if (targetRange.rowCount === expectedRows && targetRange.columnCount === expectedColumns) {
     return targetRange;
+  }
+
+  throw new Error(`The approved targetRange does not match the ${shapeLabel}.`);
+}
+
+function resolveAppendMatrixTargetRange(targetRange, expectedRows, expectedColumns, shapeLabel) {
+  if (targetRange.rowCount === expectedRows && targetRange.columnCount === expectedColumns) {
+    return targetRange;
+  }
+
+  if (
+    targetRange.rowCount === 1 &&
+    targetRange.columnCount === expectedColumns &&
+    typeof targetRange.getResizedRange === "function"
+  ) {
+    return targetRange.getResizedRange(expectedRows - 1, 0);
   }
 
   throw new Error(`The approved targetRange does not match the ${shapeLabel}.`);
@@ -7768,12 +7788,19 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       await context.sync();
 
       const resolvedShape = getResolvedTransferShape(sourceRange, plan);
-      const resolvedTargetRange = resolveFullMatrixTargetRange(
-        targetRange,
-        resolvedShape.rows,
-        resolvedShape.columns,
-        "transfer shape"
-      );
+      const resolvedTargetRange = plan.operation === "append"
+        ? resolveAppendMatrixTargetRange(
+            targetRange,
+            resolvedShape.rows,
+            resolvedShape.columns,
+            "transfer shape"
+          )
+        : resolveFullMatrixTargetRange(
+            targetRange,
+            resolvedShape.rows,
+            resolvedShape.columns,
+            "transfer shape"
+          );
       const actualTargetRange = buildA1RangeFromBounds(
         deriveTransferTargetBounds(plan, resolvedTargetRange)
       );

@@ -89,15 +89,15 @@ function getAllowedCorsOrigins(
 
 export function getConfig(): GatewayConfig {
   const gatewayPublicBaseUrl = process.env.GATEWAY_PUBLIC_BASE_URL ?? "http://127.0.0.1:8787";
-  const approvalSecret = process.env.APPROVAL_SECRET ?? "change-me";
+  const approvalSecret = process.env.APPROVAL_SECRET?.trim() ?? "";
   const allowedCorsOrigins = getAllowedCorsOrigins(
     gatewayPublicBaseUrl,
     process.env.GATEWAY_ALLOWED_ORIGINS
   );
 
-  if (approvalSecret === "change-me" && !isLoopbackBaseUrl(gatewayPublicBaseUrl)) {
+  if (!approvalSecret) {
     throw new Error(
-      "APPROVAL_SECRET must be configured before exposing the gateway on a non-local base URL."
+      "APPROVAL_SECRET must be configured before the gateway can approve writeback plans."
     );
   }
 
