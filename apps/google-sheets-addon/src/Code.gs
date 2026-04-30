@@ -3458,6 +3458,211 @@ function readRangeFormatStateForSnapshot_(sheet, range, format) {
   return complete && Object.keys(state).length > 0 ? state : null;
 }
 
+function getDataValidationCriteriaName_(criteriaType) {
+  const criteriaMap = SpreadsheetApp.DataValidationCriteria || {};
+  const criteriaNames = Object.keys(criteriaMap);
+  for (let index = 0; index < criteriaNames.length; index += 1) {
+    const name = criteriaNames[index];
+    if (criteriaMap[name] === criteriaType) {
+      return name;
+    }
+  }
+
+  return criteriaType == null ? '' : String(criteriaType);
+}
+
+function resolveDataValidationCriteria_(criteriaType) {
+  const criteriaName = criteriaType == null ? '' : String(criteriaType);
+  const criteriaMap = SpreadsheetApp.DataValidationCriteria || {};
+  return criteriaMap[criteriaName] || criteriaType;
+}
+
+function serializeDataValidationCriteriaValue_(value) {
+  if (value === undefined) {
+    return {
+      kind: 'undefined'
+    };
+  }
+
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return {
+      kind: 'scalar',
+      value: value
+    };
+  }
+
+  if (
+    Object.prototype.toString.call(value) === '[object Date]' &&
+    typeof value.getTime === 'function' &&
+    !isNaN(value.getTime())
+  ) {
+    return {
+      kind: 'date',
+      value: value.toISOString()
+    };
+  }
+
+  if (Array.isArray(value)) {
+    const serializedValues = [];
+    for (let index = 0; index < value.length; index += 1) {
+      const serializedValue = serializeDataValidationCriteriaValue_(value[index]);
+      if (!serializedValue) {
+        return null;
+      }
+
+      serializedValues.push(serializedValue);
+    }
+
+    return {
+      kind: 'array',
+      values: serializedValues
+    };
+  }
+
+  if (value && typeof value.getA1Notation === 'function') {
+    let sheetName = null;
+    if (typeof value.getSheet === 'function') {
+      const sourceSheet = value.getSheet();
+      if (sourceSheet && typeof sourceSheet.getName === 'function') {
+        sheetName = sourceSheet.getName();
+      }
+    }
+
+    return {
+      kind: 'range',
+      sheetName: sheetName,
+      rangeA1: value.getA1Notation()
+    };
+  }
+
+  return null;
+}
+
+function deserializeDataValidationCriteriaValue_(spreadsheet, sheet, value) {
+  if (!value || typeof value !== 'object') {
+    throw new Error('The saved data validation snapshot is malformed.');
+  }
+
+  switch (value.kind) {
+    case 'undefined':
+      return undefined;
+    case 'scalar':
+      return value.value;
+    case 'date': {
+      const date = new Date(value.value);
+      if (isNaN(date.getTime())) {
+        throw new Error('The saved data validation date snapshot is invalid.');
+      }
+      return date;
+    }
+    case 'array':
+      if (!Array.isArray(value.values)) {
+        throw new Error('The saved data validation list snapshot is malformed.');
+      }
+      return value.values.map(function(entry) {
+        return deserializeDataValidationCriteriaValue_(spreadsheet, sheet, entry);
+      });
+    case 'range': {
+      const sourceSheet = value.sheetName
+        ? spreadsheet.getSheetByName(value.sheetName)
+        : sheet;
+      if (!sourceSheet || typeof sourceSheet.getRange !== 'function') {
+        throw new Error('The saved data validation source range is no longer available.');
+      }
+      return sourceSheet.getRange(value.rangeA1);
+    }
+    default:
+      throw new Error('The saved data validation snapshot uses an unsupported value type.');
+  }
+}
+
+function serializeDataValidationRule_(rule) {
+  if (rule === null || rule === undefined) {
+    return {
+      rule: null
+    };
+  }
+
+  if (
+    typeof rule.getCriteriaType !== 'function' ||
+    typeof rule.getCriteriaValues !== 'function'
+  ) {
+    return null;
+  }
+
+  const criteriaType = getDataValidationCriteriaName_(rule.getCriteriaType());
+  if (!criteriaType) {
+    return null;
+  }
+
+  const rawCriteriaValues = rule.getCriteriaValues();
+  const criteriaValues = [];
+  if (Array.isArray(rawCriteriaValues)) {
+    for (let index = 0; index < rawCriteriaValues.length; index += 1) {
+      const serializedValue = serializeDataValidationCriteriaValue_(rawCriteriaValues[index]);
+      if (!serializedValue) {
+        return null;
+      }
+
+      criteriaValues.push(serializedValue);
+    }
+  }
+
+  const snapshotRule = {
+    criteriaType: criteriaType,
+    criteriaValues: criteriaValues
+  };
+
+  if (typeof rule.getAllowInvalid === 'function') {
+    snapshotRule.allowInvalid = !!rule.getAllowInvalid();
+  }
+
+  if (typeof rule.getHelpText === 'function') {
+    snapshotRule.helpText = rule.getHelpText();
+  }
+
+  return {
+    rule: snapshotRule
+  };
+}
+
+function readDataValidationStateForSnapshot_(range) {
+  if (!range || typeof range.getDataValidation !== 'function') {
+    return null;
+  }
+
+  return serializeDataValidationRule_(range.getDataValidation());
+}
+
+function createDataValidationLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.targetSheet ||
+    !input.targetRange ||
+    !input.beforeValidation ||
+    !input.afterValidation ||
+    !input.target ||
+    typeof input.target.getNumRows !== 'function' ||
+    typeof input.target.getNumColumns !== 'function'
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'data_validation',
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    shape: {
+      rows: input.target.getNumRows(),
+      columns: input.target.getNumColumns()
+    },
+    beforeValidation: input.beforeValidation,
+    afterValidation: input.afterValidation
+  };
+}
+
 function createRangeFormatLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !input.targetSheet || !input.targetRange || !input.beforeFormat || !input.afterFormat) {
     return null;
@@ -3684,9 +3889,114 @@ function applyExecutionRangeFormatSnapshot_(input) {
   };
 }
 
+function buildDataValidationRuleFromSnapshot_(spreadsheet, sheet, validation) {
+  if (!validation || typeof validation !== 'object' || !Object.prototype.hasOwnProperty.call(validation, 'rule')) {
+    throw new Error('The saved data validation snapshot is malformed.');
+  }
+
+  if (validation.rule === null) {
+    return null;
+  }
+
+  const rule = validation.rule;
+  if (!rule || typeof rule !== 'object' || !rule.criteriaType || !Array.isArray(rule.criteriaValues)) {
+    throw new Error('The saved data validation snapshot is malformed.');
+  }
+
+  const builder = SpreadsheetApp.newDataValidation();
+  if (!builder || typeof builder.withCriteria !== 'function') {
+    throw new Error('Google Sheets host cannot restore data validation snapshots.');
+  }
+
+  const criteriaValues = rule.criteriaValues.map(function(entry) {
+    return deserializeDataValidationCriteriaValue_(spreadsheet, sheet, entry);
+  });
+
+  builder.withCriteria(resolveDataValidationCriteria_(rule.criteriaType), criteriaValues);
+
+  if (typeof rule.allowInvalid === 'boolean' && typeof builder.setAllowInvalid === 'function') {
+    builder.setAllowInvalid(rule.allowInvalid);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(rule, 'helpText') &&
+    rule.helpText !== null &&
+    rule.helpText !== undefined &&
+    typeof builder.setHelpText === 'function'
+  ) {
+    builder.setHelpText(String(rule.helpText));
+  }
+
+  return builder.build();
+}
+
+function resolveExecutionDataValidationSnapshot_(input) {
+  if (!input || typeof input !== 'object') {
+    throw new Error('Execution snapshot payload is required.');
+  }
+
+  if (!input.targetSheet || !input.targetRange || !input.validation || typeof input.validation !== 'object') {
+    throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+  }
+
+  const spreadsheet = SpreadsheetApp.getActive();
+  const sheet = spreadsheet.getSheetByName(input.targetSheet);
+  if (!sheet) {
+    throw new Error('Target sheet not found: ' + input.targetSheet);
+  }
+
+  const target = sheet.getRange(input.targetRange);
+  const expectedRows = input.shape && Number(input.shape.rows);
+  const expectedColumns = input.shape && Number(input.shape.columns);
+  if (
+    !expectedRows ||
+    !expectedColumns ||
+    target.getNumRows() !== expectedRows ||
+    target.getNumColumns() !== expectedColumns
+  ) {
+    throw new Error('The saved undo snapshot no longer matches the current range shape.');
+  }
+
+  return {
+    spreadsheet: spreadsheet,
+    sheet: sheet,
+    target: target,
+    validation: input.validation
+  };
+}
+
+function validateExecutionDataValidationSnapshot_(input) {
+  const validated = resolveExecutionDataValidationSnapshot_(input);
+  buildDataValidationRuleFromSnapshot_(validated.spreadsheet, validated.sheet, validated.validation);
+  return {
+    ok: true,
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    rowCount: validated.target.getNumRows(),
+    columnCount: validated.target.getNumColumns()
+  };
+}
+
+function applyExecutionDataValidationSnapshot_(input) {
+  const validated = resolveExecutionDataValidationSnapshot_(input);
+  validated.target.setDataValidation(
+    buildDataValidationRuleFromSnapshot_(validated.spreadsheet, validated.sheet, validated.validation)
+  );
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange
+  };
+}
+
 function validateExecutionCellSnapshot(input) {
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
+  }
+
+  if (input && input.kind === 'data_validation') {
+    return validateExecutionDataValidationSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -3702,6 +4012,10 @@ function validateExecutionCellSnapshot(input) {
 function applyExecutionCellSnapshot(input) {
   if (input && input.kind === 'range_format') {
     return applyExecutionRangeFormatSnapshot_(input);
+  }
+
+  if (input && input.kind === 'data_validation') {
+    return applyExecutionDataValidationSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -3739,6 +4053,10 @@ function applyExecutionCellSnapshot(input) {
 function validateExecutionCellSnapshot(input) {
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
+  }
+
+  if (input && input.kind === 'data_validation') {
+    return validateExecutionDataValidationSnapshot_(input);
   }
 
   if (!input || typeof input !== 'object') {
@@ -5947,9 +6265,12 @@ function applyWritePlan(input) {
   }
 
   if (isDataValidationPlan_(plan)) {
-    target.setDataValidation(buildDataValidationRule_(spreadsheet, sheet, target, plan));
+    const validationRule = buildDataValidationRule_(spreadsheet, sheet, target, plan);
+    const beforeValidation = input.executionId ? readDataValidationStateForSnapshot_(target) : null;
+    target.setDataValidation(validationRule);
     SpreadsheetApp.flush();
-    return {
+    const afterValidation = beforeValidation ? readDataValidationStateForSnapshot_(target) : null;
+    return attachLocalExecutionSnapshot_({
       kind: 'data_validation_update',
       hostPlatform: 'google_sheets',
       operation: plan.operation,
@@ -5979,7 +6300,14 @@ function applyWritePlan(input) {
       value2: plan.value2,
       formula: plan.formula,
       summary: getDataValidationStatusSummary_(plan)
-    };
+    }, createDataValidationLocalExecutionSnapshot_({
+      executionId: input.executionId,
+      targetSheet: plan.targetSheet,
+      targetRange: plan.targetRange,
+      target: target,
+      beforeValidation: beforeValidation,
+      afterValidation: afterValidation
+    }));
   }
 
   if (isRangeSortPlan_(plan)) {
