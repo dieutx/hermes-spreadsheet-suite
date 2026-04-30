@@ -930,6 +930,12 @@
       .replaceAll(">", "&gt;");
   }
 
+  function escapeHtmlAttribute(value) {
+    return escapeHtml(value)
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
   function parseBooleanSetting(value) {
     return value === true || value === "true" || value === "1";
   }
@@ -3589,7 +3595,7 @@
   function renderAttachmentStrip() {
     elements.attachmentStrip.innerHTML = state.pendingAttachments.map((attachment, index) => `
       <div class="chip">
-        <img src="${attachment.previewUrl}" alt="" />
+        <img src="${escapeHtmlAttribute(attachment.previewUrl)}" alt="" />
         <span>${escapeHtml(attachment.fileName)}</span>
         <span class="chip-status">${escapeHtml(attachment.status)}</span>
         <button type="button" data-remove="${index}">x</button>
@@ -3680,7 +3686,7 @@
           <div>${escapeHtml(preview.explanation)}</div>
           ${getRequiresConfirmation(response) ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Workbook Update
               </button>
             </div>
@@ -3704,7 +3710,7 @@
           <div>${escapeHtml(preview.explanation)}</div>
           ${getRequiresConfirmation(response) ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Sheet Update
               </button>
             </div>
@@ -3726,7 +3732,7 @@
           <div>${escapeHtml(preview.explanation)}</div>
           ${getRequiresConfirmation(response) ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Sort
               </button>
             </div>
@@ -3752,7 +3758,7 @@
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Filter
               </button>
             </div>
@@ -3776,7 +3782,7 @@
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Format Update
               </button>
             </div>
@@ -3822,7 +3828,7 @@
           ${compositeSupportError ? `<div class="warning-line">${escapeHtml(compositeSupportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !compositeSupportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Workflow
               </button>
             </div>
@@ -3851,7 +3857,7 @@
           ${renderTable([], preview.rows)}
           ${getRequiresConfirmation(response) ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Analysis Report
               </button>
             </div>
@@ -3886,7 +3892,7 @@
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Pivot Table
               </button>
             </div>
@@ -3924,7 +3930,7 @@
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Chart
               </button>
             </div>
@@ -3960,7 +3966,7 @@
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Table
               </button>
             </div>
@@ -3990,7 +3996,7 @@
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Conditional Formatting
               </button>
             </div>
@@ -4031,7 +4037,7 @@
           <div class="preview-meta">${escapeHtml(preview.summary)}</div>
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Validation
               </button>
             </div>
@@ -4056,7 +4062,7 @@
           <div class="preview-meta">${escapeHtml(preview.summary)}</div>
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Named Range Update
               </button>
             </div>
@@ -4086,7 +4092,7 @@
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Transfer
               </button>
             </div>
@@ -4133,7 +4139,7 @@
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Cleanup
               </button>
             </div>
@@ -4175,7 +4181,7 @@
           ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm External Data
               </button>
             </div>
@@ -4197,7 +4203,7 @@
           ${renderTable([], preview.rows)}
           ${getRequiresConfirmation(response) ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Update
               </button>
             </div>
@@ -4217,7 +4223,7 @@
           ${renderTable(preview.headers, preview.rows)}
           ${getRequiresConfirmation(response) ? `
             <div class="preview-actions">
-              <button type="button" data-confirm-run="${escapeHtml(message.runId || "")}" data-request="${escapeHtml(message.requestId || "")}">
+              <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Insert
               </button>
             </div>

@@ -988,6 +988,31 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(hooks.elements.messages.innerHTML).toContain("Write-back failed.");
   });
 
+  it("escapes quotes in Google Sheets preview action attributes", () => {
+    const sidebar = loadSidebarContext();
+
+    const html = sidebar.renderStructuredPreview({
+      type: "workbook_structure_update",
+      data: {
+        operation: "create_sheet",
+        sheetName: "Report",
+        position: "end",
+        explanation: "Create a report sheet.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        overwriteRisk: "none"
+      }
+    }, {
+      runId: 'run_001" autofocus onfocus="alert(1)',
+      requestId: 'req_001" onclick="alert(2)'
+    });
+
+    expect(html).toContain("run_001&quot; autofocus onfocus=&quot;alert(1)");
+    expect(html).toContain("req_001&quot; onclick=&quot;alert(2)");
+    expect(html).not.toContain('data-confirm-run="run_001" autofocus');
+    expect(html).not.toContain('onclick="alert(2)');
+  });
+
   it("keeps the Google Sheets sidebar pinned to the latest message after deferred layout growth", () => {
     vi.useFakeTimers();
     const sidebar = loadSidebarContext();
