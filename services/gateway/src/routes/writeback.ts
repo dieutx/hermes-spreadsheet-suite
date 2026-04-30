@@ -558,8 +558,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function hostReportedAtomicCompletionFailure(result: unknown): boolean {
-  if (!isRecord(result) || result.kind === "composite_update") {
+  if (!isRecord(result)) {
     return false;
+  }
+
+  if (result.kind === "composite_update") {
+    const stepResults = Array.isArray(result.stepResults) ? result.stepResults : [];
+    return stepResults.some((stepResult) =>
+      isRecord(stepResult) && hostReportedAtomicCompletionFailure(stepResult.result)
+    );
   }
 
   if (result.partialFailure === true || result.ok === false || result.success === false) {
@@ -1087,6 +1094,7 @@ function assertCompositeCompletionMatchesApprovedPlan(
           throw new Error("Writeback result does not match the approved plan details.");
         }
         {
+          assertHostDidNotReportAtomicCompletionFailure(stepResult.result);
           const stepResponseType = getCompositeStepResponseType(expectedStep.plan);
           if (!stepResponseType) {
             throw new Error("Writeback result does not match the approved plan details.");

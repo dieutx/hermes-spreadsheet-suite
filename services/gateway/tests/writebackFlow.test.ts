@@ -598,6 +598,95 @@ describe("writeback confirmation flow", () => {
     });
   });
 
+  it("rejects composite child results when the host reports a partial failure", () => {
+    const traceBus = new TraceBus();
+    const plan = {
+      steps: [
+        {
+          stepId: "create",
+          dependsOn: [],
+          continueOnError: false,
+          plan: {
+            operation: "create_sheet",
+            sheetName: "Stage",
+            position: "end" as const,
+            explanation: "Create the staging sheet.",
+            confidence: 0.9,
+            requiresConfirmation: true
+          }
+        }
+      ],
+      explanation: "Create a staging sheet.",
+      confidence: 0.9,
+      requiresConfirmation: true as const,
+      affectedRanges: ["Stage!A1"],
+      overwriteRisk: "none" as const,
+      confirmationLevel: "standard" as const,
+      reversible: true,
+      dryRunRecommended: true,
+      dryRunRequired: false
+    };
+
+    setRunResponse(traceBus, {
+      runId: "run_composite_child_partial_failure",
+      requestId: "req_composite_child_partial_failure",
+      type: "composite_plan",
+      traceEvent: "composite_plan_ready",
+      plan
+    });
+
+    const approval = invokeWritebackRoute({
+      traceBus,
+      path: "/approve",
+      body: {
+        requestId: "req_composite_child_partial_failure",
+        runId: "run_composite_child_partial_failure",
+        workbookSessionKey: "excel_windows::workbook-123",
+        plan
+      }
+    });
+    expect(approval.status).toBe(200);
+
+    const completion = invokeWritebackRoute({
+      traceBus,
+      path: "/complete",
+      body: {
+        requestId: "req_composite_child_partial_failure",
+        runId: "run_composite_child_partial_failure",
+        workbookSessionKey: "excel_windows::workbook-123",
+        approvalToken: (approval.body as any).approvalToken,
+        planDigest: (approval.body as any).planDigest,
+        result: {
+          kind: "composite_update",
+          operation: "composite_update",
+          hostPlatform: "excel_windows",
+          executionId: (approval.body as any).executionId,
+          stepResults: [
+            {
+              stepId: "create",
+              status: "completed",
+              summary: "Created Stage.",
+              result: {
+                kind: "workbook_structure_update",
+                operation: "create_sheet",
+                hostPlatform: "excel_windows",
+                sheetName: "Stage",
+                positionResolved: 1,
+                sheetCount: 2,
+                partialFailure: true,
+                summary: "Created Stage."
+              }
+            }
+          ],
+          summary: "Completed the composite workflow."
+        }
+      }
+    });
+
+    expectRouteError(completion, 409, "HOST_COMPLETION_FAILED");
+    expect(traceBus.getRun("run_composite_child_partial_failure")?.writeback?.completedAt).toBeUndefined();
+  });
+
   it("requires completed composite steps to prove the child writeback result", () => {
     const traceBus = new TraceBus();
     const plan = {
