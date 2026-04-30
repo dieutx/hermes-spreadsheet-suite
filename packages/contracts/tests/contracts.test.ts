@@ -920,6 +920,88 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects oversized selection value and formula matrices in requests", () => {
+    const oversizedValues = Array.from({ length: 501 }, (_value, index) => [`row-${index}`]);
+    const oversizedFormulas = Array.from({ length: 501 }, (_value, index) => [`=ROW(${index + 1})`]);
+
+    const valuesParsed = HermesRequestSchema.safeParse({
+      schemaVersion: "1.0.0",
+      requestId: "req_sel_values_too_large_001",
+      source: {
+        channel: "google_sheets",
+        clientVersion: "0.1.0"
+      },
+      host: {
+        platform: "google_sheets",
+        workbookTitle: "Revenue Tracker",
+        activeSheet: "Q2",
+        selectedRange: "A1:A501"
+      },
+      userMessage: "Explain the current selection.",
+      conversation: [{ role: "user", content: "Explain the current selection." }],
+      context: {
+        selection: {
+          range: "A1:A501",
+          values: oversizedValues
+        }
+      },
+      capabilities: {
+        canRenderTrace: true,
+        canRenderStructuredPreview: true,
+        canConfirmWriteBack: true
+      },
+      reviewer: {
+        reviewerSafeMode: false
+      },
+      confirmation: {
+        state: "none"
+      }
+    });
+
+    const formulasParsed = HermesRequestSchema.safeParse({
+      schemaVersion: "1.0.0",
+      requestId: "req_sel_formulas_too_large_001",
+      source: {
+        channel: "excel_windows",
+        clientVersion: "0.1.0"
+      },
+      host: {
+        platform: "excel_windows",
+        workbookTitle: "Revenue Tracker",
+        activeSheet: "Q2",
+        selectedRange: "A1:A501"
+      },
+      userMessage: "Explain formulas.",
+      conversation: [{ role: "user", content: "Explain formulas." }],
+      context: {
+        selection: {
+          range: "A1:A501",
+          formulas: oversizedFormulas
+        }
+      },
+      capabilities: {
+        canRenderTrace: true,
+        canRenderStructuredPreview: true,
+        canConfirmWriteBack: true
+      },
+      reviewer: {
+        reviewerSafeMode: false
+      },
+      confirmation: {
+        state: "none"
+      }
+    });
+
+    expect(valuesParsed.success).toBe(false);
+    expect(formulasParsed.success).toBe(false);
+    expect(valuesParsed.error?.issues.map((issue) => issue.message)).toContain(
+      "values must contain 500 rows or fewer."
+    );
+    expect(formulasParsed.error?.issues.map((issue) => issue.message)).toContain(
+      "formulas must contain 500 rows or fewer."
+    );
+  });
+
   it("rejects mismatched host and selection ranges in requests", () => {
     const parsed = HermesRequestSchema.safeParse({
       schemaVersion: "1.0.0",
