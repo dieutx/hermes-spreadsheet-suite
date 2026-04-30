@@ -541,6 +541,34 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(webImport)).not.toThrow();
   });
 
+  it("coerces importhtml selector indexes before validation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "external_data_plan",
+      data: {
+        provider: "IMPORTHTML",
+        sourceUrl: "https://example.com/markets",
+        selectorType: "table",
+        selector: "1",
+        targetSheet: "Imports",
+        targetRange: "A1",
+        explanation: "Import the first market table.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "external_data_plan",
+      data: {
+        sourceType: "web_table_import",
+        provider: "importhtml",
+        selector: 1,
+        formula: '=IMPORTHTML("https://example.com/markets","table",1)'
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes sheet update aliases and infers shape before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "sheet_update",
