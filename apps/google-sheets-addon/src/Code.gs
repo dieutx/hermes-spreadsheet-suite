@@ -4806,6 +4806,10 @@ function buildDataValidationRule_(spreadsheet, sheet, target, plan) {
           return builder.requireDateNotBetween(dateValue, secondDateValue).build();
         case 'equal_to':
           return builder.requireDateEqualTo(dateValue).build();
+        case 'not_equal_to':
+          return builder.requireFormulaSatisfied(
+            buildDateValidationFormula_(plan, target.getA1Notation())
+          ).build();
         case 'greater_than':
           return builder.requireDateAfter(dateValue).build();
         case 'greater_than_or_equal_to':
@@ -4832,6 +4836,10 @@ function buildDataValidationRule_(spreadsheet, sheet, target, plan) {
           return builder.requireTextLengthNotBetween(plan.value, plan.value2).build();
         case 'equal_to':
           return builder.requireTextLengthEqualTo(plan.value).build();
+        case 'not_equal_to':
+          return builder.requireFormulaSatisfied(
+            buildTextLengthValidationFormula_(plan, target.getA1Notation())
+          ).build();
         case 'greater_than':
           return builder.requireTextLengthGreaterThan(plan.value).build();
         case 'greater_than_or_equal_to':
