@@ -2403,6 +2403,14 @@ function normalizeExternalDataPlanData(value: unknown): unknown {
     normalized.sourceType = "web_table_import";
   }
 
+  if (!hasOwn(normalized, "selectorType")) {
+    if (provider === "importxml") {
+      normalized.selectorType = "xpath";
+    } else if (provider === "importdata") {
+      normalized.selectorType = "direct";
+    }
+  }
+
   if (!hasOwn(normalized, "formula") && provider === "googlefinance") {
     const formula = buildGoogleFinanceFormula(normalized.query);
     if (formula) {

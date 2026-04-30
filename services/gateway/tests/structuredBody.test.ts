@@ -541,6 +541,57 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(webImport)).not.toThrow();
   });
 
+  it("defaults provider-specific web import selector types before validation", () => {
+    const xmlImport = normalizeHermesStructuredBodyInput({
+      type: "external_data_plan",
+      data: {
+        provider: "IMPORTXML",
+        sourceUrl: "https://example.com/feed",
+        selector: "//item/title",
+        targetSheet: "Imports",
+        targetRange: "A1",
+        explanation: "Import feed titles.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(xmlImport).toMatchObject({
+      type: "external_data_plan",
+      data: {
+        sourceType: "web_table_import",
+        provider: "importxml",
+        selectorType: "xpath",
+        formula: '=IMPORTXML("https://example.com/feed","//item/title")'
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(xmlImport)).not.toThrow();
+
+    const dataImport = normalizeHermesStructuredBodyInput({
+      type: "external_data_plan",
+      data: {
+        provider: "IMPORTDATA",
+        sourceUrl: "https://example.com/data.csv",
+        targetSheet: "Imports",
+        targetRange: "C1",
+        explanation: "Import a CSV feed.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(dataImport).toMatchObject({
+      type: "external_data_plan",
+      data: {
+        sourceType: "web_table_import",
+        provider: "importdata",
+        selectorType: "direct",
+        formula: '=IMPORTDATA("https://example.com/data.csv")'
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(dataImport)).not.toThrow();
+  });
+
   it("normalizes sheet update aliases and infers shape before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "sheet_update",
