@@ -154,6 +154,10 @@ function normalizeGatewayBaseUrl(baseUrl: string): string {
   }
 }
 
+function encodePathSegment(value: string): string {
+  return encodeURIComponent(value);
+}
+
 export function createGatewayClient(baseUrl: string): GatewayClient {
   const normalizedBaseUrl = normalizeGatewayBaseUrl(baseUrl);
   const gatewayUrl = (path: string): string => {
@@ -203,7 +207,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
 
       return parseJson(
         await fetch(
-          gatewayUrl(`/api/requests/${runId}${params.size > 0 ? `?${params.toString()}` : ""}`)
+          gatewayUrl(`/api/requests/${encodePathSegment(runId)}${params.size > 0 ? `?${params.toString()}` : ""}`)
         )
       );
     },
@@ -220,7 +224,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       }
 
       return parseJson(
-        await fetch(gatewayUrl(`/api/trace/${runId}?${params.toString()}`))
+        await fetch(gatewayUrl(`/api/trace/${encodePathSegment(runId)}?${params.toString()}`))
       );
     },
 
