@@ -1,38 +1,52 @@
+
 # Hermes Spreadsheet Suite
 
-Hermes Spreadsheet Suite is the spreadsheet-native execution product for **Hermes** across:
+Hermes Spreadsheet Suite is a spreadsheet-native execution product that brings **Hermes** into real Excel and Google Sheets workflows without turning the host into a second agent.
+
+It targets three real spreadsheet surfaces:
 
 - Microsoft Excel on Windows via Office.js
 - Microsoft Excel on macOS via Office.js
 - Google Sheets via Apps Script
 
-Hermes is the central spreadsheet brain. This repo is the product boundary that lets Hermes operate inside real workbooks and sheets without turning hosts into a second reasoning system.
+The core idea is simple:
 
-It exists to make Hermes usable, safe, and exact in spreadsheets:
+- Hermes Agent does the planning.
+- Hermes Agent returns structured responses instead of free-form spreadsheet guesses.
+- The gateway checks, normalizes, and controls those responses.
+- The hosts preview and execute only the approved spreadsheet mutations.
 
-- it collects real workbook context
-- it routes spreadsheet intent through contract-checked flows
-- it renders previews before execution
-- it translates approved plans into exact host mutations
-- it verifies completion against the approved plan
+That separation is what makes the product feel serious instead of toy-like. The model does not write directly into a workbook. It has to operate through contracts, previews, approval, and completion checks.
 
-This is not a thin wrapper around a model. It is the execution surface around Hermes for spreadsheet work.
+## Why This Project Is Compelling
+
+Hermes Spreadsheet Suite is interesting because it solves a real product problem, not just a demo prompt:
+
+- spreadsheets need context-aware reasoning, but also exact execution
+- users need previews and confirmation before writes
+- hosts should not become ad hoc reasoning systems
+- multi-step spreadsheet work needs structured plans, not raw chat text
+- execution needs traceability, safety boundaries, and completion checks
+
+This repo is the execution surface around Hermes for spreadsheet work. It exists to make spreadsheet automation feel trustworthy, inspectable, and actually usable in production-style workflows.
 
 ## What Hermes Does Here
 
-Hermes is responsible for the product-level intelligence:
+Hermes Agent is the central product brain in this system. It is the planner and structured response generator.
+
+Hermes is responsible for:
 
 - understanding spreadsheet intent from real workbook context
 - choosing the right capability family
-- returning structured responses, not free-form guesses
+- producing structured responses that match explicit contracts
 - driving multi-step spreadsheet workflows
-- producing confirmable write proposals instead of mutating sheets directly
+- generating confirmable write proposals instead of mutating sheets directly
 
 The rest of the repo exists to make those Hermes decisions safe and executable:
 
 - the hosts gather workbook state, render previews, and apply approved writes
 - the gateway enforces contracts, approval, trace, completion checks, and execution control
-- shared contracts keep all layers aligned on what a valid spreadsheet action actually is
+- shared contracts keep every layer aligned on the same capability model
 
 ## Core Product Flow
 
@@ -40,8 +54,8 @@ The rest of the repo exists to make those Hermes decisions safe and executable:
 flowchart LR
     U[User in Excel or Google Sheets] --> H[Host captures workbook context]
     H --> G[Gateway validates request contract]
-    G --> A[Hermes plans the spreadsheet action]
-    A --> G2[Gateway normalizes and checks response]
+    G --> A[Hermes Agent plans the spreadsheet action]
+    A --> G2[Gateway normalizes and checks structured response]
     G2 --> P[Host renders preview]
     P --> C{User confirms?}
     C -- No --> X[No mutation]
@@ -52,13 +66,52 @@ flowchart LR
 In plain terms:
 
 1. A user asks Hermes to do spreadsheet work.
-2. The host captures the real workbook state.
+2. The host captures real workbook context.
 3. The gateway validates the request envelope.
-4. Hermes returns a structured spreadsheet response.
+4. Hermes Agent returns a structured response.
 5. The host previews anything write-capable.
 6. The user explicitly confirms.
-7. The host applies the plan.
+7. The host applies the approved plan.
 8. The gateway verifies what happened and records execution history.
+
+## Structured Response Template
+
+Hermes does not need to return vague prose. It can return a structured response that the gateway and hosts can validate before anything is executed.
+
+A simplified example looks like this:
+
+```json
+{
+  "operation": "sheet_update",
+  "targetSheet": "Q2 Plan",
+  "targetRange": "A1:D6",
+  "data": {
+    "operation": "replace_range",
+    "values": [
+      ["Owner", "Task", "Status", "ETA"],
+      ["Ana", "Draft launch brief", "In progress", "2026-05-02"]
+    ],
+    "shape": { "rows": 2, "columns": 4 },
+    "explanation": "Create a compact launch tracker with the requested columns.",
+    "confidence": 0.93,
+    "requiresConfirmation": true,
+    "overwriteRisk": "low"
+  },
+  "trace": [
+    {
+      "step": "plan",
+      "message": "Mapped the request to a confirmed sheet update plan."
+    }
+  ]
+}
+```
+
+What matters is the contract, not the exact wording of the example:
+
+- Hermes Agent plans the action
+- the response is structured and machine-checkable
+- the host can preview the write before execution
+- the final mutation still requires explicit confirmation
 
 ## Capability Surface
 
