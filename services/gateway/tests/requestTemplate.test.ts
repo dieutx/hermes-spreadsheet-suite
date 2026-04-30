@@ -808,6 +808,35 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).not.toContain('Prefer type="conditional_format_plan"');
   });
 
+  it("routes static formatting prompts toward range_format_update", () => {
+    const prompts = [
+      buildHermesSpreadsheetRequestPrompt(baseRequest({
+        userMessage: "Make A1:F1 bold with blue fill and a bottom border."
+      })),
+      buildHermesSpreadsheetRequestPrompt(baseRequest({
+        userMessage: "Set C2:C20 to currency number format."
+      })),
+      buildHermesSpreadsheetRequestPrompt(baseRequest({
+        userMessage: "Wrap text and center align this selected range."
+      }))
+    ];
+
+    for (const prompt of prompts) {
+      expect(prompt).toContain('Prefer type="range_format_update"');
+      expect(prompt).not.toContain('Prefer type="conditional_format_plan"');
+      expect(prompt).not.toContain('Prefer type="table_plan"');
+    }
+  });
+
+  it("keeps advisory static formatting how-to prompts on the chat path", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Explain how to make A1:F1 bold in Excel."
+    }));
+
+    expect(prompt).toContain('Prefer type="chat"');
+    expect(prompt).not.toContain('Prefer type="range_format_update"');
+  });
+
   it("includes wave-1 sheet structure confirmation invariants in the request guidance", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "Delete rows 8 to 10."
