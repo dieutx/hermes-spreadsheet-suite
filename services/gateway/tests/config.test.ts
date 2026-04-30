@@ -10,6 +10,8 @@ afterEach(() => {
   delete process.env.APPROVAL_SECRET;
   delete process.env.GATEWAY_PUBLIC_BASE_URL;
   delete process.env.GATEWAY_ALLOWED_ORIGINS;
+  delete process.env.HERMES_SERVICE_LABEL;
+  delete process.env.HERMES_ENVIRONMENT_LABEL;
   delete process.env.HERMES_AGENT_BASE_URL;
   delete process.env.HERMES_API_SERVER_KEY;
   delete process.env.HERMES_AGENT_API_KEY;
@@ -52,6 +54,16 @@ describe("gateway config", () => {
   it("defaults the Hermes Agent API base url to the local API server path", () => {
     expect(getConfig()).toMatchObject({
       hermesAgentBaseUrl: "http://127.0.0.1:8642/v1"
+    });
+  });
+
+  it("sanitizes public gateway labels before exposing them to clients", () => {
+    process.env.HERMES_SERVICE_LABEL = "HERMES_API_SERVER_KEY=secret";
+    process.env.HERMES_ENVIRONMENT_LABEL = "/srv/hermes/internal-config.ts";
+
+    expect(getConfig()).toMatchObject({
+      serviceLabel: "hermes-gateway-local",
+      environmentLabel: "local-dev"
     });
   });
 
