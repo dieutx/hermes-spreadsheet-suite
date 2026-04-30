@@ -56,6 +56,8 @@ const DEBUG_BEARER_TOKEN_PATTERN = /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}\b/gi;
 const DEBUG_INTERNAL_URL_PATTERN = /https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})[^\s"'`<>)\]}]*/gi;
 const SANITIZED_WARNING_MESSAGE = "A gateway warning was hidden because it contained internal diagnostic details.";
 const MAX_GATEWAY_RESPONSE_TRACE_EVENTS = 200;
+const MAX_GATEWAY_ERROR_MESSAGE_LENGTH = 8000;
+const MAX_GATEWAY_ERROR_USER_ACTION_LENGTH = 2000;
 const DEFAULT_HERMES_AGENT_TIMEOUT_MS = 45_000;
 
 class HermesProviderTimeoutError extends Error {
@@ -833,10 +835,12 @@ export class HermesAgentClient {
       ? input.userAction.trim()
       : "";
     const messageLooksInternal = !resolvedMessage ||
+      resolvedMessage.length > MAX_GATEWAY_ERROR_MESSAGE_LENGTH ||
       INTERNAL_ERROR_LANGUAGE_PATTERN.test(resolvedMessage) ||
       containsClientUnsafeDiagnostic(resolvedMessage);
     const userActionLooksInternal = resolvedUserAction.length > 0 &&
-      (INTERNAL_ERROR_LANGUAGE_PATTERN.test(resolvedUserAction) ||
+      (resolvedUserAction.length > MAX_GATEWAY_ERROR_USER_ACTION_LENGTH ||
+        INTERNAL_ERROR_LANGUAGE_PATTERN.test(resolvedUserAction) ||
         containsClientUnsafeDiagnostic(resolvedUserAction));
 
     if (!messageLooksInternal && !userActionLooksInternal) {
