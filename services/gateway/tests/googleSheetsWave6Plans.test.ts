@@ -3976,6 +3976,142 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("attaches local undo snapshots for Google Sheets sheet move writes", () => {
+    const firstSheet = {
+      getName: vi.fn(() => "Sheet1"),
+      getIndex: vi.fn(() => sheets.indexOf(firstSheet) + 1)
+    };
+    const secondSheet = {
+      getName: vi.fn(() => "Sheet2"),
+      getIndex: vi.fn(() => sheets.indexOf(secondSheet) + 1)
+    };
+    const targetSheet = {
+      getName: vi.fn(() => "Sheet3"),
+      getIndex: vi.fn(() => sheets.indexOf(targetSheet) + 1)
+    };
+    const sheets = [firstSheet, secondSheet, targetSheet];
+    let activeSheet: typeof targetSheet | null = null;
+    const spreadsheet = {
+      getSheets: vi.fn(() => sheets),
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet3");
+        return targetSheet;
+      }),
+      setActiveSheet: vi.fn((sheet: typeof targetSheet) => {
+        activeSheet = sheet;
+      }),
+      moveActiveSheet: vi.fn((position: number) => {
+        if (!activeSheet) {
+          throw new Error("No active sheet");
+        }
+
+        const currentIndex = sheets.indexOf(activeSheet);
+        sheets.splice(currentIndex, 1);
+        sheets.splice(position - 1, 0, activeSheet);
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_move_sheet_snapshot_sheets_001",
+      runId: "run_move_sheet_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_move_sheet_snapshot_sheets_001",
+      plan: {
+        operation: "move_sheet",
+        sheetName: "Sheet3",
+        position: 0,
+        explanation: "Move the staging sheet to the front.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(sheets.map((sheet) => sheet.getName())).toEqual(["Sheet3", "Sheet1", "Sheet2"]);
+    expect(spreadsheet.moveActiveSheet).toHaveBeenCalledWith(1);
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "move_sheet",
+      sheetName: "Sheet3",
+      positionResolved: 0,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_move_sheet_snapshot_sheets_001",
+        kind: "workbook_structure",
+        operation: "move_sheet",
+        before: {
+          exists: true,
+          name: "Sheet3",
+          position: 2
+        },
+        after: {
+          exists: true,
+          name: "Sheet3",
+          position: 0
+        }
+      }
+    });
+  });
+
+  it("applies Google Sheets sheet move snapshots on the server", () => {
+    const firstSheet = {
+      getName: vi.fn(() => "Sheet1"),
+      getIndex: vi.fn(() => sheets.indexOf(firstSheet) + 1)
+    };
+    const targetSheet = {
+      getName: vi.fn(() => "Sheet3"),
+      getIndex: vi.fn(() => sheets.indexOf(targetSheet) + 1)
+    };
+    const lastSheet = {
+      getName: vi.fn(() => "Sheet4"),
+      getIndex: vi.fn(() => sheets.indexOf(lastSheet) + 1)
+    };
+    const sheets = [targetSheet, firstSheet, lastSheet];
+    let activeSheet: typeof targetSheet | null = null;
+    const spreadsheet = {
+      getSheets: vi.fn(() => sheets),
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet3");
+        return targetSheet;
+      }),
+      setActiveSheet: vi.fn((sheet: typeof targetSheet) => {
+        activeSheet = sheet;
+      }),
+      moveActiveSheet: vi.fn((position: number) => {
+        if (!activeSheet) {
+          throw new Error("No active sheet");
+        }
+
+        const currentIndex = sheets.indexOf(activeSheet);
+        sheets.splice(currentIndex, 1);
+        sheets.splice(position - 1, 0, activeSheet);
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "move_sheet",
+      from: {
+        exists: true,
+        name: "Sheet3",
+        position: 0
+      },
+      to: {
+        exists: true,
+        name: "Sheet3",
+        position: 2
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "move_sheet"
+    });
+
+    expect(sheets.map((sheet) => sheet.getName())).toEqual(["Sheet1", "Sheet4", "Sheet3"]);
+    expect(spreadsheet.moveActiveSheet).toHaveBeenCalledWith(3);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("applies external data plans by anchoring a first-class formula into a single Google Sheets cell", () => {
     const targetRange = createRangeStub({
       a1Notation: "B2",
