@@ -1,4 +1,3 @@
-
 # Hermes Spreadsheet Suite
 
 Hermes Spreadsheet Suite is a spreadsheet-native execution product that brings **Hermes** into real Excel and Google Sheets workflows without turning the host into a second agent.
@@ -82,11 +81,11 @@ A simplified example looks like this:
 
 ```json
 {
-  "operation": "sheet_update",
-  "targetSheet": "Q2 Plan",
-  "targetRange": "A1:D6",
+  "type": "sheet_update",
   "data": {
     "operation": "replace_range",
+    "targetSheet": "Q2 Plan",
+    "targetRange": "A1:D6",
     "values": [
       ["Owner", "Task", "Status", "ETA"],
       ["Ana", "Draft launch brief", "In progress", "2026-05-02"]
@@ -99,8 +98,8 @@ A simplified example looks like this:
   },
   "trace": [
     {
-      "step": "plan",
-      "message": "Mapped the request to a confirmed sheet update plan."
+      "event": "sheet_update_plan_ready",
+      "timestamp": "2026-04-30T15:00:00.000Z"
     }
   ]
 }
