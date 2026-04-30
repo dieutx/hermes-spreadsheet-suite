@@ -1285,6 +1285,75 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(copiedSheet.load).toHaveBeenCalledWith("name");
   });
 
+  it("records Excel duplicate sheet snapshots for exact undo", async () => {
+    const copiedSheet = {
+      name: "Template Copy",
+      position: 2,
+      visibility: "visible",
+      load: vi.fn()
+    };
+    const sourceSheet = {
+      name: "Template",
+      position: 0,
+      visibility: "visible",
+      copy: vi.fn(() => copiedSheet)
+    };
+    const worksheets = {
+      items: [
+        sourceSheet,
+        { name: "Summary", position: 1, visibility: "visible" }
+      ],
+      load: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "duplicate_sheet",
+        sheetName: "Template",
+        newSheetName: "Template Copy",
+        position: "end",
+        explanation: "Duplicate the template sheet.",
+        confidence: 0.95,
+        requiresConfirmation: true,
+        overwriteRisk: "low"
+      },
+      requestId: "req_duplicate_snapshot_excel_001",
+      runId: "run_duplicate_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_duplicate_snapshot_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "workbook_structure_update",
+      operation: "duplicate_sheet",
+      sheetName: "Template",
+      newSheetName: "Template Copy",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_duplicate_snapshot_excel_001",
+        kind: "workbook_structure",
+        operation: "duplicate_sheet",
+        source: {
+          exists: true,
+          name: "Template",
+          position: 0
+        },
+        before: {
+          exists: false,
+          name: "Template Copy"
+        },
+        after: {
+          exists: true,
+          name: "Template Copy",
+          position: 2
+        }
+      }
+    });
+  });
+
   it("truncates oversized prompt and conversation content before building the Excel request envelope", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})
@@ -2807,6 +2876,88 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
     expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
     expect(worksheet.position).toBe(2);
+  });
+
+  it("restores Excel duplicate sheet snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_duplicate_sheet_001"],
+      executions: {
+        exec_duplicate_sheet_001: {
+          baseExecutionId: "exec_duplicate_sheet_001"
+        }
+      },
+      bases: {
+        exec_duplicate_sheet_001: {
+          baseExecutionId: "exec_duplicate_sheet_001",
+          kind: "workbook_structure",
+          operation: "duplicate_sheet",
+          source: {
+            exists: true,
+            name: "Template",
+            position: 0
+          },
+          before: {
+            exists: false,
+            name: "Template Copy"
+          },
+          after: {
+            exists: true,
+            name: "Template Copy",
+            position: 1
+          }
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "workbook_structure_update",
+          operation: "duplicate_sheet",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    const copiedSheet = {
+      name: "Template Copy",
+      position: 1,
+      visibility: "visible",
+      load: vi.fn(),
+      delete: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("Template Copy");
+              return copiedSheet;
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_duplicate_sheet_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(copiedSheet.delete).toHaveBeenCalledTimes(1);
   });
 
   it("renders and applies native Excel table plans", async () => {
