@@ -702,14 +702,34 @@ function parseGatewayJsonResponse_(response) {
   }
 }
 
+function normalizeGatewayProxyPath_(path) {
+  const normalizedPath = String(path || '').trim();
+  if (!/^\/api(?:\/|\?|$)/.test(normalizedPath)) {
+    throw new Error('Hermes gateway proxy only supports /api/ routes.');
+  }
+
+  return normalizedPath;
+}
+
+function normalizeGatewayProxyMethod_(method) {
+  const normalizedMethod = typeof method === 'string' && method.trim().length > 0
+    ? method.trim().toLowerCase()
+    : 'get';
+
+  if (normalizedMethod !== 'get' && normalizedMethod !== 'post') {
+    throw new Error('Hermes gateway proxy only supports GET and POST.');
+  }
+
+  return normalizedMethod;
+}
+
 function proxyGatewayJson(input) {
   if (!input || typeof input.path !== 'string' || input.path.trim().length === 0) {
     throw new Error('Hermes gateway proxy requires a request path.');
   }
 
-  const method = typeof input.method === 'string' && input.method.trim().length > 0
-    ? input.method.toLowerCase()
-    : 'get';
+  const proxyPath = normalizeGatewayProxyPath_(input.path);
+  const method = normalizeGatewayProxyMethod_(input.method);
   const headers = {};
   const sourceHeaders = input.headers && typeof input.headers === 'object' ? input.headers : {};
 
@@ -742,7 +762,7 @@ function proxyGatewayJson(input) {
     }
   }
 
-  return parseGatewayJsonResponse_(UrlFetchApp.fetch(buildGatewayUrl_(input.path), requestOptions));
+  return parseGatewayJsonResponse_(UrlFetchApp.fetch(buildGatewayUrl_(proxyPath), requestOptions));
 }
 
 function uploadGatewayImageAttachment(input) {
