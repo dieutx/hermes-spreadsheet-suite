@@ -20,6 +20,7 @@ afterEach(() => {
   delete process.env.HERMES_AGENT_TIMEOUT_MS;
   delete process.env.HERMES_BASE_URL;
   delete process.env.MAX_UPLOAD_BYTES;
+  delete process.env.PORT;
 });
 
 describe("gateway config", () => {
@@ -137,6 +138,14 @@ describe("gateway config", () => {
       process.env.MAX_UPLOAD_BYTES = value;
 
       expect(() => getConfig()).toThrow("MAX_UPLOAD_BYTES must be a positive integer.");
+    }
+  });
+
+  it("fails closed when the gateway port is invalid", () => {
+    for (const value of ["0", "-1", "not-a-number", "8787.5"]) {
+      process.env.PORT = value;
+
+      expect(() => getConfig()).toThrow("PORT must be a positive integer.");
     }
   });
 
