@@ -2736,7 +2736,7 @@
     const kind = inferGoogleSheetsPreviewSupportKind(preview);
 
     if (kind === "pivot_table_plan") {
-      if (typeof preview.targetRange !== "string" || preview.targetRange.trim().length === 0 || preview.targetRange.includes(":")) {
+      if (!isSingleCellA1Anchor(preview.targetRange)) {
         return "Choose one destination cell for the pivot table.";
       }
 
