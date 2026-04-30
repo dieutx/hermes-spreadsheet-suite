@@ -365,6 +365,24 @@ describe("shared client render helpers", () => {
     );
   });
 
+  it("sanitizes sensitive raw text gateway errors from shared-client responses", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      "Error: failed at /root/hermes/src/server.ts:42\\nAPPROVAL_SECRET=super-secret",
+      {
+        status: 500,
+        headers: {
+          "content-type": "text/plain"
+        }
+      }
+    )));
+
+    const client = createGatewayClient("http://localhost:18787");
+
+    await expect(client.pollRun("run_123")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
+  });
+
   it("surfaces legacy string-shaped JSON errors from gateway responses", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       error: "That Hermes request is no longer available.",
