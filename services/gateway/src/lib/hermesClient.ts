@@ -832,9 +832,12 @@ export class HermesAgentClient {
     const resolvedUserAction = typeof input.userAction === "string"
       ? input.userAction.trim()
       : "";
-    const messageLooksInternal = !resolvedMessage || INTERNAL_ERROR_LANGUAGE_PATTERN.test(resolvedMessage);
+    const messageLooksInternal = !resolvedMessage ||
+      INTERNAL_ERROR_LANGUAGE_PATTERN.test(resolvedMessage) ||
+      containsClientUnsafeDiagnostic(resolvedMessage);
     const userActionLooksInternal = resolvedUserAction.length > 0 &&
-      INTERNAL_ERROR_LANGUAGE_PATTERN.test(resolvedUserAction);
+      (INTERNAL_ERROR_LANGUAGE_PATTERN.test(resolvedUserAction) ||
+        containsClientUnsafeDiagnostic(resolvedUserAction));
 
     if (!messageLooksInternal && !userActionLooksInternal) {
       return {
