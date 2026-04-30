@@ -95,6 +95,45 @@ describe("trace router", () => {
     expect((matchingSessionId.body as any).events).toHaveLength(1);
   });
 
+  it("rejects oversized trace route identifiers", async () => {
+    const traceBus = new TraceBus();
+    const router = createTraceRouter({ traceBus });
+
+    const response = await invokeGet(router, `run_${"x".repeat(256)}`, {
+      requestId: "req_trace_oversized"
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Trace identifiers are invalid.",
+        userAction: "Retry the request trace from the current Hermes session."
+      }
+    });
+  });
+
+  it("rejects oversized trace identity query values", async () => {
+    const traceBus = new TraceBus();
+    traceBus.ensureRun("run_trace_query_bounds", "req_trace_query_bounds");
+    (traceBus.peekRun("run_trace_query_bounds") as any).sessionId = "sess_trace_query_bounds";
+    const router = createTraceRouter({ traceBus });
+
+    const response = await invokeGet(router, "run_trace_query_bounds", {
+      requestId: `req_${"x".repeat(256)}`,
+      sessionId: `sess_${"x".repeat(256)}`
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Trace identifiers are invalid.",
+        userAction: "Retry the request trace from the current Hermes session."
+      }
+    });
+  });
+
   it("rejects malformed trace cursors instead of coercing them through Number()", async () => {
     const traceBus = new TraceBus();
     traceBus.ensureRun("run_trace_002", "req_trace_002");
