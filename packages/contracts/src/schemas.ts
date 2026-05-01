@@ -1619,6 +1619,34 @@ export const ChartPlanDataSchema = ChartPlanBaseDataSchema.superRefine((data, ct
       path: ["affectedRanges"]
     });
   }
+
+  if (data.chartType !== "pie") {
+    return;
+  }
+
+  if (data.series.length !== 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "pie charts require exactly one series.",
+      path: ["series"]
+    });
+  }
+
+  if (data.horizontalAxisTitle !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "pie charts must not include horizontalAxisTitle.",
+      path: ["horizontalAxisTitle"]
+    });
+  }
+
+  if (data.verticalAxisTitle !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "pie charts must not include verticalAxisTitle.",
+      path: ["verticalAxisTitle"]
+    });
+  }
 });
 
 export const TablePlanDataSchema = strictObject({
