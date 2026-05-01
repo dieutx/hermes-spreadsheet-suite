@@ -865,6 +865,87 @@ describe("Excel wave 1 plan helpers", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel freeze pane writes", async () => {
+    let frozenRangeAddress = "Sheet1!A2";
+    const freezePanes = {
+      getLocationOrNullObject: vi.fn(() => ({
+        isNullObject: frozenRangeAddress.length === 0,
+        address: frozenRangeAddress,
+        load: vi.fn()
+      })),
+      freezeAt: vi.fn((range: { address?: string } | string) => {
+        frozenRangeAddress = typeof range === "string" ? `Sheet1!${range}` : range.address || "";
+      }),
+      unfreeze: vi.fn(() => {
+        frozenRangeAddress = "";
+      })
+    };
+    const worksheet = {
+      name: "Sheet1",
+      freezePanes,
+      getRangeByIndexes: vi.fn((rowIndex: number, columnIndex: number, rowCount: number, columnCount: number) => {
+        expect(rowIndex).toBe(2);
+        expect(columnIndex).toBe(1);
+        expect(rowCount).toBe(1);
+        expect(columnCount).toBe(1);
+        return { address: "Sheet1!B3" };
+      })
+    };
+    const worksheets = {
+      getItem: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return worksheet;
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "freeze_panes",
+        targetSheet: "Sheet1",
+        frozenRows: 2,
+        frozenColumns: 1,
+        explanation: "Freeze header rows and first column.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_freeze_pane_snapshot_excel_001",
+      runId: "run_freeze_pane_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_freeze_pane_snapshot_excel_001"
+    });
+
+    expect(freezePanes.freezeAt).toHaveBeenCalledWith({ address: "Sheet1!B3" });
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "freeze_panes",
+      targetSheet: "Sheet1",
+      frozenRows: 2,
+      frozenColumns: 1,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_freeze_pane_snapshot_excel_001",
+        kind: "workbook_structure",
+        operation: "sheet_freeze_panes",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          frozenRange: "A2"
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          frozenRange: "B3"
+        }
+      }
+    });
+  });
+
   it("attaches local undo snapshots for Excel sheet create writes", async () => {
     const existingWorksheet = {
       name: "Sheet1",

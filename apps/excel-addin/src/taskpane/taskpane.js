@@ -1765,6 +1765,47 @@ function normalizeWorkbookStructureTabColor(value) {
   return value === null || value === undefined ? "" : String(value).trim();
 }
 
+function normalizeWorkbookStructureFreezePaneRange(value) {
+  return normalizeA1(value).trim().toUpperCase();
+}
+
+async function readWorkbookStructureFreezePaneSnapshotState(context, sheet) {
+  const freezePanes = sheet?.freezePanes;
+  if (typeof freezePanes?.getLocationOrNullObject !== "function") {
+    throw new Error("Excel host cannot read freeze pane state for exact undo.");
+  }
+
+  const frozenRange = freezePanes.getLocationOrNullObject();
+  if (!frozenRange) {
+    throw new Error("Excel host cannot read freeze pane state for exact undo.");
+  }
+
+  if (typeof frozenRange.load === "function") {
+    frozenRange.load(["address"]);
+  }
+  await context.sync();
+
+  if (frozenRange.isNullObject) {
+    return { frozenRange: "" };
+  }
+
+  const normalizedRange = normalizeWorkbookStructureFreezePaneRange(frozenRange.address);
+  if (!normalizedRange) {
+    throw new Error("Excel host cannot read freeze pane state for exact undo.");
+  }
+
+  return { frozenRange: normalizedRange };
+}
+
+function isSameWorkbookStructureFreezePaneState(left, right) {
+  return Boolean(
+    left &&
+    right &&
+    normalizeWorkbookStructureFreezePaneRange(left.frozenRange) ===
+      normalizeWorkbookStructureFreezePaneRange(right.frozenRange)
+  );
+}
+
 function createWorkbookStructureTabColorLocalExecutionSnapshot({
   executionId,
   sheetName,
@@ -1794,6 +1835,39 @@ function createWorkbookStructureTabColorLocalExecutionSnapshot({
       exists: true,
       name: sheetName,
       color: normalizedAfterColor
+    }
+  };
+}
+
+function createWorkbookStructureFreezePaneLocalExecutionSnapshot({
+  executionId,
+  sheetName,
+  before,
+  after
+}) {
+  if (
+    !executionId ||
+    !sheetName ||
+    !before ||
+    !after ||
+    isSameWorkbookStructureFreezePaneState(before, after)
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "workbook_structure",
+    operation: "sheet_freeze_panes",
+    before: {
+      exists: true,
+      name: sheetName,
+      frozenRange: normalizeWorkbookStructureFreezePaneRange(before.frozenRange)
+    },
+    after: {
+      exists: true,
+      name: sheetName,
+      frozenRange: normalizeWorkbookStructureFreezePaneRange(after.frozenRange)
     }
   };
 }
@@ -2659,6 +2733,18 @@ function assertWorkbookStructureTabColorSnapshotState(state) {
   }
 }
 
+function assertWorkbookStructureFreezePaneSnapshotState(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0 ||
+    typeof state.frozenRange !== "string"
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
 function assertWorkbookStructureCreateSnapshotState(state) {
   if (
     !state ||
@@ -2717,6 +2803,7 @@ function getWorkbookStructureSnapshotTransitionForMode(snapshot, mode) {
     snapshot?.operation !== "rename_sheet" &&
     snapshot?.operation !== "sheet_visibility" &&
     snapshot?.operation !== "sheet_tab_color" &&
+    snapshot?.operation !== "sheet_freeze_panes" &&
     snapshot?.operation !== "move_sheet" &&
     snapshot?.operation !== "create_sheet" &&
     snapshot?.operation !== "duplicate_sheet"
@@ -2873,6 +2960,31 @@ async function applyWorkbookStructureSnapshotTransition(context, transition) {
     return;
   }
 
+  if (transition.operation === "sheet_freeze_panes") {
+    assertWorkbookStructureFreezePaneSnapshotState(transition.from);
+    assertWorkbookStructureFreezePaneSnapshotState(transition.to);
+
+    const sheet = context.workbook.worksheets.getItem(transition.from.name);
+    const currentState = await readWorkbookStructureFreezePaneSnapshotState(context, sheet);
+    if (!isSameWorkbookStructureFreezePaneState(currentState, transition.from)) {
+      throw new Error("Sheet freeze pane state changed since this history entry was captured.");
+    }
+
+    const targetFrozenRange = normalizeWorkbookStructureFreezePaneRange(transition.to.frozenRange);
+    if (targetFrozenRange) {
+      if (typeof sheet.freezePanes?.freezeAt !== "function") {
+        throw new Error("Excel host does not support freezing panes on this sheet.");
+      }
+      sheet.freezePanes.freezeAt(targetFrozenRange);
+    } else {
+      if (typeof sheet.freezePanes?.unfreeze !== "function") {
+        throw new Error("Excel host does not support unfreezing panes on this sheet.");
+      }
+      sheet.freezePanes.unfreeze();
+    }
+    return;
+  }
+
   if (transition.operation === "move_sheet") {
     assertWorkbookStructureMoveSnapshotState(transition.from);
     assertWorkbookStructureMoveSnapshotState(transition.to);
@@ -2924,6 +3036,9 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
     } else if (transition.operation === "sheet_tab_color") {
       assertWorkbookStructureTabColorSnapshotState(transition.from);
       assertWorkbookStructureTabColorSnapshotState(transition.to);
+    } else if (transition.operation === "sheet_freeze_panes") {
+      assertWorkbookStructureFreezePaneSnapshotState(transition.from);
+      assertWorkbookStructureFreezePaneSnapshotState(transition.to);
     } else if (transition.operation === "move_sheet") {
       assertWorkbookStructureMoveSnapshotState(transition.from);
       assertWorkbookStructureMoveSnapshotState(transition.to);
@@ -2949,6 +3064,8 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
         ? ["name", "visibility"]
         : transition.operation === "sheet_tab_color"
           ? ["name", "tabColor"]
+        : transition.operation === "sheet_freeze_panes"
+          ? ["name"]
         : transition.operation === "create_sheet"
           ? ["name", "position", "visibility"]
         : transition.operation === "move_sheet"
@@ -2977,6 +3094,13 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
         normalizeWorkbookStructureTabColor(transition.from.color)
     ) {
       throw new Error("Sheet tab color changed since this history entry was captured.");
+    }
+
+    if (transition.operation === "sheet_freeze_panes") {
+      const currentState = await readWorkbookStructureFreezePaneSnapshotState(context, sheet);
+      if (!isSameWorkbookStructureFreezePaneState(currentState, transition.from)) {
+        throw new Error("Sheet freeze pane state changed since this history entry was captured.");
+      }
     }
   });
 }
@@ -10076,6 +10200,11 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const getDimensionRange = (isRowOperation) =>
         getExcelFullRowOrColumnRange(sheet, plan, isRowOperation);
       let beforeTabColor;
+      const shouldSnapshotFreezePanes = Boolean(
+        executionId &&
+        (plan.operation === "freeze_panes" || plan.operation === "unfreeze_panes")
+      );
+      let beforeFreezePanes;
       const shouldSnapshotAutofit = Boolean(
         executionId &&
         (plan.operation === "autofit_rows" || plan.operation === "autofit_columns")
@@ -10099,6 +10228,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           await context.sync();
         }
         beforeTabColor = normalizeWorkbookStructureTabColor(sheet.tabColor);
+      }
+
+      if (shouldSnapshotFreezePanes) {
+        beforeFreezePanes = await readWorkbookStructureFreezePaneSnapshotState(context, sheet);
       }
 
       if (autofitSnapshotTargets) {
@@ -10187,6 +10320,9 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const afterTabColor = plan.operation === "set_sheet_tab_color"
         ? normalizeWorkbookStructureTabColor(sheet.tabColor)
         : undefined;
+      const afterFreezePanes = shouldSnapshotFreezePanes
+        ? await readWorkbookStructureFreezePaneSnapshotState(context, sheet)
+        : undefined;
       const result = {
         kind: "sheet_structure_update",
         hostPlatform: platform,
@@ -10234,6 +10370,13 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           sheetName: plan.targetSheet,
           beforeColor: beforeTabColor,
           afterColor: afterTabColor
+        });
+      } else if (shouldSnapshotFreezePanes) {
+        localExecutionSnapshot = createWorkbookStructureFreezePaneLocalExecutionSnapshot({
+          executionId,
+          sheetName: plan.targetSheet,
+          before: beforeFreezePanes,
+          after: afterFreezePanes
         });
       } else if (beforeAutofitFormatCells && afterAutofitFormatCells) {
         localExecutionSnapshot = createRangeFormatLocalExecutionSnapshot({
