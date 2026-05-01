@@ -397,7 +397,7 @@ describe("shared client render helpers", () => {
     );
 
     vi.stubGlobal("fetch", vi.fn(async () => new Response(
-      String.raw`Gateway failed at \\runner\share\server.ts:42`,
+      String.raw`Gateway failed at path=\\runner\share\server.ts:42`,
       {
         status: 500,
         headers: {
@@ -448,7 +448,7 @@ describe("shared client render helpers", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       error: {
         message: "Gateway failed while formatting diagnostics.",
-        userAction: String.raw`Inspect \\runner\share\debug.log before retrying.`
+        userAction: String.raw`Inspect path=\\runner\share\debug.log before retrying.`
       }
     }), {
       status: 500,
