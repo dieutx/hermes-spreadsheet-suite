@@ -1238,6 +1238,27 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes named range removal aliases to destructive confirmation", () => {
+    const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
+      type: "named_range_update",
+      data: {
+        operation: "remove",
+        namedRangeName: "ObsoleteRange",
+        explanation: "Delete an obsolete named range.",
+        confidence: 0.88,
+        requiresConfirmation: true,
+        overwriteRisk: "high"
+      }
+    }));
+
+    expect(parsed.data).toMatchObject({
+      operation: "delete",
+      scope: "workbook",
+      name: "ObsoleteRange",
+      confirmationLevel: "destructive"
+    });
+  });
+
   it("normalizes table plans before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "table_plan",
