@@ -816,6 +816,75 @@ function createLocalExecutionSnapshot({
   };
 }
 
+function normalizeExcelRangeMergeAddress(value) {
+  return normalizeA1(value).trim().toUpperCase();
+}
+
+async function readExcelRangeMergeSnapshotState(context, target, targetRange) {
+  if (!target || typeof target.getMergedAreasOrNullObject !== "function") {
+    throw new Error("Excel host cannot capture merge undo snapshots on this range.");
+  }
+
+  target.load?.(["address", "rowCount", "columnCount", "values", "formulas"]);
+  const mergedAreas = target.getMergedAreasOrNullObject();
+  if (!mergedAreas || typeof mergedAreas !== "object") {
+    throw new Error("Excel host cannot capture merge undo snapshots on this range.");
+  }
+  mergedAreas.load?.(["address"]);
+  await context.sync();
+
+  const normalizedTargetRange = normalizeExcelRangeMergeAddress(target.address || targetRange);
+  const rawMergedAddress = mergedAreas.isNullObject ? "" : String(mergedAreas.address || "");
+  const mergedRanges = rawMergedAddress
+    .split(",")
+    .map((address) => normalizeExcelRangeMergeAddress(address))
+    .filter((address) => address.length > 0);
+
+  if (
+    mergedRanges.length > 1 ||
+    (mergedRanges.length === 1 && mergedRanges[0] !== normalizedTargetRange)
+  ) {
+    throw new Error("Excel host cannot capture partial merge undo snapshots exactly.");
+  }
+
+  return {
+    merged: mergedRanges.length === 1,
+    cells: buildExecutionSnapshotCellMatrix(target.values, target.formulas)
+  };
+}
+
+function isSameRangeMergeSnapshotState(left, right) {
+  return JSON.stringify(left || null) === JSON.stringify(right || null);
+}
+
+function createRangeMergeLocalExecutionSnapshot({
+  executionId,
+  targetSheet,
+  targetRange,
+  before,
+  after
+}) {
+  if (
+    !executionId ||
+    !targetSheet ||
+    !targetRange ||
+    !before ||
+    !after ||
+    isSameRangeMergeSnapshotState(before, after)
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "range_merge",
+    targetSheet,
+    targetRange,
+    before,
+    after
+  };
+}
+
 function getExcelRangeFormatSnapshotFields(format) {
   const fields = [];
   const addField = (planField, snapshotField) => {
@@ -2187,6 +2256,10 @@ function isNamedRangeLocalExecutionSnapshot(snapshot) {
 
 function isRangeFilterLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "range_filter";
+}
+
+function isRangeMergeLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "range_merge";
 }
 
 function isWorkbookStructureLocalExecutionSnapshot(snapshot) {
@@ -3605,6 +3678,80 @@ async function validateTableLocalExecutionSnapshotForMode(snapshot, mode) {
   });
 }
 
+function getRangeMergeSnapshotStateForMode(snapshot, mode) {
+  const state = mode === "undo" ? snapshot?.before : snapshot?.after;
+  if (
+    !snapshot ||
+    snapshot.kind !== "range_merge" ||
+    typeof snapshot.targetSheet !== "string" ||
+    snapshot.targetSheet.trim().length === 0 ||
+    typeof snapshot.targetRange !== "string" ||
+    snapshot.targetRange.trim().length === 0 ||
+    !state ||
+    typeof state.merged !== "boolean" ||
+    !Array.isArray(state.cells) ||
+    state.cells.length === 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  return state;
+}
+
+async function resolveRangeMergeLocalExecutionSnapshotForMode(context, snapshot, mode) {
+  const state = getRangeMergeSnapshotStateForMode(snapshot, mode);
+  const worksheets = context.workbook.worksheets;
+  const sheet = worksheets.getItem(snapshot.targetSheet);
+  const target = sheet.getRange(snapshot.targetRange);
+  target.load?.(["rowCount", "columnCount"]);
+  await context.sync();
+
+  if (target.rowCount !== state.cells.length || target.columnCount !== (state.cells[0]?.length || 0)) {
+    throw new Error("The saved undo snapshot no longer matches the current range shape.");
+  }
+
+  if (typeof target.unmerge !== "function" || (state.merged && typeof target.merge !== "function")) {
+    throw new Error("Excel host cannot restore merge snapshots on this range.");
+  }
+
+  return {
+    target,
+    state
+  };
+}
+
+function applyExcelSnapshotCellsToRange(target, cells) {
+  for (let rowIndex = 0; rowIndex < cells.length; rowIndex += 1) {
+    for (let columnIndex = 0; columnIndex < (cells[rowIndex] || []).length; columnIndex += 1) {
+      const cell = target.getCell(rowIndex, columnIndex);
+      const snapshotCell = cells[rowIndex][columnIndex];
+      if (snapshotCell?.kind === "formula" && typeof snapshotCell.formula === "string") {
+        cell.formulas = [[snapshotCell.formula]];
+      } else {
+        cell.values = [[deserializeExecutionSnapshotScalar(snapshotCell?.value)]];
+      }
+    }
+  }
+}
+
+async function restoreRangeMergeLocalExecutionSnapshotForMode(snapshot, mode) {
+  return Excel.run(async (context) => {
+    const resolved = await resolveRangeMergeLocalExecutionSnapshotForMode(context, snapshot, mode);
+    resolved.target.unmerge();
+    applyExcelSnapshotCellsToRange(resolved.target, resolved.state.cells);
+    if (resolved.state.merged) {
+      resolved.target.merge(false);
+    }
+    await context.sync();
+  });
+}
+
+async function validateRangeMergeLocalExecutionSnapshotForMode(snapshot, mode) {
+  return Excel.run(async (context) => {
+    await resolveRangeMergeLocalExecutionSnapshotForMode(context, snapshot, mode);
+  });
+}
+
 async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
   if (isCompositeLocalExecutionSnapshot(snapshot)) {
     for (const entry of getLocalExecutionSnapshotEntriesForMode(snapshot, mode)) {
@@ -3631,6 +3778,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isRangeFilterLocalExecutionSnapshot(snapshot)) {
     return restoreRangeFilterLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isRangeMergeLocalExecutionSnapshot(snapshot)) {
+    return restoreRangeMergeLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   if (isWorkbookStructureLocalExecutionSnapshot(snapshot)) {
@@ -3717,6 +3868,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isRangeFilterLocalExecutionSnapshot(snapshot)) {
     return validateRangeFilterLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isRangeMergeLocalExecutionSnapshot(snapshot)) {
+    return validateRangeMergeLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   if (isWorkbookStructureLocalExecutionSnapshot(snapshot)) {
@@ -10420,6 +10575,14 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         );
       }
 
+      const shouldSnapshotMergeState = Boolean(
+        executionId && (plan.operation === "merge_cells" || plan.operation === "unmerge_cells")
+      );
+      const mergeTarget = shouldSnapshotMergeState ? sheet.getRange(plan.targetRange) : null;
+      const beforeMergeState = shouldSnapshotMergeState
+        ? await readExcelRangeMergeSnapshotState(context, mergeTarget, plan.targetRange)
+        : null;
+
       if (autofitSnapshotTargets) {
         loadExcelRangeFormatSnapshotTargets(autofitSnapshotTargets);
         await context.sync();
@@ -10464,10 +10627,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           getDimensionRange(false).ungroup(Excel.GroupOption.byColumns);
           break;
         case "merge_cells":
-          sheet.getRange(plan.targetRange).merge(false);
+          (mergeTarget || sheet.getRange(plan.targetRange)).merge(false);
           break;
         case "unmerge_cells":
-          sheet.getRange(plan.targetRange).unmerge();
+          (mergeTarget || sheet.getRange(plan.targetRange)).unmerge();
           break;
         case "freeze_panes": {
           const anchor = sheet.getRangeByIndexes(plan.frozenRows, plan.frozenColumns, 1, 1);
@@ -10516,6 +10679,9 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             { ...plan, sheetName: plan.targetSheet }
           )
         : undefined;
+      const afterMergeState = beforeMergeState
+        ? await readExcelRangeMergeSnapshotState(context, mergeTarget, plan.targetRange)
+        : null;
       const result = {
         kind: "sheet_structure_update",
         hostPlatform: platform,
@@ -10576,6 +10742,14 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           executionId,
           before: beforeDimensionVisibility,
           after: afterDimensionVisibility
+        });
+      } else if (beforeMergeState && afterMergeState) {
+        localExecutionSnapshot = createRangeMergeLocalExecutionSnapshot({
+          executionId,
+          targetSheet: plan.targetSheet,
+          targetRange: plan.targetRange,
+          before: beforeMergeState,
+          after: afterMergeState
         });
       } else if (beforeAutofitFormatCells && afterAutofitFormatCells) {
         localExecutionSnapshot = createRangeFormatLocalExecutionSnapshot({
