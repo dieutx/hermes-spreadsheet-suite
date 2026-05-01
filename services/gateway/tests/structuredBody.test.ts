@@ -1610,7 +1610,7 @@ describe("structured body normalization", () => {
     expect(parsed.data.reversible).toBe(true);
   });
 
-  it("normalizes composite plans with table steps as non-reversible", () => {
+  it("preserves reversible composite plans with table steps during normalization", () => {
     const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
       type: "composite_plan",
       data: {
@@ -1649,7 +1649,7 @@ describe("structured body normalization", () => {
       }
     }));
 
-    expect(parsed.data.reversible).toBe(false);
+    expect(parsed.data.reversible).toBe(true);
   });
 
   it("normalizes composite action aliases before validation", () => {
