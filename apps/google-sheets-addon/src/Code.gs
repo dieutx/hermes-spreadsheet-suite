@@ -3508,6 +3508,26 @@ function readRangeFormatStateForSnapshot_(sheet, range, format) {
   return complete && Object.keys(state).length > 0 ? state : null;
 }
 
+function getRangeTransferFormatSnapshotSpec_() {
+  return {
+    backgroundColor: true,
+    textColor: true,
+    fontFamily: true,
+    fontSize: true,
+    bold: true,
+    italic: true,
+    underline: true,
+    horizontalAlignment: true,
+    verticalAlignment: true,
+    wrapStrategy: true,
+    numberFormat: true
+  };
+}
+
+function readRangeTransferFormatStateForSnapshot_(sheet, range) {
+  return readRangeFormatStateForSnapshot_(sheet, range, getRangeTransferFormatSnapshotSpec_());
+}
+
 function getDataValidationCriteriaName_(criteriaType) {
   const criteriaMap = SpreadsheetApp.DataValidationCriteria || {};
   const criteriaNames = Object.keys(criteriaMap);
@@ -7706,11 +7726,20 @@ function applyWritePlan(input) {
     const canSnapshotTargetOnlyTransfer =
       (plan.operation === 'copy' || plan.operation === 'append') && plan.pasteMode !== 'formats';
     const canSnapshotCellMoveTransfer = plan.operation === 'move' && plan.pasteMode !== 'formats';
+    const canSnapshotTargetOnlyFormatTransfer =
+      (plan.operation === 'copy' || plan.operation === 'append') && plan.pasteMode === 'formats';
+    const canSnapshotFormatMoveTransfer = plan.operation === 'move' && plan.pasteMode === 'formats';
     const shouldSnapshotTargetCells = canSnapshotTargetOnlyTransfer || canSnapshotCellMoveTransfer;
     const beforeValues = shouldSnapshotTargetCells ? resolvedTargetRange.getValues() : null;
     const beforeFormulas = shouldSnapshotTargetCells ? resolvedTargetRange.getFormulas() : null;
     const beforeSourceValues = canSnapshotCellMoveTransfer ? sourceRange.getValues() : null;
     const beforeSourceFormulas = canSnapshotCellMoveTransfer ? sourceRange.getFormulas() : null;
+    const beforeTargetFormat = (canSnapshotTargetOnlyFormatTransfer || canSnapshotFormatMoveTransfer)
+      ? readRangeTransferFormatStateForSnapshot_(targetSheet, resolvedTargetRange)
+      : null;
+    const beforeSourceFormat = canSnapshotFormatMoveTransfer
+      ? readRangeTransferFormatStateForSnapshot_(sourceSheet, sourceRange)
+      : null;
     writeTransferToTarget_(resolvedTargetRange, sourceRange, plan);
 
     if (plan.operation === 'move') {
@@ -7719,6 +7748,12 @@ function applyWritePlan(input) {
 
     SpreadsheetApp.flush();
     const result = buildRangeTransferResult_(plan, actualTargetRange);
+    const afterTargetFormat = beforeTargetFormat
+      ? readRangeTransferFormatStateForSnapshot_(targetSheet, resolvedTargetRange)
+      : null;
+    const afterSourceFormat = beforeSourceFormat
+      ? readRangeTransferFormatStateForSnapshot_(sourceSheet, sourceRange)
+      : null;
     return canSnapshotTargetOnlyTransfer
       ? attachLocalExecutionSnapshot_(result, createLocalExecutionSnapshot_({
         executionId: input.executionId,
@@ -7753,6 +7788,37 @@ function applyWritePlan(input) {
             })
           ].filter(Boolean)
         }))
+        : canSnapshotTargetOnlyFormatTransfer
+          ? attachLocalExecutionSnapshot_(result, createRangeFormatLocalExecutionSnapshot_({
+            executionId: input.executionId,
+            targetSheet: plan.targetSheet,
+            targetRange: actualTargetRange,
+            target: resolvedTargetRange,
+            beforeFormat: beforeTargetFormat,
+            afterFormat: afterTargetFormat
+          }))
+          : canSnapshotFormatMoveTransfer
+            ? attachLocalExecutionSnapshot_(result, createCompositeLocalExecutionSnapshot_({
+              executionId: input.executionId,
+              entries: [
+                createRangeFormatLocalExecutionSnapshot_({
+                  executionId: input.executionId,
+                  targetSheet: plan.sourceSheet,
+                  targetRange: plan.sourceRange,
+                  target: sourceRange,
+                  beforeFormat: beforeSourceFormat,
+                  afterFormat: afterSourceFormat
+                }),
+                createRangeFormatLocalExecutionSnapshot_({
+                  executionId: input.executionId,
+                  targetSheet: plan.targetSheet,
+                  targetRange: actualTargetRange,
+                  target: resolvedTargetRange,
+                  beforeFormat: beforeTargetFormat,
+                  afterFormat: afterTargetFormat
+                })
+              ].filter(Boolean)
+            }))
       : result;
   }
 

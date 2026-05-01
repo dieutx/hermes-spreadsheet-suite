@@ -152,13 +152,57 @@ function createRangeStub(options: {
   numColumns: number;
   values?: unknown[][];
   formulas?: (string | null)[][];
+  format?: {
+    backgrounds?: string[][];
+    fontColors?: string[][];
+    fontFamilies?: string[][];
+    fontSizes?: number[][];
+    fontWeights?: string[][];
+    fontStyles?: string[][];
+    fontLines?: string[][];
+    horizontalAlignments?: string[][];
+    verticalAlignments?: string[][];
+    wrapStrategies?: string[][];
+    numberFormats?: string[][];
+  };
 }) {
+  const cloneMatrix = <T>(matrix: T[][]) => matrix.map((row) => [...row]);
+  const buildMatrix = <T>(value: T) =>
+    Array.from({ length: options.numRows }, () =>
+      Array.from({ length: options.numColumns }, () => value)
+    );
   let currentValues = (options.values || []).map((row) => [...row]);
   let currentFormulas = options.formulas
     ? options.formulas.map((row) => [...row])
     : currentValues.map((row) =>
         row.map((value) => typeof value === "string" && value.startsWith("=") ? value : "")
       );
+  let currentFormat = {
+    backgrounds: options.format?.backgrounds ? cloneMatrix(options.format.backgrounds) : buildMatrix("#ffffff"),
+    fontColors: options.format?.fontColors ? cloneMatrix(options.format.fontColors) : buildMatrix("#000000"),
+    fontFamilies: options.format?.fontFamilies ? cloneMatrix(options.format.fontFamilies) : buildMatrix("Arial"),
+    fontSizes: options.format?.fontSizes ? cloneMatrix(options.format.fontSizes) : buildMatrix(10),
+    fontWeights: options.format?.fontWeights ? cloneMatrix(options.format.fontWeights) : buildMatrix("normal"),
+    fontStyles: options.format?.fontStyles ? cloneMatrix(options.format.fontStyles) : buildMatrix("normal"),
+    fontLines: options.format?.fontLines ? cloneMatrix(options.format.fontLines) : buildMatrix("none"),
+    horizontalAlignments: options.format?.horizontalAlignments ? cloneMatrix(options.format.horizontalAlignments) : buildMatrix("left"),
+    verticalAlignments: options.format?.verticalAlignments ? cloneMatrix(options.format.verticalAlignments) : buildMatrix("bottom"),
+    wrapStrategies: options.format?.wrapStrategies ? cloneMatrix(options.format.wrapStrategies) : buildMatrix("OVERFLOW_CELL"),
+    numberFormats: options.format?.numberFormats ? cloneMatrix(options.format.numberFormats) : buildMatrix("General")
+  };
+  const defaultFormat = () => ({
+    backgrounds: buildMatrix("#ffffff"),
+    fontColors: buildMatrix("#000000"),
+    fontFamilies: buildMatrix("Arial"),
+    fontSizes: buildMatrix(10),
+    fontWeights: buildMatrix("normal"),
+    fontStyles: buildMatrix("normal"),
+    fontLines: buildMatrix("none"),
+    horizontalAlignments: buildMatrix("left"),
+    verticalAlignments: buildMatrix("bottom"),
+    wrapStrategies: buildMatrix("OVERFLOW_CELL"),
+    numberFormats: buildMatrix("General")
+  });
   const copyToCalls: Array<{ from: [number, number]; to: [number, number]; pasteType: string; transposed: boolean }> = [];
 
   const range = {
@@ -185,6 +229,47 @@ function createRangeStub(options: {
     getFormulas: vi.fn(() =>
       currentFormulas.map((row) => row.map((value) => (value == null ? "" : value)))
     ),
+    getBackgrounds: vi.fn(() => cloneMatrix(currentFormat.backgrounds)),
+    getFontColors: vi.fn(() => cloneMatrix(currentFormat.fontColors)),
+    getFontFamilies: vi.fn(() => cloneMatrix(currentFormat.fontFamilies)),
+    getFontSizes: vi.fn(() => cloneMatrix(currentFormat.fontSizes)),
+    getFontWeights: vi.fn(() => cloneMatrix(currentFormat.fontWeights)),
+    getFontStyles: vi.fn(() => cloneMatrix(currentFormat.fontStyles)),
+    getFontLines: vi.fn(() => cloneMatrix(currentFormat.fontLines)),
+    getHorizontalAlignments: vi.fn(() => cloneMatrix(currentFormat.horizontalAlignments)),
+    getVerticalAlignments: vi.fn(() => cloneMatrix(currentFormat.verticalAlignments)),
+    getWrapStrategies: vi.fn(() => cloneMatrix(currentFormat.wrapStrategies)),
+    getNumberFormats: vi.fn(() => cloneMatrix(currentFormat.numberFormats)),
+    __setFormatState(nextFormat: typeof currentFormat) {
+      currentFormat = {
+        backgrounds: cloneMatrix(nextFormat.backgrounds),
+        fontColors: cloneMatrix(nextFormat.fontColors),
+        fontFamilies: cloneMatrix(nextFormat.fontFamilies),
+        fontSizes: cloneMatrix(nextFormat.fontSizes),
+        fontWeights: cloneMatrix(nextFormat.fontWeights),
+        fontStyles: cloneMatrix(nextFormat.fontStyles),
+        fontLines: cloneMatrix(nextFormat.fontLines),
+        horizontalAlignments: cloneMatrix(nextFormat.horizontalAlignments),
+        verticalAlignments: cloneMatrix(nextFormat.verticalAlignments),
+        wrapStrategies: cloneMatrix(nextFormat.wrapStrategies),
+        numberFormats: cloneMatrix(nextFormat.numberFormats)
+      };
+    },
+    __getFormatState() {
+      return {
+        backgrounds: cloneMatrix(currentFormat.backgrounds),
+        fontColors: cloneMatrix(currentFormat.fontColors),
+        fontFamilies: cloneMatrix(currentFormat.fontFamilies),
+        fontSizes: cloneMatrix(currentFormat.fontSizes),
+        fontWeights: cloneMatrix(currentFormat.fontWeights),
+        fontStyles: cloneMatrix(currentFormat.fontStyles),
+        fontLines: cloneMatrix(currentFormat.fontLines),
+        horizontalAlignments: cloneMatrix(currentFormat.horizontalAlignments),
+        verticalAlignments: cloneMatrix(currentFormat.verticalAlignments),
+        wrapStrategies: cloneMatrix(currentFormat.wrapStrategies),
+        numberFormats: cloneMatrix(currentFormat.numberFormats)
+      };
+    },
     setValues: vi.fn((nextValues: unknown[][]) => {
       currentValues = nextValues.map((row) => [...row]);
       currentFormulas = nextValues.map((row) => row.map(() => ""));
@@ -201,7 +286,20 @@ function createRangeStub(options: {
         Array.from({ length: options.numColumns }, () => "")
       );
     }),
-    clearFormat: vi.fn(),
+    clearFormat: vi.fn(() => {
+      currentFormat = defaultFormat();
+    }),
+    copyTo: vi.fn((destination: { __setFormatState?(nextFormat: typeof currentFormat): void }, pasteType: string) => {
+      copyToCalls.push({
+        from: [options.row, options.column],
+        to: [0, 0],
+        pasteType,
+        transposed: false
+      });
+      if (pasteType === "PASTE_FORMAT" && typeof destination.__setFormatState === "function") {
+        destination.__setFormatState(currentFormat);
+      }
+    }),
     getCell(rowIndex: number, columnIndex: number) {
       const zeroBasedRow = rowIndex - 1;
       const zeroBasedColumn = columnIndex - 1;
@@ -1465,6 +1563,356 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
       summary: "Moved RawData!A2:B3 to Report!F2:G3."
     });
     expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
+    expect(sourceRange.clearFormat).toHaveBeenCalledTimes(1);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("attaches an undo snapshot for Google Sheets format copy transfers", () => {
+    const sourceRange = createRangeStub({
+      a1Notation: "A2:B3",
+      row: 2,
+      column: 1,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["Ada", "Lovelace"],
+        ["Grace", "Hopper"]
+      ],
+      format: {
+        backgrounds: [
+          ["#ff0000", "#00ff00"],
+          ["#0000ff", "#ffff00"]
+        ],
+        fontColors: [
+          ["#ffffff", "#111111"],
+          ["#222222", "#333333"]
+        ],
+        fontWeights: [
+          ["bold", "normal"],
+          ["normal", "bold"]
+        ],
+        numberFormats: [
+          ["$#,##0", "0.00%"],
+          ["yyyy-mm-dd", "General"]
+        ]
+      }
+    });
+    const targetRange = createRangeStub({
+      a1Notation: "F2:G3",
+      row: 2,
+      column: 6,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["", ""],
+        ["", ""]
+      ],
+      format: {
+        backgrounds: [
+          ["#ffffff", "#ffffff"],
+          ["#eeeeee", "#eeeeee"]
+        ],
+        fontColors: [
+          ["#000000", "#000000"],
+          ["#444444", "#444444"]
+        ],
+        fontWeights: [
+          ["normal", "normal"],
+          ["normal", "normal"]
+        ],
+        numberFormats: [
+          ["General", "General"],
+          ["General", "General"]
+        ]
+      }
+    });
+
+    const sourceSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("A2:B3");
+        return sourceRange;
+      })
+    };
+    const targetSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("F2:G3");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return sourceSheet;
+        }
+
+        expect(sheetName).toBe("Report");
+        return targetSheet;
+      })
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Report",
+        targetRange: "F2:G3",
+        operation: "copy",
+        pasteMode: "formats",
+        transpose: false,
+        explanation: "Copy the source formatting into the report block.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Report!F2:G3"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      executionId: "exec_range_transfer_format_copy_undo_sheets_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      hostPlatform: "google_sheets",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Report",
+      targetRange: "F2:G3",
+      transferOperation: "copy",
+      pasteMode: "formats",
+      transpose: false,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_format_copy_undo_sheets_001",
+        kind: "range_format",
+        targetSheet: "Report",
+        targetRange: "F2:G3",
+        shape: {
+          rows: 2,
+          columns: 2
+        },
+        beforeFormat: {
+          backgrounds: [
+            ["#ffffff", "#ffffff"],
+            ["#eeeeee", "#eeeeee"]
+          ],
+          fontColors: [
+            ["#000000", "#000000"],
+            ["#444444", "#444444"]
+          ],
+          fontWeights: [
+            ["normal", "normal"],
+            ["normal", "normal"]
+          ],
+          numberFormats: [
+            ["General", "General"],
+            ["General", "General"]
+          ]
+        },
+        afterFormat: {
+          backgrounds: [
+            ["#ff0000", "#00ff00"],
+            ["#0000ff", "#ffff00"]
+          ],
+          fontColors: [
+            ["#ffffff", "#111111"],
+            ["#222222", "#333333"]
+          ],
+          fontWeights: [
+            ["bold", "normal"],
+            ["normal", "bold"]
+          ],
+          numberFormats: [
+            ["$#,##0", "0.00%"],
+            ["yyyy-mm-dd", "General"]
+          ]
+        }
+      }
+    });
+    expect(sourceRange.copyTo).toHaveBeenCalledWith(targetRange, "PASTE_FORMAT", false);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("attaches composite undo snapshots for Google Sheets format move transfers", () => {
+    const sourceRange = createRangeStub({
+      a1Notation: "A2:B3",
+      row: 2,
+      column: 1,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["Ada", "Lovelace"],
+        ["Grace", "Hopper"]
+      ],
+      format: {
+        backgrounds: [
+          ["#ff0000", "#00ff00"],
+          ["#0000ff", "#ffff00"]
+        ],
+        fontWeights: [
+          ["bold", "normal"],
+          ["normal", "bold"]
+        ],
+        numberFormats: [
+          ["$#,##0", "0.00%"],
+          ["yyyy-mm-dd", "General"]
+        ]
+      }
+    });
+    const targetRange = createRangeStub({
+      a1Notation: "F2:G3",
+      row: 2,
+      column: 6,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["", ""],
+        ["", ""]
+      ],
+      format: {
+        backgrounds: [
+          ["#ffffff", "#ffffff"],
+          ["#eeeeee", "#eeeeee"]
+        ],
+        fontWeights: [
+          ["normal", "normal"],
+          ["normal", "normal"]
+        ],
+        numberFormats: [
+          ["General", "General"],
+          ["General", "General"]
+        ]
+      }
+    });
+
+    const sourceSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("A2:B3");
+        return sourceRange;
+      })
+    };
+    const targetSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("F2:G3");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return sourceSheet;
+        }
+
+        expect(sheetName).toBe("Report");
+        return targetSheet;
+      })
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Report",
+        targetRange: "F2:G3",
+        operation: "move",
+        pasteMode: "formats",
+        transpose: false,
+        explanation: "Move the source formatting into the report block.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Report!F2:G3"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      executionId: "exec_range_transfer_format_move_undo_sheets_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      hostPlatform: "google_sheets",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Report",
+      targetRange: "F2:G3",
+      transferOperation: "move",
+      pasteMode: "formats",
+      transpose: false,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_format_move_undo_sheets_001",
+        entries: [
+          {
+            baseExecutionId: "exec_range_transfer_format_move_undo_sheets_001",
+            kind: "range_format",
+            targetSheet: "RawData",
+            targetRange: "A2:B3",
+            beforeFormat: {
+              backgrounds: [
+                ["#ff0000", "#00ff00"],
+                ["#0000ff", "#ffff00"]
+              ],
+              fontWeights: [
+                ["bold", "normal"],
+                ["normal", "bold"]
+              ],
+              numberFormats: [
+                ["$#,##0", "0.00%"],
+                ["yyyy-mm-dd", "General"]
+              ]
+            },
+            afterFormat: {
+              backgrounds: [
+                ["#ffffff", "#ffffff"],
+                ["#ffffff", "#ffffff"]
+              ],
+              fontWeights: [
+                ["normal", "normal"],
+                ["normal", "normal"]
+              ],
+              numberFormats: [
+                ["General", "General"],
+                ["General", "General"]
+              ]
+            }
+          },
+          {
+            baseExecutionId: "exec_range_transfer_format_move_undo_sheets_001",
+            kind: "range_format",
+            targetSheet: "Report",
+            targetRange: "F2:G3",
+            beforeFormat: {
+              backgrounds: [
+                ["#ffffff", "#ffffff"],
+                ["#eeeeee", "#eeeeee"]
+              ],
+              fontWeights: [
+                ["normal", "normal"],
+                ["normal", "normal"]
+              ],
+              numberFormats: [
+                ["General", "General"],
+                ["General", "General"]
+              ]
+            },
+            afterFormat: {
+              backgrounds: [
+                ["#ff0000", "#00ff00"],
+                ["#0000ff", "#ffff00"]
+              ],
+              fontWeights: [
+                ["bold", "normal"],
+                ["normal", "bold"]
+              ],
+              numberFormats: [
+                ["$#,##0", "0.00%"],
+                ["yyyy-mm-dd", "General"]
+              ]
+            }
+          }
+        ]
+      }
+    });
+    expect(sourceRange.copyTo).toHaveBeenCalledWith(targetRange, "PASTE_FORMAT", false);
     expect(sourceRange.clearFormat).toHaveBeenCalledTimes(1);
     expect(flush).toHaveBeenCalledTimes(1);
   });
