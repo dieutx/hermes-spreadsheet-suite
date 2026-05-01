@@ -39,6 +39,13 @@ function isSingleCellA1Range(value: string): boolean {
   return parsed !== null && parsed.rows === 1 && parsed.columns === 1;
 }
 
+function analysisReportTargetShape(sectionCount: number) {
+  return {
+    rows: sectionCount + 4,
+    columns: 4
+  };
+}
+
 const StrictSingleCellA1StringSchema = z.string().min(1).max(128).refine(isSingleCellA1Range, {
   message: "must be a single-cell A1 range."
 });
@@ -983,7 +990,7 @@ const analysisReportPlanSharedFields = {
   confirmationLevel: ConfirmationLevelSchema
 } satisfies z.ZodRawShape;
 
-export const AnalysisReportPlanDataSchema = z.discriminatedUnion("outputMode", [
+const AnalysisReportPlanDataBaseSchema = z.discriminatedUnion("outputMode", [
   strictObject({
     ...analysisReportPlanSharedFields,
     outputMode: z.literal("chat_only"),
@@ -998,6 +1005,18 @@ export const AnalysisReportPlanDataSchema = z.discriminatedUnion("outputMode", [
     requiresConfirmation: z.literal(true)
   })
 ]);
+
+export const AnalysisReportPlanDataSchema = AnalysisReportPlanDataBaseSchema.superRefine((data, ctx) => {
+  if (data.outputMode !== "materialize_report") {
+    return;
+  }
+
+  validateTargetRangeMatchesShape(
+    data.targetRange,
+    analysisReportTargetShape(data.sections.length),
+    ctx
+  );
+});
 
 const PivotAggregationSchema = strictObject({
   field: z.string().min(1).max(128),

@@ -1567,8 +1567,8 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts a materialized analysis report with a target sheet and range", () => {
-    const parsed = AnalysisReportPlanDataSchema.parse({
+  it("rejects a materialized analysis report targetRange that is only an anchor cell", () => {
+    const parsed = AnalysisReportPlanDataSchema.safeParse({
       sourceSheet: "Sales",
       sourceRange: "A1:F50",
       outputMode: "materialize_report",
@@ -1590,9 +1590,35 @@ describe("Hermes spreadsheet contracts", () => {
       confirmationLevel: "standard"
     });
 
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts a materialized analysis report with a full target range", () => {
+    const parsed = AnalysisReportPlanDataSchema.parse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      outputMode: "materialize_report",
+      targetSheet: "Sales Report",
+      targetRange: "A1:D5",
+      sections: [
+        {
+          type: "summary_stats",
+          title: "Revenue summary",
+          summary: "Average revenue is 12,500.",
+          sourceRanges: ["Sales!A1:F50"]
+        }
+      ],
+      explanation: "Write a report sheet.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
     expect(parsed.outputMode).toBe("materialize_report");
     expect(parsed.targetSheet).toBe("Sales Report");
-    expect(parsed.targetRange).toBe("A1");
+    expect(parsed.targetRange).toBe("A1:D5");
     expect(parsed.requiresConfirmation).toBe(true);
   });
 

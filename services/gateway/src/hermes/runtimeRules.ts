@@ -211,6 +211,7 @@ For type="analysis_report_plan":
 - chat_only requires data.requiresConfirmation=false
 - analysis_report_plan(chat_only) is non-write behavior and must not request confirmation
 - materialize_report requires data.targetSheet and data.targetRange
+- materialize_report targetRange must be the full 4-column destination rectangle for the report matrix, never just the anchor cell
 - materialize_report requires data.requiresConfirmation=true
 - analysis_report_plan(materialize_report) is a confirmable report artifact plan
 - if a requested report artifact cannot be represented exactly on the current host, return type="error" with data.code="UNSUPPORTED_OPERATION"

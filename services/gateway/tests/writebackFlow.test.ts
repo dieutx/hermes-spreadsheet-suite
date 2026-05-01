@@ -483,7 +483,7 @@ describe("writeback confirmation flow", () => {
             sourceRange: "A1:F50",
             outputMode: "materialize_report" as const,
             targetSheet: "Sales Report",
-            targetRange: "A1",
+            targetRange: "A1:D5",
             sections: [
               {
                 type: "summary_stats",
@@ -3623,7 +3623,7 @@ describe("writeback confirmation flow", () => {
       sourceRange: "A1:F50",
       outputMode: "materialize_report" as const,
       targetSheet: "Sales Report",
-      targetRange: "A1",
+      targetRange: "A1:D5",
       sections: [
         {
           type: "summary_stats",
@@ -3635,7 +3635,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Write a sales report sheet.",
       confidence: 0.91,
       requiresConfirmation: true as const,
-      affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+      affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D5"],
       overwriteRisk: "low" as const,
       confirmationLevel: "standard" as const
     };
@@ -3702,14 +3702,14 @@ describe("writeback confirmation flow", () => {
     });
   });
 
-  it("accepts resolved materialized analysis report approvals and completions when the stored Hermes plan still uses the anchor range", () => {
+  it("accepts materialized analysis report approvals and completions with the resolved report range", () => {
     const traceBus = new TraceBus();
     const storedPlan = {
       sourceSheet: "Sales",
       sourceRange: "A1:F50",
       outputMode: "materialize_report" as const,
       targetSheet: "Sales Report",
-      targetRange: "A1",
+      targetRange: "A1:D6",
       sections: [
         {
           type: "summary_stats",
@@ -3727,13 +3727,12 @@ describe("writeback confirmation flow", () => {
       explanation: "Write a sales report sheet.",
       confidence: 0.91,
       requiresConfirmation: true as const,
-      affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+      affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D6"],
       overwriteRisk: "low" as const,
       confirmationLevel: "standard" as const
     };
     const resolvedApprovalPlan = {
-      ...storedPlan,
-      targetRange: "A1:D6"
+      ...storedPlan
     };
 
     setRunResponse(traceBus, {
@@ -3799,7 +3798,7 @@ describe("writeback confirmation flow", () => {
       sourceRange: "A1:F50",
       outputMode: "materialize_report" as const,
       targetSheet: "Sales Report",
-      targetRange: "A1",
+      targetRange: "A1:D5",
       sections: [
         {
           type: "summary_stats",
@@ -3811,7 +3810,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Write a sales report sheet.",
       confidence: 0.91,
       requiresConfirmation: true as const,
-      affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+      affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D5"],
       overwriteRisk: "low" as const,
       confirmationLevel: "standard" as const
     };
@@ -3862,7 +3861,7 @@ describe("writeback confirmation flow", () => {
       sourceRange: "A1:F50",
       outputMode: "materialize_report" as const,
       targetSheet: "Sales Report",
-      targetRange: "A1",
+      targetRange: "A1:D5",
       sections: [
         {
           type: "summary_stats",
@@ -3874,7 +3873,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Write a sales report sheet.",
       confidence: 0.91,
       requiresConfirmation: true as const,
-      affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+      affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D5"],
       overwriteRisk: "low" as const,
       confirmationLevel: "standard" as const
     };
@@ -3912,13 +3911,13 @@ describe("writeback confirmation flow", () => {
           sourceSheet: "Sales",
           sourceRange: "A1:F50",
           targetSheet: "Sales Report",
-          targetRange: "A1",
+          targetRange: "A1:D5",
           rowGroups: ["Region"],
           valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
           explanation: "Wrong update family.",
           confidence: 0.5,
           requiresConfirmation: true,
-          affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+          affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D5"],
           overwriteRisk: "low",
           confirmationLevel: "standard",
           summary: "Wrong update family."
@@ -3941,7 +3940,7 @@ describe("writeback confirmation flow", () => {
       sourceRange: "A1:F50",
       outputMode: "materialize_report" as const,
       targetSheet: "Sales Report",
-      targetRange: "A1",
+      targetRange: "A1:D5",
       sections: [
         {
           type: "summary_stats",
@@ -3953,7 +3952,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Write a sales report sheet.",
       confidence: 0.91,
       requiresConfirmation: true as const,
-      affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+      affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D5"],
       overwriteRisk: "low" as const,
       confirmationLevel: "standard" as const
     };
@@ -3991,12 +3990,12 @@ describe("writeback confirmation flow", () => {
           sourceRange: "A1:F50",
           outputMode: "materialize_report",
           targetSheet: "Other Report",
-          targetRange: "B4",
+          targetRange: "B4:E8",
           sections: plan.sections,
           explanation: plan.explanation,
           confidence: plan.confidence,
           requiresConfirmation: plan.requiresConfirmation,
-          affectedRanges: ["Sales!A1:F50", "Other Report!B4"],
+          affectedRanges: ["Sales!A1:F50", "Other Report!B4:E8"],
           overwriteRisk: plan.overwriteRisk,
           confirmationLevel: plan.confirmationLevel,
           summary: "Created analysis report on the wrong sheet."
@@ -4065,12 +4064,12 @@ describe("writeback confirmation flow", () => {
           sourceRange: "A1:F50",
           outputMode: "materialize_report",
           targetSheet: "Sales Report",
-          targetRange: "A1",
+          targetRange: "A1:D5",
           sections: plan.sections,
           explanation: plan.explanation,
           confidence: plan.confidence,
           requiresConfirmation: true,
-          affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+          affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D5"],
           overwriteRisk: "none",
           confirmationLevel: "standard",
           summary: "Should not be accepted."
