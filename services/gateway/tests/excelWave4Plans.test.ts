@@ -784,6 +784,155 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     ]);
   });
 
+  it("attaches composite undo snapshots for Excel formula move transfers", async () => {
+    const sourceRange = createRangeStub({
+      address: "RawData!A2:B3",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["=A1+1", "=B1+1"],
+        ["=A2+1", "=B2+1"]
+      ],
+      formulas: [
+        ["=A1+1", "=B1+1"],
+        ["=A2+1", "=B2+1"]
+      ]
+    });
+    sourceRange.clear = vi.fn(() => {
+      sourceRange.values = [
+        ["", ""],
+        ["", ""]
+      ];
+      sourceRange.formulas = [
+        ["", ""],
+        ["", ""]
+      ];
+    });
+
+    const targetRange = createRangeStub({
+      address: "Archive!D5:E6",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["Old", "Target"],
+        ["Keep", "Safe"]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ]
+    });
+    targetRange.copyFrom = vi.fn(
+      (
+        copiedRange: typeof sourceRange,
+        copyType: string,
+        skipBlanks: boolean,
+        transpose: boolean
+      ) => {
+        expect(copiedRange).toBe(sourceRange);
+        expect(copyType).toBe("Formulas");
+        expect(skipBlanks).toBe(false);
+        expect(transpose).toBe(false);
+        targetRange.formulas = [
+          ["=D4+1", "=E4+1"],
+          ["=D5+1", "=E5+1"]
+        ];
+      }
+    );
+
+    const worksheets = {
+      getItem: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return {
+            getRange: vi.fn((rangeName: string) => {
+              expect(rangeName).toBe("A2:B3");
+              return sourceRange;
+            })
+          };
+        }
+
+        expect(sheetName).toBe("Archive");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("D5:E6");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Archive",
+        targetRange: "D5:E6",
+        operation: "move",
+        pasteMode: "formulas",
+        transpose: false,
+        explanation: "Move formulas into the archive sheet.",
+        confidence: 0.95,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Archive!D5:E6"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_range_transfer_formula_move_undo_excel_001",
+      runId: "run_range_transfer_formula_move_undo_excel_001",
+      approvalToken: "token",
+      executionId: "exec_range_transfer_formula_move_undo_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Archive",
+      targetRange: "D5:E6",
+      transferOperation: "move",
+      pasteMode: "formulas",
+      transpose: false,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_formula_move_undo_excel_001",
+        entries: [
+          {
+            baseExecutionId: "exec_range_transfer_formula_move_undo_excel_001",
+            targetSheet: "RawData",
+            targetRange: "A2:B3",
+            beforeCells: [
+              [{ kind: "formula", formula: "=A1+1" }, { kind: "formula", formula: "=B1+1" }],
+              [{ kind: "formula", formula: "=A2+1" }, { kind: "formula", formula: "=B2+1" }]
+            ],
+            afterCells: [
+              [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }],
+              [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+            ]
+          },
+          {
+            baseExecutionId: "exec_range_transfer_formula_move_undo_excel_001",
+            targetSheet: "Archive",
+            targetRange: "D5:E6",
+            beforeCells: [
+              [{ kind: "value", value: { type: "string", value: "Old" } }, { kind: "value", value: { type: "string", value: "Target" } }],
+              [{ kind: "value", value: { type: "string", value: "Keep" } }, { kind: "value", value: { type: "string", value: "Safe" } }]
+            ],
+            afterCells: [
+              [{ kind: "formula", formula: "=D4+1" }, { kind: "formula", formula: "=E4+1" }],
+              [{ kind: "formula", formula: "=D5+1" }, { kind: "formula", formula: "=E5+1" }]
+            ]
+          }
+        ]
+      }
+    });
+    expect(targetRange.copyFrom).toHaveBeenCalledTimes(1);
+    expect(sourceRange.clear).toHaveBeenCalledTimes(1);
+  });
+
   it("attaches an undo snapshot for exact-safe Excel copy transfers", async () => {
     const sourceRange = createRangeStub({
       address: "RawData!A2:B3",
