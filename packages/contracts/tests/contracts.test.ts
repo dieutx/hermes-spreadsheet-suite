@@ -2001,6 +2001,28 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.error?.issues[0]?.message).toBe("targetRange must be a single-cell A1 anchor.");
   });
 
+  it("rejects chart plans whose affectedRanges omit the source or target range", () => {
+    const parsed = ChartPlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:C20",
+      targetSheet: "Sales Chart",
+      targetRange: "A1",
+      chartType: "line",
+      categoryField: "Month",
+      series: [
+        { field: "Revenue", label: "Revenue" }
+      ],
+      explanation: "Chart monthly revenue.",
+      confidence: 0.93,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:C20", "Other Chart!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a table plan with native table options", () => {
     const parsed = TablePlanDataSchema.parse({
       targetSheet: "Sales",

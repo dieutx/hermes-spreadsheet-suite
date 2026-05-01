@@ -1562,7 +1562,7 @@ export const PivotTablePlanDataSchema = strictObject({
   }
 });
 
-export const ChartPlanDataSchema = strictObject({
+const ChartPlanBaseDataSchema = strictObject({
   sourceSheet: z.string().min(1).max(128),
   sourceRange: A1TargetRangeSchema,
   targetSheet: z.string().min(1).max(128),
@@ -1594,6 +1594,21 @@ export const ChartPlanDataSchema = strictObject({
   affectedRanges: z.array(z.string().min(1).max(128)).max(12),
   overwriteRisk: OverwriteRiskSchema,
   confirmationLevel: ConfirmationLevelSchema
+});
+
+export const ChartPlanDataSchema = ChartPlanBaseDataSchema.superRefine((data, ctx) => {
+  const sourceRefs = new Set([`${data.sourceSheet}!${data.sourceRange}`, data.sourceRange]);
+  const targetRefs = new Set([`${data.targetSheet}!${data.targetRange}`, data.targetRange]);
+  const includesSource = data.affectedRanges.some((range) => sourceRefs.has(range));
+  const includesTarget = data.affectedRanges.some((range) => targetRefs.has(range));
+
+  if (!includesSource || !includesTarget) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the source and target ranges.",
+      path: ["affectedRanges"]
+    });
+  }
 });
 
 export const TablePlanDataSchema = strictObject({
@@ -1646,9 +1661,9 @@ export const ChartUpdateDataSchema = strictObject({
   operation: z.literal("chart_update"),
   targetSheet: z.string().min(1).max(128),
   targetRange: A1TargetRangeSchema,
-  chartType: ChartPlanDataSchema.shape.chartType,
-  horizontalAxisTitle: ChartPlanDataSchema.shape.horizontalAxisTitle,
-  verticalAxisTitle: ChartPlanDataSchema.shape.verticalAxisTitle,
+  chartType: ChartPlanBaseDataSchema.shape.chartType,
+  horizontalAxisTitle: ChartPlanBaseDataSchema.shape.horizontalAxisTitle,
+  verticalAxisTitle: ChartPlanBaseDataSchema.shape.verticalAxisTitle,
   summary: z.string().min(1).max(500)
 });
 

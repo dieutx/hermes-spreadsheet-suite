@@ -3552,6 +3552,7 @@ describe("writeback confirmation flow", () => {
         ...plan,
         targetSheet: "Other Chart",
         targetRange: "C5",
+        affectedRanges: ["Sales!A1:C20", "Other Chart!C5"],
         chartType: "bar",
         summary: "Created the wrong chart."
         }
