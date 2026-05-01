@@ -1104,6 +1104,9 @@ function isBlockedExternalDataHostname(hostname: string): boolean {
   const normalized = hostname.replace(/^\[|\]$/g, "").replace(/\.+$/g, "").toLowerCase();
   return (
     normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized === "localdomain" ||
+    normalized.endsWith(".localdomain") ||
     normalized === "::1" ||
     normalized === "0:0:0:0:0:0:0:1" ||
     normalized === "internal" ||
