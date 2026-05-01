@@ -1350,7 +1350,7 @@ export const PivotTablePlanDataSchema = strictObject({
   sourceSheet: z.string().min(1).max(128),
   sourceRange: A1TargetRangeSchema,
   targetSheet: z.string().min(1).max(128),
-  targetRange: A1TargetRangeSchema,
+  targetRange: SingleCellA1TargetSchema,
   rowGroups: z.array(z.string().min(1).max(128)).min(1).max(10),
   columnGroups: z.array(z.string().min(1).max(128)).max(10).optional(),
   valueAggregations: z.array(PivotAggregationSchema).min(1).max(10),
