@@ -2383,6 +2383,21 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects conditional format plans whose affectedRanges omit the target range", () => {
+    const parsed = ConditionalFormatPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      managementMode: "clear_on_target",
+      explanation: "Clear conditional formatting from the status column.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!C2:C20"],
+      replacesExistingRules: true
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a 3-color scale plan", () => {
     const parsed = ConditionalFormatPlanDataSchema.parse({
       targetSheet: "Summary",

@@ -2276,7 +2276,16 @@ export const ConditionalFormatPlanDataSchema = z.union([
       }
     })
   ])
-]);
+]).superRefine((data, ctx) => {
+  const targetRefs = new Set([`${data.targetSheet}!${data.targetRange}`, data.targetRange]);
+  if (!data.affectedRanges.some((range) => targetRefs.has(range))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the target range.",
+      path: ["affectedRanges"]
+    });
+  }
+});
 
 export const ConditionalFormatUpdateDataSchema = strictObject({
   operation: z.literal("conditional_format_update"),
