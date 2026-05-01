@@ -2842,6 +2842,151 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     });
   });
 
+  it("attaches local undo snapshots for Google Sheets autofit row writes", () => {
+    const rowHeights = new Map<number, number>([
+      [2, 24],
+      [3, 28]
+    ]);
+    const targetRange = {
+      getNumRows: vi.fn(() => 2),
+      getNumColumns: vi.fn(() => 3),
+      getRow: vi.fn(() => 2),
+      getColumn: vi.fn(() => 4)
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("D2:F3");
+        return targetRange;
+      }),
+      getRowHeight: vi.fn((rowIndex: number) => rowHeights.get(rowIndex)),
+      autoResizeRows: vi.fn((startRow: number, rowCount: number) => {
+        for (let offset = 0; offset < rowCount; offset += 1) {
+          rowHeights.set(startRow + offset, 18 + offset);
+        }
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_autofit_rows_snapshot_sheets_001",
+      runId: "run_autofit_rows_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_autofit_rows_snapshot_sheets_001",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "D2:F3",
+        operation: "autofit_rows",
+        explanation: "Autofit row heights.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(sheet.autoResizeRows).toHaveBeenCalledWith(2, 2);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "autofit_rows",
+      targetSheet: "Sales",
+      targetRange: "D2:F3",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_autofit_rows_snapshot_sheets_001",
+        kind: "range_format",
+        targetSheet: "Sales",
+        targetRange: "D2:F3",
+        shape: {
+          rows: 2,
+          columns: 3
+        },
+        beforeFormat: {
+          rowHeights: [24, 28]
+        },
+        afterFormat: {
+          rowHeights: [18, 19]
+        }
+      }
+    });
+  });
+
+  it("attaches local undo snapshots for Google Sheets autofit column writes", () => {
+    const columnWidths = new Map<number, number>([
+      [4, 64],
+      [5, 72],
+      [6, 80]
+    ]);
+    const targetRange = {
+      getNumRows: vi.fn(() => 2),
+      getNumColumns: vi.fn(() => 3),
+      getRow: vi.fn(() => 2),
+      getColumn: vi.fn(() => 4)
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("D2:F3");
+        return targetRange;
+      }),
+      getColumnWidth: vi.fn((columnIndex: number) => columnWidths.get(columnIndex)),
+      autoResizeColumns: vi.fn((startColumn: number, columnCount: number) => {
+        for (let offset = 0; offset < columnCount; offset += 1) {
+          columnWidths.set(startColumn + offset, 90 + offset);
+        }
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_autofit_columns_snapshot_sheets_001",
+      runId: "run_autofit_columns_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_autofit_columns_snapshot_sheets_001",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "D2:F3",
+        operation: "autofit_columns",
+        explanation: "Autofit column widths.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(sheet.autoResizeColumns).toHaveBeenCalledWith(4, 3);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "autofit_columns",
+      targetSheet: "Sales",
+      targetRange: "D2:F3",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_autofit_columns_snapshot_sheets_001",
+        kind: "range_format",
+        targetSheet: "Sales",
+        targetRange: "D2:F3",
+        shape: {
+          rows: 2,
+          columns: 3
+        },
+        beforeFormat: {
+          columnWidths: [64, 72, 80]
+        },
+        afterFormat: {
+          columnWidths: [90, 91, 92]
+        }
+      }
+    });
+  });
+
   it("passes Google Sheets range format snapshots through sidebar undo before committing", async () => {
     const backingStore = new Map<string, string>();
     backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
