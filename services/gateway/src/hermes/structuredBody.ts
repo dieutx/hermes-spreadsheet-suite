@@ -1989,6 +1989,7 @@ function normalizeNamedRangeUpdateData(value: unknown): unknown {
     "explanation",
     "confidence",
     "requiresConfirmation",
+    "confirmationLevel",
     "affectedRanges",
     "overwriteRisk"
   ]);
@@ -2055,6 +2056,10 @@ function normalizeNamedRangeUpdateData(value: unknown): unknown {
 
   if (hasOwn(normalized, "overwriteRisk")) {
     normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel = normalized.operation === "delete" ? "destructive" : "standard";
   }
 
   return normalized;

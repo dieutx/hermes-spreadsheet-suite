@@ -3182,7 +3182,8 @@ describe("Hermes spreadsheet contracts", () => {
       targetRange: "B2:D20",
       explanation: "Retarget the named input block.",
       confidence: 0.91,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
     });
 
     expect(parsed.operation).toBe("retarget");
@@ -3200,7 +3201,22 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Retarget the named input block.",
       confidence: 0.91,
       requiresConfirmation: true,
+      confirmationLevel: "standard",
       affectedRanges: ["Sheet1!E2:E20"]
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects named range deletion without destructive confirmation", () => {
+    const parsed = NamedRangeUpdateDataSchema.safeParse({
+      operation: "delete",
+      name: "InputRange",
+      scope: "workbook",
+      explanation: "Delete an obsolete named range.",
+      confidence: 0.88,
+      requiresConfirmation: true,
+      overwriteRisk: "high"
     });
 
     expect(parsed.success).toBe(false);
@@ -3217,10 +3233,26 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Retarget the named input block.",
       confidence: 0.91,
       requiresConfirmation: true,
+      confirmationLevel: "standard",
       affectedRanges: ["Sheet1!B2:D20"]
     });
 
     expect(parsed.affectedRanges).toEqual(["Sheet1!B2:D20"]);
+  });
+
+  it("accepts named range deletion with destructive confirmation", () => {
+    const parsed = NamedRangeUpdateDataSchema.parse({
+      operation: "delete",
+      name: "InputRange",
+      scope: "workbook",
+      explanation: "Delete an obsolete named range.",
+      confidence: 0.88,
+      requiresConfirmation: true,
+      confirmationLevel: "destructive",
+      overwriteRisk: "high"
+    });
+
+    expect(parsed.confirmationLevel).toBe("destructive");
   });
 
   it("rejects sheet-scoped named ranges without sheetName", () => {
@@ -3381,6 +3413,7 @@ describe("Hermes spreadsheet contracts", () => {
         explanation: "Create a workbook-scoped named range for status values.",
         confidence: 0.92,
         requiresConfirmation: true,
+        confirmationLevel: "standard",
         overwriteRisk: "low"
       }
     });

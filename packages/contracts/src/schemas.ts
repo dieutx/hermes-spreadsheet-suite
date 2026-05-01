@@ -1708,6 +1708,7 @@ const namedRangeUpdateSharedFields = {
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
+  confirmationLevel: ConfirmationLevelSchema,
   affectedRanges: z.array(z.string().min(1).max(128)).max(10).optional(),
   overwriteRisk: OverwriteRiskSchema.optional()
 } satisfies z.ZodRawShape;
@@ -1768,22 +1769,31 @@ export const NamedRangeUpdateDataSchema = z.union([
     ...namedRangeUpdateSharedFields
   })
 ]).superRefine((data, ctx) => {
-  if (!("targetSheet" in data) || !("targetRange" in data)) {
-    return;
+  if ("targetSheet" in data && "targetRange" in data) {
+    const affectedRanges = data.affectedRanges ?? [];
+    const targetRef = normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange);
+    const normalizedAffectedRanges = new Set(
+      affectedRanges
+        .map((value) => normalizeAffectedA1RangeRef(value))
+        .filter((value): value is string => value !== null)
+    );
+    if (targetRef !== null && affectedRanges.length > 0 && !normalizedAffectedRanges.has(targetRef)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "affectedRanges must include the qualified target range.",
+        path: ["affectedRanges"]
+      });
+    }
   }
 
-  const affectedRanges = data.affectedRanges ?? [];
-  const targetRef = normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange);
-  const normalizedAffectedRanges = new Set(
-    affectedRanges
-      .map((value) => normalizeAffectedA1RangeRef(value))
-      .filter((value): value is string => value !== null)
-  );
-  if (targetRef !== null && affectedRanges.length > 0 && !normalizedAffectedRanges.has(targetRef)) {
+  const isDestructive = data.operation === "delete";
+  if (data.confirmationLevel !== (isDestructive ? "destructive" : "standard")) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "affectedRanges must include the qualified target range.",
-      path: ["affectedRanges"]
+      message: isDestructive
+        ? "Named range delete requires destructive confirmation."
+        : "Named range operations other than delete require standard confirmation.",
+      path: ["confirmationLevel"]
     });
   }
 });

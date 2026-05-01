@@ -1231,7 +1231,8 @@ describe("structured body normalization", () => {
         name: "SalesData",
         targetSheet: "Sales",
         targetRange: "A1:D20",
-        affectedRanges: ["Sales!A1:D20"]
+        affectedRanges: ["Sales!A1:D20"],
+        confirmationLevel: "standard"
       }
     });
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
