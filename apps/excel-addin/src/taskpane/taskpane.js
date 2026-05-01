@@ -4572,6 +4572,16 @@ function hasUnsupportedRepeatedExcelFilterPreviewColumns(conditions) {
   return false;
 }
 
+function isPositiveWholeNumberTopNValue(value) {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function hasUnsupportedExcelTopNFilterPreviewCondition(conditions) {
+  return (conditions || []).some((condition) =>
+    condition?.operator === "topN" && !isPositiveWholeNumberTopNValue(condition.value)
+  );
+}
+
 function getExcelChartTypeConfig(chartType) {
   switch (chartType) {
     case "bar":
@@ -4846,6 +4856,10 @@ function getExcelPlanSupportError(preview) {
   if (kind === "range_filter_plan") {
     if (preview.combiner !== "and") {
       return "This Excel runtime can't combine those filter conditions exactly. Use a single AND filter step instead.";
+    }
+
+    if (hasUnsupportedExcelTopNFilterPreviewCondition(preview.conditions)) {
+      return "This Excel runtime requires a positive whole-number top-N filter value.";
     }
 
     if (hasUnsupportedRepeatedExcelFilterPreviewColumns(preview.conditions)) {
@@ -10882,6 +10896,9 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         case "isNotEmpty":
           return { filterOn: "custom", criterion1: "<>" };
         case "topN":
+          if (!isPositiveWholeNumberTopNValue(condition.value)) {
+            throw new Error("Excel host requires a positive whole-number top-N filter value.");
+          }
           return { filterOn: "topItems", criterion1: String(condition.value) };
         default:
           throw new Error(`Unsupported filter operator: ${condition.operator}`);

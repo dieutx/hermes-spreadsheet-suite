@@ -1674,6 +1674,22 @@ describe("Excel wave 1 plan helpers", () => {
         requiresConfirmation: true
       }
     };
+    const fractionalTopNResponse = {
+      type: "range_filter_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:F25",
+        hasHeader: true,
+        conditions: [
+          { columnRef: "Amount", operator: "topN", value: 2.5 }
+        ],
+        combiner: "and",
+        clearExistingFilters: true,
+        explanation: "Keep the top 2.5 amounts.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    };
 
     expect(taskpane.isWritePlanResponse(unsupportedCombinerResponse)).toBe(false);
     expect(taskpane.renderStructuredPreview(unsupportedCombinerResponse, {
@@ -1698,6 +1714,15 @@ describe("Excel wave 1 plan helpers", () => {
     expect(taskpane.isWritePlanResponse(unsupportedDuplicateColumnResponse)).toBe(false);
     expect(duplicateHtml).toContain("same filter column");
     expect(duplicateHtml).not.toContain("Confirm Filter");
+
+    const fractionalTopNHtml = taskpane.renderStructuredPreview(fractionalTopNResponse, {
+      runId: "run_filter_preview_fractional_topn_excel",
+      requestId: "req_filter_preview_fractional_topn_excel"
+    });
+
+    expect(taskpane.isWritePlanResponse(fractionalTopNResponse)).toBe(false);
+    expect(fractionalTopNHtml).toContain("positive whole-number top-N");
+    expect(fractionalTopNHtml).not.toContain("Confirm Filter");
   });
 
   it("rejects unsupported Excel filter combiner and repeated same-column conditions", async () => {
@@ -1801,6 +1826,25 @@ describe("Excel wave 1 plan helpers", () => {
       runId: "run_filter_repeat_001",
       approvalToken: "token"
     })).rejects.toThrow(/does not support multiple conditions for the same column/i);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:F25",
+        hasHeader: true,
+        conditions: [
+          { columnRef: "Amount", operator: "topN", value: 2.5 }
+        ],
+        combiner: "and",
+        clearExistingFilters: true,
+        explanation: "Keep the top 2.5 amounts.",
+        confidence: 0.89,
+        requiresConfirmation: true
+      },
+      requestId: "req_filter_fractional_topn_001",
+      runId: "run_filter_fractional_topn_001",
+      approvalToken: "token"
+    })).rejects.toThrow(/positive whole-number top-N/i);
 
     expect(filterApi.clearCriteria).not.toHaveBeenCalled();
     expect(filterApi.apply).not.toHaveBeenCalled();
