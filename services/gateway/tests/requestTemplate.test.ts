@@ -64,6 +64,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("Supported pivot sorting: group_field on an existing row or column group");
     expect(prompt).toContain("Supported pivot filters use existing pivot fields");
     expect(prompt).toContain("between, or not_between");
+    expect(prompt).toContain("Every pivot filter requires value");
     expect(prompt).toContain("Series labels may use explicit custom legend text when provided.");
     expect(prompt).toContain("Supported legend positions: bottom, left, right, top, hidden.");
     expect(prompt).toContain("Pie charts support exactly one series.");
@@ -125,6 +126,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("Supported pivot sorting: group_field on an existing row or column group");
     expect(prompt).toContain("Supported pivot filters use existing pivot fields");
     expect(prompt).toContain("between, or not_between");
+    expect(prompt).toContain("Every pivot filter requires value");
     expect(prompt).toContain("chart_plan: limited");
     expect(prompt).toContain("Series labels may use explicit custom legend text when provided.");
     expect(prompt).toContain("note_writes: unsupported");

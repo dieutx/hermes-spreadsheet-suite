@@ -1346,7 +1346,16 @@ const PivotFilterSchema = strictObject({
   value2: CellValueSchema.optional()
 }).superRefine((data, ctx) => {
   const requiresSecondValue = data.operator === "between" || data.operator === "not_between";
+  const hasValue = data.value !== undefined;
   const hasSecondValue = data.value2 !== undefined;
+
+  if (!hasValue) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${data.operator} requires value.`,
+      path: ["value"]
+    });
+  }
 
   if (requiresSecondValue && !hasSecondValue) {
     ctx.addIssue({
