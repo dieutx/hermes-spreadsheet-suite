@@ -2151,6 +2151,146 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel autofit row writes", async () => {
+    let targetRange: any;
+    targetRange = {
+      rowCount: 1,
+      columnCount: 1,
+      load: vi.fn(),
+      getCell: vi.fn(() => targetRange),
+      format: {
+        rowHeight: 24,
+        autofitRows: vi.fn(() => {
+          targetRange.format.rowHeight = 18;
+        })
+      }
+    };
+    const worksheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2");
+        return targetRange;
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "B2",
+        operation: "autofit_rows",
+        explanation: "Autofit row height.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_autofit_rows_snapshot_excel_001",
+      runId: "run_autofit_rows_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_autofit_rows_snapshot_excel_001"
+    });
+
+    expect(targetRange.format.autofitRows).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "autofit_rows",
+      targetSheet: "Sales",
+      targetRange: "B2",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_autofit_rows_snapshot_excel_001",
+        kind: "range_format",
+        targetSheet: "Sales",
+        targetRange: "B2",
+        shape: {
+          rows: 1,
+          columns: 1
+        },
+        beforeFormatCells: [[{
+          rowHeight: 24
+        }]],
+        afterFormatCells: [[{
+          rowHeight: 18
+        }]]
+      }
+    });
+  });
+
+  it("attaches local undo snapshots for Excel autofit column writes", async () => {
+    let targetRange: any;
+    targetRange = {
+      rowCount: 1,
+      columnCount: 1,
+      load: vi.fn(),
+      getCell: vi.fn(() => targetRange),
+      format: {
+        columnWidth: 64,
+        autofitColumns: vi.fn(() => {
+          targetRange.format.columnWidth = 72;
+        })
+      }
+    };
+    const worksheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2");
+        return targetRange;
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "B2",
+        operation: "autofit_columns",
+        explanation: "Autofit column width.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_autofit_columns_snapshot_excel_001",
+      runId: "run_autofit_columns_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_autofit_columns_snapshot_excel_001"
+    });
+
+    expect(targetRange.format.autofitColumns).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "autofit_columns",
+      targetSheet: "Sales",
+      targetRange: "B2",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_autofit_columns_snapshot_excel_001",
+        kind: "range_format",
+        targetSheet: "Sales",
+        targetRange: "B2",
+        shape: {
+          rows: 1,
+          columns: 1
+        },
+        beforeFormatCells: [[{
+          columnWidth: 64
+        }]],
+        afterFormatCells: [[{
+          columnWidth: 72
+        }]]
+      }
+    });
+  });
+
   it("restores Excel range format snapshots before committing undo", async () => {
     const workbookSessionId = "workbook-123";
     const workbookSessionKey = `excel_windows::${workbookSessionId}`;
