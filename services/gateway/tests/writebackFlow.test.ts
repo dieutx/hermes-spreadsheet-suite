@@ -5410,7 +5410,8 @@ describe("writeback confirmation flow", () => {
       name: "InputRange",
       explanation: "Retarget the named range to the input block.",
       confidence: 0.93,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard" as const
     };
 
     setRunResponse(traceBus, {
@@ -5468,7 +5469,8 @@ describe("writeback confirmation flow", () => {
       name: "InputRange",
       explanation: "Retarget the named range to the input block.",
       confidence: 0.93,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard" as const
     };
 
     setRunResponse(traceBus, {
@@ -5538,7 +5540,8 @@ describe("writeback confirmation flow", () => {
         name: "InputRange",
         explanation: "Retarget the named range to the input block.",
         confidence: 0.93,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "standard" as const
       },
       result: buildNamedRangeUpdateResult({
         operation: "retarget",
@@ -5549,7 +5552,8 @@ describe("writeback confirmation flow", () => {
         name: "OtherRange",
         explanation: "Retarget the named range to the wrong block.",
         confidence: 0.93,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "standard" as const
       }, {
         hostPlatform: "excel_windows",
         summary: "Wrong named range completion."
@@ -5573,7 +5577,8 @@ describe("writeback confirmation flow", () => {
         name: "InputRange",
         explanation: "Retarget the sheet-scoped named range.",
         confidence: 0.93,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "standard" as const
       },
       result: buildNamedRangeUpdateResult({
         operation: "retarget",
@@ -5583,7 +5588,8 @@ describe("writeback confirmation flow", () => {
         name: "InputRange",
         explanation: "Retarget the workbook-scoped named range.",
         confidence: 0.93,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "standard" as const
       }, {
         hostPlatform: "excel_windows",
         summary: "Wrong named range scope completion."
@@ -5605,7 +5611,8 @@ describe("writeback confirmation flow", () => {
         newName: "RevenueInputRange",
         explanation: "Rename the named range for clarity.",
         confidence: 0.92,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "standard" as const
       },
       result: buildNamedRangeUpdateResult({
         operation: "rename",
@@ -5614,7 +5621,8 @@ describe("writeback confirmation flow", () => {
         newName: "RevenueInputRange_v2",
         explanation: "Rename the named range for clarity.",
         confidence: 0.92,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "standard" as const
       }, {
         hostPlatform: "excel_windows",
         summary: "Wrong named range rename completion."
@@ -5697,7 +5705,8 @@ describe("writeback confirmation flow", () => {
       name: "InputRange",
       explanation: "Retarget the named range to the input block.",
       confidence: 0.93,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard" as const
     };
 
     setRunResponse(traceBus, {
@@ -5744,7 +5753,8 @@ describe("writeback confirmation flow", () => {
       name: "InputRange",
       explanation: "Retarget the named range to the input block.",
       confidence: 0.93,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard" as const
     };
 
     setRunResponse(traceBus, {

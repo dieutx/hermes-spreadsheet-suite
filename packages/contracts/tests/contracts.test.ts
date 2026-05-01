@@ -3182,7 +3182,8 @@ describe("Hermes spreadsheet contracts", () => {
       targetRange: "B2:D20",
       explanation: "Retarget the named input block.",
       confidence: 0.91,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
     });
 
     expect(parsed.operation).toBe("retarget");
@@ -3200,7 +3201,22 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Retarget the named input block.",
       confidence: 0.91,
       requiresConfirmation: true,
+      confirmationLevel: "standard",
       affectedRanges: ["Sheet1!E2:E20"]
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects named range deletion without destructive confirmation", () => {
+    const parsed = NamedRangeUpdateDataSchema.safeParse({
+      operation: "delete",
+      name: "InputRange",
+      scope: "workbook",
+      explanation: "Delete an obsolete named range.",
+      confidence: 0.88,
+      requiresConfirmation: true,
+      overwriteRisk: "high"
     });
 
     expect(parsed.success).toBe(false);
@@ -3217,10 +3233,58 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Retarget the named input block.",
       confidence: 0.91,
       requiresConfirmation: true,
+      confirmationLevel: "standard",
       affectedRanges: ["Sheet1!B2:D20"]
     });
 
     expect(parsed.affectedRanges).toEqual(["Sheet1!B2:D20"]);
+  });
+
+  it("accepts named range deletion with destructive confirmation", () => {
+    const parsed = NamedRangeUpdateDataSchema.parse({
+      operation: "delete",
+      name: "InputRange",
+      scope: "workbook",
+      explanation: "Delete an obsolete named range.",
+      confidence: 0.88,
+      requiresConfirmation: true,
+      confirmationLevel: "destructive",
+      overwriteRisk: "high"
+    });
+
+    expect(parsed.confirmationLevel).toBe("destructive");
+  });
+
+  it("rejects named range deletion with standard confirmation", () => {
+    const parsed = NamedRangeUpdateDataSchema.safeParse({
+      operation: "delete",
+      name: "InputRange",
+      scope: "workbook",
+      explanation: "Delete an obsolete named range.",
+      confidence: 0.88,
+      requiresConfirmation: true,
+      confirmationLevel: "standard",
+      overwriteRisk: "high"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects destructive confirmation on non-delete named range updates", () => {
+    const parsed = NamedRangeUpdateDataSchema.safeParse({
+      operation: "retarget",
+      name: "InputRange",
+      scope: "sheet",
+      sheetName: "Sheet1",
+      targetSheet: "Sheet1",
+      targetRange: "B2:D20",
+      explanation: "Retarget the named input block.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      confirmationLevel: "destructive"
+    });
+
+    expect(parsed.success).toBe(false);
   });
 
   it("rejects sheet-scoped named ranges without sheetName", () => {
@@ -3230,7 +3294,8 @@ describe("Hermes spreadsheet contracts", () => {
       scope: "sheet",
       explanation: "Sheet-scoped names require sheet metadata.",
       confidence: 0.72,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "destructive"
     });
 
     expect(parsed.success).toBe(false);
@@ -3244,7 +3309,8 @@ describe("Hermes spreadsheet contracts", () => {
       sheetName: "Sheet1",
       explanation: "Workbook names should not carry sheet scope metadata.",
       confidence: 0.7,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "destructive"
     });
 
     expect(parsed.success).toBe(false);
@@ -3257,7 +3323,8 @@ describe("Hermes spreadsheet contracts", () => {
       scope: "workbook",
       explanation: "Target location is required.",
       confidence: 0.77,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
     });
 
     expect(parsed.success).toBe(false);
@@ -3271,7 +3338,8 @@ describe("Hermes spreadsheet contracts", () => {
       sheetName: "Sheet1",
       explanation: "Missing replacement name.",
       confidence: 0.71,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
     });
 
     expect(parsed.success).toBe(false);
@@ -3287,7 +3355,8 @@ describe("Hermes spreadsheet contracts", () => {
       targetRange: "column-b",
       explanation: "Invalid target range string.",
       confidence: 0.78,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
     });
 
     expect(parsed.success).toBe(false);
@@ -3304,7 +3373,8 @@ describe("Hermes spreadsheet contracts", () => {
       targetRange: "B2:D20",
       explanation: "Rename should not silently accept retarget fields.",
       confidence: 0.79,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
     });
 
     expect(parsed.success).toBe(false);
@@ -3381,6 +3451,7 @@ describe("Hermes spreadsheet contracts", () => {
         explanation: "Create a workbook-scoped named range for status values.",
         confidence: 0.92,
         requiresConfirmation: true,
+        confirmationLevel: "standard",
         overwriteRisk: "low"
       }
     });
