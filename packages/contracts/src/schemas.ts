@@ -1048,8 +1048,60 @@ function isPrivateIpv4Hostname(hostname: string): boolean {
   );
 }
 
+function getPrivateMappedIpv4Hostname(hostname: string): string | null {
+  const match = hostname.match(/^(?:::ffff:|0:0:0:0:0:ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+  if (!match) {
+    return null;
+  }
+
+  const high = Number.parseInt(match[1], 16);
+  const low = Number.parseInt(match[2], 16);
+  if (!Number.isInteger(high) || !Number.isInteger(low)) {
+    return null;
+  }
+
+  return [
+    (high >> 8) & 255,
+    high & 255,
+    (low >> 8) & 255,
+    low & 255
+  ].join(".");
+}
+
+function isBlockedIpv6Hostname(hostname: string): boolean {
+  if (!hostname.includes(":")) {
+    return false;
+  }
+
+  const mappedIpv4Hostname = getPrivateMappedIpv4Hostname(hostname);
+  if (mappedIpv4Hostname) {
+    return isPrivateIpv4Hostname(mappedIpv4Hostname);
+  }
+
+  if (
+    hostname === "::" ||
+    hostname === "::1" ||
+    hostname === "0:0:0:0:0:0:0:0" ||
+    hostname === "0:0:0:0:0:0:0:1"
+  ) {
+    return true;
+  }
+
+  const firstHextet = hostname.split(":").find((part) => part.length > 0);
+  if (!firstHextet) {
+    return false;
+  }
+
+  const firstValue = Number.parseInt(firstHextet, 16);
+  if (!Number.isInteger(firstValue)) {
+    return false;
+  }
+
+  return (firstValue & 0xfe00) === 0xfc00 || (firstValue & 0xffc0) === 0xfe80;
+}
+
 function isBlockedExternalDataHostname(hostname: string): boolean {
-  const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  const normalized = hostname.replace(/^\[|\]$/g, "").replace(/\.+$/g, "").toLowerCase();
   return (
     normalized === "localhost" ||
     normalized === "::1" ||
@@ -1058,7 +1110,8 @@ function isBlockedExternalDataHostname(hostname: string): boolean {
     normalized.startsWith("internal.") ||
     normalized.endsWith(".internal") ||
     normalized.endsWith(".local") ||
-    isPrivateIpv4Hostname(normalized)
+    isPrivateIpv4Hostname(normalized) ||
+    isBlockedIpv6Hostname(normalized)
   );
 }
 
