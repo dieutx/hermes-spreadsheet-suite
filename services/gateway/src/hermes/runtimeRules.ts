@@ -166,6 +166,8 @@ For type="range_sort_plan":
 - data.targetRange is required
 - data.hasHeader is required
 - data.keys is required and must contain at least one sort key
+- sort key sortOn is optional and, when present, must be "values"
+- cell color, font color, and icon sort modes are unsupported and must fail closed
 - data.explanation is required
 - data.confidence is required
 - data.requiresConfirmation must be true

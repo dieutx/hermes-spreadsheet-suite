@@ -883,6 +883,25 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("fails closed for unsupported range sort modes instead of dropping them", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_sort_plan",
+      data: {
+        sheet: "Sales",
+        range: "A1:D50",
+        header: true,
+        sortKeys: [
+          { column: "Revenue", order: "descending", sortOn: "cellColor" }
+        ],
+        explanation: "Sort sales by revenue cell color.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(() => HermesStructuredBodySchema.parse(normalized)).toThrow();
+  });
+
   it("normalizes analysis report source and output aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "analysis_report_plan",

@@ -1677,6 +1677,13 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
           : direction;
       }
 
+      if (typeof normalizedItem.sortOn === "string") {
+        const sortOn = normalizedItem.sortOn.trim().toLowerCase().replace(/[\s_-]+/g, "");
+        if (sortOn === "value" || sortOn === "values") {
+          normalizedItem.sortOn = "values";
+        }
+      }
+
       return normalizedItem;
     });
   }

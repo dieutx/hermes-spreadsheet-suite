@@ -1509,7 +1509,7 @@ describe("Hermes spreadsheet contracts", () => {
         targetRange: "A1:F25",
         hasHeader: true,
         keys: [
-          { columnRef: "Status", direction: "asc" },
+          { columnRef: "Status", direction: "asc", sortOn: "values" },
           { columnRef: "Due Date", direction: "desc" }
         ],
         explanation: "Sort open items first, then latest due date.",
@@ -1565,6 +1565,21 @@ describe("Hermes spreadsheet contracts", () => {
     });
 
     expect(parsed.affectedRanges).toEqual(["Sheet1!A1:F25"]);
+  });
+
+  it("rejects unsupported range sort modes", () => {
+    const parsed = RangeSortPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "A1:F25",
+      hasHeader: true,
+      keys: [{ columnRef: "Status", direction: "asc", sortOn: "cellColor" }],
+      explanation: "Sort by status cell color.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:F25"]
+    });
+
+    expect(parsed.success).toBe(false);
   });
 
   it("accepts a chat-only analysis report plan", () => {

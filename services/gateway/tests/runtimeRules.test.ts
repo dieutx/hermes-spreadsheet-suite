@@ -33,6 +33,11 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("unfreeze_panes must resolve to data.frozenRows=0 and data.frozenColumns=0");
   });
 
+  it("documents range sort mode fail-closed behavior", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain('sort key sortOn is optional and, when present, must be "values"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("cell color, font color, and icon sort modes are unsupported");
+  });
+
   it("makes reviewer-safe unavailable map to a concrete error response", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("EXTRACTION_UNAVAILABLE");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('prefer type="error"');
