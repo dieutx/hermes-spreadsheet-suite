@@ -1566,21 +1566,25 @@ export const PivotTablePlanDataSchema = strictObject({
   }
 });
 
+export const ChartTypeSchema = z.enum([
+  "bar",
+  "column",
+  "stacked_bar",
+  "stacked_column",
+  "line",
+  "area",
+  "pie",
+  "scatter"
+]);
+
+const ChartAxisTitleSchema = z.string().min(1).max(256).optional();
+
 const ChartPlanBaseDataSchema = strictObject({
   sourceSheet: z.string().min(1).max(128),
   sourceRange: A1TargetRangeSchema,
   targetSheet: z.string().min(1).max(128),
   targetRange: SingleCellA1TargetSchema,
-  chartType: z.enum([
-    "bar",
-    "column",
-    "stacked_bar",
-    "stacked_column",
-    "line",
-    "area",
-    "pie",
-    "scatter"
-  ]),
+  chartType: ChartTypeSchema,
   categoryField: z.string().min(1).max(128),
   series: z.array(
     strictObject({
@@ -1590,8 +1594,8 @@ const ChartPlanBaseDataSchema = strictObject({
   ).min(1).max(10),
   title: z.string().min(1).max(256).optional(),
   legendPosition: z.enum(["top", "bottom", "left", "right", "hidden"]).optional(),
-  horizontalAxisTitle: z.string().min(1).max(256).optional(),
-  verticalAxisTitle: z.string().min(1).max(256).optional(),
+  horizontalAxisTitle: ChartAxisTitleSchema,
+  verticalAxisTitle: ChartAxisTitleSchema,
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
@@ -1618,6 +1622,20 @@ export const ChartPlanDataSchema = ChartPlanBaseDataSchema.superRefine((data, ct
       message: "affectedRanges must include the qualified source and target ranges.",
       path: ["affectedRanges"]
     });
+  }
+
+  const seenFields = new Set([data.categoryField.trim()]);
+  for (const [index, series] of data.series.entries()) {
+    const field = series.field.trim();
+    if (seenFields.has(field)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "chart categoryField and series fields must be unique.",
+        path: ["series", index, "field"]
+      });
+      continue;
+    }
+    seenFields.add(field);
   }
 });
 
@@ -1671,9 +1689,9 @@ export const ChartUpdateDataSchema = strictObject({
   operation: z.literal("chart_update"),
   targetSheet: z.string().min(1).max(128),
   targetRange: A1TargetRangeSchema,
-  chartType: ChartPlanBaseDataSchema.shape.chartType,
-  horizontalAxisTitle: ChartPlanBaseDataSchema.shape.horizontalAxisTitle,
-  verticalAxisTitle: ChartPlanBaseDataSchema.shape.verticalAxisTitle,
+  chartType: ChartTypeSchema,
+  horizontalAxisTitle: ChartAxisTitleSchema,
+  verticalAxisTitle: ChartAxisTitleSchema,
   summary: z.string().min(1).max(500)
 });
 
