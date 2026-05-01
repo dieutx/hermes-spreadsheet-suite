@@ -3816,6 +3816,349 @@ function createRangeFormatLocalExecutionSnapshot_(input) {
   };
 }
 
+function serializeConditionalFormatSnapshotColor_(value) {
+  if (value === null || value === undefined || value === '') {
+    return {
+      ok: true,
+      value: undefined
+    };
+  }
+
+  if (typeof value === 'string') {
+    return {
+      ok: true,
+      value: value
+    };
+  }
+
+  let rgbColor = null;
+  try {
+    rgbColor = value && typeof value.asRgbColor === 'function'
+      ? value.asRgbColor()
+      : null;
+  } catch (_error) {
+    rgbColor = null;
+  }
+
+  if (rgbColor && typeof rgbColor.asHexString === 'function') {
+    return {
+      ok: true,
+      value: rgbColor.asHexString()
+    };
+  }
+
+  return {
+    ok: false
+  };
+}
+
+function captureConditionalFormatColor_(condition, objectGetterName, deprecatedGetterName) {
+  if (condition && typeof condition[objectGetterName] === 'function') {
+    return serializeConditionalFormatSnapshotColor_(condition[objectGetterName]());
+  }
+
+  if (condition && typeof condition[deprecatedGetterName] === 'function') {
+    return serializeConditionalFormatSnapshotColor_(condition[deprecatedGetterName]());
+  }
+
+  return {
+    ok: true,
+    value: undefined
+  };
+}
+
+function readConditionalFormatBooleanStyleForSnapshot_(condition) {
+  const style = {};
+  const background = captureConditionalFormatColor_(condition, 'getBackgroundObject', 'getBackground');
+  if (!background.ok) {
+    return null;
+  }
+  if (background.value !== undefined) {
+    style.backgroundColor = background.value;
+  }
+
+  const fontColor = captureConditionalFormatColor_(condition, 'getFontColorObject', 'getFontColor');
+  if (!fontColor.ok) {
+    return null;
+  }
+  if (fontColor.value !== undefined) {
+    style.textColor = fontColor.value;
+  }
+
+  [
+    ['getBold', 'bold'],
+    ['getItalic', 'italic'],
+    ['getUnderline', 'underline'],
+    ['getStrikethrough', 'strikethrough']
+  ].forEach(function(entry) {
+    const getterName = entry[0];
+    const fieldName = entry[1];
+    if (condition && typeof condition[getterName] === 'function') {
+      const value = condition[getterName]();
+      if (typeof value === 'boolean') {
+        style[fieldName] = value;
+      }
+    }
+  });
+
+  return style;
+}
+
+function serializeConditionalFormatCriteriaValues_(values) {
+  const serializedValues = [];
+  if (!Array.isArray(values)) {
+    return serializedValues;
+  }
+
+  for (let index = 0; index < values.length; index += 1) {
+    const serializedValue = serializeDataValidationCriteriaValue_(values[index]);
+    if (!serializedValue) {
+      return null;
+    }
+    serializedValues.push(serializedValue);
+  }
+
+  return serializedValues;
+}
+
+function getConditionalFormatCriteriaName_(criteriaType) {
+  const criteriaMap = SpreadsheetApp.BooleanCriteria || {};
+  const criteriaNames = Object.keys(criteriaMap);
+  for (let index = 0; index < criteriaNames.length; index += 1) {
+    const name = criteriaNames[index];
+    if (criteriaMap[name] === criteriaType) {
+      return name;
+    }
+  }
+
+  return criteriaType == null ? '' : String(criteriaType);
+}
+
+function resolveConditionalFormatCriteria_(criteriaType) {
+  const criteriaName = criteriaType == null ? '' : String(criteriaType);
+  const criteriaMap = SpreadsheetApp.BooleanCriteria || {};
+  return criteriaMap[criteriaName] || criteriaType;
+}
+
+function cloneConditionalFormatSnapshotValue_(value) {
+  return cloneLocalExecutionSnapshotValue_(value);
+}
+
+function serializePlainConditionalFormatRule_(rule, ranges) {
+  if (!rule || typeof rule !== 'object' || !rule.rule || typeof rule.rule !== 'object') {
+    return null;
+  }
+
+  return {
+    ranges: ranges,
+    rule: cloneConditionalFormatSnapshotValue_(rule.rule),
+    format: cloneConditionalFormatSnapshotValue_(rule.format || {})
+  };
+}
+
+function serializeBooleanConditionalFormatRule_(condition, ranges) {
+  if (
+    !condition ||
+    typeof condition.getCriteriaType !== 'function' ||
+    typeof condition.getCriteriaValues !== 'function'
+  ) {
+    return null;
+  }
+
+  const criteriaType = getConditionalFormatCriteriaName_(condition.getCriteriaType());
+  const criteriaValues = serializeConditionalFormatCriteriaValues_(condition.getCriteriaValues());
+  const style = readConditionalFormatBooleanStyleForSnapshot_(condition);
+  if (!criteriaType || !criteriaValues || !style) {
+    return null;
+  }
+
+  return {
+    ranges: ranges,
+    rule: {
+      kind: 'boolean_condition',
+      criteriaType: criteriaType,
+      criteriaValues: criteriaValues
+    },
+    format: style
+  };
+}
+
+function getConditionalInterpolationTypeName_(type) {
+  const interpolationTypes = SpreadsheetApp.InterpolationType || {};
+  const typeNames = Object.keys(interpolationTypes);
+  for (let index = 0; index < typeNames.length; index += 1) {
+    const name = typeNames[index];
+    if (interpolationTypes[name] === type) {
+      return name.toLowerCase();
+    }
+  }
+
+  if (type === null || type === undefined || type === '') {
+    return '';
+  }
+
+  return String(type).toLowerCase();
+}
+
+function serializeConditionalGradientPoint_(condition, position) {
+  const capitalizedPosition = position.charAt(0).toUpperCase() + position.slice(1);
+  const colorGetterName = 'get' + capitalizedPosition + 'ColorObject';
+  const typeGetterName = 'get' + capitalizedPosition + 'Type';
+  const valueGetterName = 'get' + capitalizedPosition + 'Value';
+
+  if (!condition || typeof condition[colorGetterName] !== 'function') {
+    return null;
+  }
+
+  const color = serializeConditionalFormatSnapshotColor_(condition[colorGetterName]());
+  if (!color.ok || color.value === undefined) {
+    return null;
+  }
+
+  const point = {
+    position: position,
+    color: color.value
+  };
+
+  const interpolationType = typeof condition[typeGetterName] === 'function'
+    ? getConditionalInterpolationTypeName_(condition[typeGetterName]())
+    : '';
+  const value = typeof condition[valueGetterName] === 'function'
+    ? condition[valueGetterName]()
+    : '';
+
+  if (interpolationType && interpolationType !== position) {
+    point.type = interpolationType;
+  } else {
+    point.type = position;
+  }
+
+  if (value !== null && value !== undefined && String(value).length > 0) {
+    point.value = String(value);
+  }
+
+  return point;
+}
+
+function serializeGradientConditionalFormatRule_(condition, ranges) {
+  if (!condition) {
+    return null;
+  }
+
+  const minPoint = serializeConditionalGradientPoint_(condition, 'min');
+  const maxPoint = serializeConditionalGradientPoint_(condition, 'max');
+  if (!minPoint || !maxPoint) {
+    return null;
+  }
+
+  const points = [minPoint];
+  const midPoint = serializeConditionalGradientPoint_(condition, 'mid');
+  if (midPoint) {
+    points.push(midPoint);
+  }
+  points.push(maxPoint);
+
+  return {
+    ranges: ranges,
+    rule: {
+      kind: 'color_scale',
+      points: points.map(function(point) {
+        const normalized = {
+          type: point.type,
+          color: point.color
+        };
+        if (point.value !== undefined) {
+          normalized.value = point.value;
+        }
+        return normalized;
+      })
+    },
+    format: {}
+  };
+}
+
+function serializeConditionalFormatRule_(rule) {
+  if (!rule || typeof rule.getRanges !== 'function') {
+    return null;
+  }
+
+  const ranges = (rule.getRanges() || []).map(function(range) {
+    return range && typeof range.getA1Notation === 'function'
+      ? normalizeA1_(range.getA1Notation())
+      : '';
+  }).filter(function(rangeA1) {
+    return Boolean(rangeA1);
+  });
+  if (ranges.length === 0) {
+    return null;
+  }
+
+  const plainRule = serializePlainConditionalFormatRule_(rule, ranges);
+  if (plainRule) {
+    return plainRule;
+  }
+
+  if (typeof rule.getBooleanCondition === 'function') {
+    const booleanCondition = rule.getBooleanCondition();
+    const serializedBooleanRule = serializeBooleanConditionalFormatRule_(booleanCondition, ranges);
+    if (serializedBooleanRule) {
+      return serializedBooleanRule;
+    }
+  }
+
+  if (typeof rule.getGradientCondition === 'function') {
+    const gradientCondition = rule.getGradientCondition();
+    const serializedGradientRule = serializeGradientConditionalFormatRule_(gradientCondition, ranges);
+    if (serializedGradientRule) {
+      return serializedGradientRule;
+    }
+  }
+
+  return null;
+}
+
+function readConditionalFormatRulesStateForSnapshot_(sheet) {
+  if (!sheet || typeof sheet.getConditionalFormatRules !== 'function') {
+    return null;
+  }
+
+  const rules = sheet.getConditionalFormatRules() || [];
+  const serializedRules = [];
+  for (let index = 0; index < rules.length; index += 1) {
+    const serializedRule = serializeConditionalFormatRule_(rules[index]);
+    if (!serializedRule) {
+      return null;
+    }
+    serializedRules.push(serializedRule);
+  }
+
+  return {
+    rules: serializedRules
+  };
+}
+
+function createConditionalFormatLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.targetSheet ||
+    !input.targetRange ||
+    !input.before ||
+    !input.after
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'conditional_format',
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    before: input.before,
+    after: input.after
+  };
+}
+
 function cloneRangeFilterSnapshotValue_(value) {
   if (value === null || value === undefined || typeof value !== 'object') {
     return value;
@@ -5734,6 +6077,184 @@ function applyExecutionPivotTableSnapshot_(input) {
   throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
 }
 
+function normalizeConditionalFormatSnapshotState_(state) {
+  if (!state || typeof state !== 'object' || !Array.isArray(state.rules)) {
+    throw new Error('The saved conditional-format snapshot is malformed.');
+  }
+
+  return {
+    rules: state.rules.map(function(ruleSnapshot) {
+      if (
+        !ruleSnapshot ||
+        typeof ruleSnapshot !== 'object' ||
+        !Array.isArray(ruleSnapshot.ranges) ||
+        ruleSnapshot.ranges.length === 0 ||
+        !ruleSnapshot.rule ||
+        typeof ruleSnapshot.rule !== 'object'
+      ) {
+        throw new Error('The saved conditional-format snapshot is malformed.');
+      }
+
+      return {
+        ranges: ruleSnapshot.ranges.map(function(rangeA1) {
+          if (typeof rangeA1 !== 'string' || rangeA1.trim().length === 0) {
+            throw new Error('The saved conditional-format snapshot is malformed.');
+          }
+          return normalizeA1_(rangeA1);
+        }),
+        rule: cloneConditionalFormatSnapshotValue_(ruleSnapshot.rule),
+        format: cloneConditionalFormatSnapshotValue_(ruleSnapshot.format || {})
+      };
+    })
+  };
+}
+
+function conditionalFormatSnapshotStatesEqual_(left, right) {
+  return JSON.stringify(normalizeConditionalFormatSnapshotState_(left)) ===
+    JSON.stringify(normalizeConditionalFormatSnapshotState_(right));
+}
+
+function deserializeConditionalFormatCriteriaValues_(spreadsheet, sheet, values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values.map(function(value) {
+    return deserializeDataValidationCriteriaValue_(spreadsheet, sheet, value);
+  });
+}
+
+function applyConditionalFormatSnapshotRuleToBuilder_(spreadsheet, sheet, builder, ruleSnapshot) {
+  const rule = ruleSnapshot && ruleSnapshot.rule;
+  if (!rule || typeof rule.kind !== 'string') {
+    throw new Error('The saved conditional-format snapshot is malformed.');
+  }
+
+  switch (rule.kind) {
+    case 'text_contains':
+      if (typeof rule.text !== 'string' || typeof builder.whenTextContains !== 'function') {
+        throw new Error('The saved conditional-format snapshot is malformed.');
+      }
+      builder.whenTextContains(rule.text);
+      break;
+    case 'custom_formula':
+      if (typeof rule.formula !== 'string' || typeof builder.whenFormulaSatisfied !== 'function') {
+        throw new Error('The saved conditional-format snapshot is malformed.');
+      }
+      builder.whenFormulaSatisfied(rule.formula);
+      break;
+    case 'number_compare':
+      if (typeof rule.comparator !== 'string') {
+        throw new Error('The saved conditional-format snapshot is malformed.');
+      }
+      applyConditionalNumberCompareRule_(builder, rule);
+      break;
+    case 'color_scale':
+      applyConditionalColorScaleRule_(builder, rule);
+      break;
+    case 'boolean_condition':
+      if (
+        typeof rule.criteriaType !== 'string' ||
+        !Array.isArray(rule.criteriaValues) ||
+        typeof builder.withCriteria !== 'function'
+      ) {
+        throw new Error('The saved conditional-format snapshot is malformed.');
+      }
+      builder.withCriteria(
+        resolveConditionalFormatCriteria_(rule.criteriaType),
+        deserializeConditionalFormatCriteriaValues_(spreadsheet, sheet, rule.criteriaValues)
+      );
+      break;
+    default:
+      throw new Error('The saved conditional-format snapshot uses an unsupported rule type.');
+  }
+}
+
+function buildConditionalFormatRuleFromSnapshot_(spreadsheet, sheet, ruleSnapshot) {
+  if (typeof SpreadsheetApp.newConditionalFormatRule !== 'function') {
+    throw new Error('Google Sheets host cannot restore conditional-format snapshots.');
+  }
+
+  const builder = SpreadsheetApp.newConditionalFormatRule();
+  applyConditionalFormatSnapshotRuleToBuilder_(spreadsheet, sheet, builder, ruleSnapshot);
+  applyConditionalFormatStyleToBuilder_(builder, ruleSnapshot.format || {});
+
+  if (typeof builder.setRanges !== 'function') {
+    throw new Error('Google Sheets host cannot restore conditional-format snapshot ranges.');
+  }
+
+  const ranges = ruleSnapshot.ranges.map(function(rangeA1) {
+    return sheet.getRange(rangeA1);
+  });
+  return builder.setRanges(ranges).build();
+}
+
+function buildConditionalFormatRulesFromSnapshot_(spreadsheet, sheet, state) {
+  const normalizedState = normalizeConditionalFormatSnapshotState_(state);
+  return normalizedState.rules.map(function(ruleSnapshot) {
+    return buildConditionalFormatRuleFromSnapshot_(spreadsheet, sheet, ruleSnapshot);
+  });
+}
+
+function resolveExecutionConditionalFormatSnapshot_(input) {
+  if (!input || typeof input !== 'object' || input.kind !== 'conditional_format' || !input.targetSheet || !input.targetRange) {
+    throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+  }
+
+  const from = normalizeConditionalFormatSnapshotState_(input.from);
+  const to = normalizeConditionalFormatSnapshotState_(input.to);
+  const spreadsheet = SpreadsheetApp.getActive();
+  const sheet = spreadsheet.getSheetByName(input.targetSheet);
+  if (!sheet) {
+    throw new Error('Target sheet not found: ' + input.targetSheet);
+  }
+
+  const current = readConditionalFormatRulesStateForSnapshot_(sheet);
+  if (!current) {
+    throw new Error('Google Sheets host cannot inspect saved conditional-format snapshots.');
+  }
+
+  if (!conditionalFormatSnapshotStatesEqual_(current, from)) {
+    throw new Error('Conditional formatting changed since this history entry was captured.');
+  }
+
+  return {
+    spreadsheet: spreadsheet,
+    sheet: sheet,
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    from: from,
+    to: to
+  };
+}
+
+function validateExecutionConditionalFormatSnapshot_(input) {
+  const snapshot = resolveExecutionConditionalFormatSnapshot_(input);
+  buildConditionalFormatRulesFromSnapshot_(snapshot.spreadsheet, snapshot.sheet, snapshot.to);
+  return {
+    ok: true,
+    targetSheet: snapshot.targetSheet,
+    targetRange: snapshot.targetRange
+  };
+}
+
+function applyExecutionConditionalFormatSnapshot_(input) {
+  const snapshot = resolveExecutionConditionalFormatSnapshot_(input);
+  if (typeof snapshot.sheet.setConditionalFormatRules !== 'function') {
+    throw new Error('Google Sheets host cannot restore conditional-format snapshots.');
+  }
+
+  snapshot.sheet.setConditionalFormatRules(
+    buildConditionalFormatRulesFromSnapshot_(snapshot.spreadsheet, snapshot.sheet, snapshot.to)
+  );
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    targetSheet: snapshot.targetSheet,
+    targetRange: snapshot.targetRange
+  };
+}
+
 function validateExecutionCellSnapshot(input) {
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
@@ -5761,6 +6282,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'pivot_table') {
     return validateExecutionPivotTableSnapshot_(input);
+  }
+
+  if (input && input.kind === 'conditional_format') {
+    return validateExecutionConditionalFormatSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -5800,6 +6325,10 @@ function applyExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'pivot_table') {
     return applyExecutionPivotTableSnapshot_(input);
+  }
+
+  if (input && input.kind === 'conditional_format') {
+    return applyExecutionConditionalFormatSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -5861,6 +6390,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'pivot_table') {
     return validateExecutionPivotTableSnapshot_(input);
+  }
+
+  if (input && input.kind === 'conditional_format') {
+    return validateExecutionConditionalFormatSnapshot_(input);
   }
 
   if (!input || typeof input !== 'object') {
@@ -8147,6 +8680,9 @@ function applyWritePlan(input) {
   if (isConditionalFormatPlan_(plan)) {
     validateConditionalFormatPlanSupport_(plan);
 
+    const beforeConditionalFormats = input.executionId
+      ? readConditionalFormatRulesStateForSnapshot_(sheet)
+      : null;
     const preservedRules = (
       plan.managementMode === 'replace_all_on_target' || plan.managementMode === 'clear_on_target'
     )
@@ -8165,7 +8701,10 @@ function applyWritePlan(input) {
     }
 
     SpreadsheetApp.flush();
-    return {
+    const afterConditionalFormats = beforeConditionalFormats
+      ? readConditionalFormatRulesStateForSnapshot_(sheet)
+      : null;
+    return attachLocalExecutionSnapshot_({
       kind: 'conditional_format_update',
       hostPlatform: 'google_sheets',
       targetSheet: plan.targetSheet,
@@ -8187,7 +8726,13 @@ function applyWritePlan(input) {
       points: plan.points,
       style: plan.style,
       summary: getConditionalFormatStatusSummary_(plan)
-    };
+    }, createConditionalFormatLocalExecutionSnapshot_({
+      executionId: input.executionId,
+      targetSheet: plan.targetSheet,
+      targetRange: plan.targetRange,
+      before: beforeConditionalFormats,
+      after: afterConditionalFormats
+    }));
   }
 
   if (isDataValidationPlan_(plan)) {

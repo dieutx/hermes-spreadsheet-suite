@@ -515,13 +515,16 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         return [];
       }
     };
-    const setConditionalFormatRules = vi.fn();
+    let rules = [existingRule];
+    const setConditionalFormatRules = vi.fn((nextRules: typeof rules) => {
+      rules = nextRules;
+    });
     const sheet = {
       getRange: vi.fn((a1Notation: string) => {
         expect(a1Notation).toBe("B2:B20");
         return targetRange;
       }),
-      getConditionalFormatRules: vi.fn(() => [existingRule]),
+      getConditionalFormatRules: vi.fn(() => rules),
       setConditionalFormatRules
     };
     const spreadsheet = {
@@ -587,6 +590,187 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
       }
     });
     expect(updatedRules[1].getRanges()).toEqual([targetRange]);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("attaches undo snapshots for Google Sheets conditional formatting", () => {
+    const targetRange = createRangeStub("B2:B20", 2, 2, 19, 1);
+    const existingRule = {
+      rule: {
+        kind: "text_contains",
+        text: "old"
+      },
+      format: {
+        backgroundColor: "#eeeeee"
+      },
+      getRanges() {
+        return [targetRange];
+      }
+    };
+    let rules = [existingRule];
+    const setConditionalFormatRules = vi.fn((nextRules: typeof rules) => {
+      rules = nextRules;
+    });
+    const sheet = {
+      getRange: vi.fn((a1Notation: string) => {
+        expect(a1Notation).toBe("B2:B20");
+        return targetRange;
+      }),
+      getConditionalFormatRules: vi.fn(() => rules),
+      setConditionalFormatRules
+    };
+    const spreadsheet = {
+      getSheetByName(sheetName: string) {
+        expect(sheetName).toBe("Sheet1");
+        return sheet;
+      }
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      executionId: "exec_conditional_format_snapshot_001",
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        managementMode: "replace_all_on_target",
+        ruleType: "text_contains",
+        text: "overdue",
+        style: {
+          backgroundColor: "#ffcccc"
+        },
+        explanation: "Highlight overdue rows.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["Sheet1!B2:B20"],
+        replacesExistingRules: true
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "conditional_format_update",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_conditional_format_snapshot_001",
+        kind: "conditional_format",
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        before: {
+          rules: [
+            {
+              ranges: ["B2:B20"],
+              rule: {
+                kind: "text_contains",
+                text: "old"
+              },
+              format: {
+                backgroundColor: "#eeeeee"
+              }
+            }
+          ]
+        },
+        after: {
+          rules: [
+            {
+              ranges: ["B2:B20"],
+              rule: {
+                kind: "text_contains",
+                text: "overdue"
+              },
+              format: {
+                backgroundColor: "#ffcccc"
+              }
+            }
+          ]
+        }
+      }
+    });
+    expect(setConditionalFormatRules).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies Google Sheets conditional-format snapshots on the server", () => {
+    const targetRange = createRangeStub("B2:B20", 2, 2, 19, 1);
+    let rules = [
+      {
+        rule: {
+          kind: "text_contains",
+          text: "overdue"
+        },
+        format: {
+          backgroundColor: "#ffcccc"
+        },
+        getRanges() {
+          return [targetRange];
+        }
+      }
+    ];
+    const setConditionalFormatRules = vi.fn((nextRules: typeof rules) => {
+      rules = nextRules;
+    });
+    const sheet = {
+      getRange: vi.fn(() => targetRange),
+      getConditionalFormatRules: vi.fn(() => rules),
+      setConditionalFormatRules
+    };
+    const spreadsheet = {
+      getSheetByName(sheetName: string) {
+        expect(sheetName).toBe("Sheet1");
+        return sheet;
+      }
+    };
+    const { validateExecutionCellSnapshot, applyExecutionCellSnapshot, flush } = loadCodeModule({ spreadsheet });
+    const snapshot = {
+      kind: "conditional_format",
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      from: {
+        rules: [
+          {
+            ranges: ["B2:B20"],
+            rule: {
+              kind: "text_contains",
+              text: "overdue"
+            },
+            format: {
+              backgroundColor: "#ffcccc"
+            }
+          }
+        ]
+      },
+      to: {
+        rules: [
+          {
+            ranges: ["B2:B20"],
+            rule: {
+              kind: "text_contains",
+              text: "old"
+            },
+            format: {
+              backgroundColor: "#eeeeee"
+            }
+          }
+        ]
+      }
+    };
+
+    expect(validateExecutionCellSnapshot(snapshot)).toEqual({
+      ok: true,
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20"
+    });
+    expect(applyExecutionCellSnapshot(snapshot)).toEqual({
+      ok: true,
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20"
+    });
+    expect(setConditionalFormatRules).toHaveBeenCalledTimes(1);
+    expect(setConditionalFormatRules.mock.calls[0][0][0]).toMatchObject({
+      rule: {
+        kind: "text_contains",
+        text: "old"
+      },
+      format: {
+        backgroundColor: "#eeeeee"
+      }
+    });
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
