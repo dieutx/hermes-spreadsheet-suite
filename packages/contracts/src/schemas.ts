@@ -1841,6 +1841,14 @@ function validateCleanupColumnRefsWithinTarget(
   }
 }
 
+function isSupportedDateTextFormatPattern(formatPattern: string): boolean {
+  return /^[Yy]{4}([\-/.])[Mm]{2}\1[Dd]{2}$/.test(formatPattern.trim());
+}
+
+function isSupportedNumberTextFormatPattern(formatPattern: string): boolean {
+  return /^(#,##0|0)(?:\.(0+))?$/.test(formatPattern.trim());
+}
+
 export const Wave4CleanupOperationSchema = z.enum([
   "trim_whitespace",
   "remove_blank_rows",
@@ -1973,6 +1981,22 @@ export const DataCleanupPlanDataSchema = z.discriminatedUnion("operation", [
       message: "affectedRanges must include the qualified target range.",
       path: ["affectedRanges"]
     });
+  }
+
+  if (data.operation === "standardize_format") {
+    const patternIsSupported = data.formatType === "date_text"
+      ? isSupportedDateTextFormatPattern(data.formatPattern)
+      : isSupportedNumberTextFormatPattern(data.formatPattern);
+
+    if (!patternIsSupported) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: data.formatType === "date_text"
+          ? "date_text formatPattern must be an exact year-first pattern such as YYYY-MM-DD, YYYY/MM/DD, or YYYY.MM.DD."
+          : "number_text formatPattern must be a fixed-decimal pattern such as #,##0.00 or 0.00.",
+        path: ["formatPattern"]
+      });
+    }
   }
 });
 

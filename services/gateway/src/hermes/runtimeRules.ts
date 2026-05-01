@@ -314,7 +314,7 @@ For type="data_cleanup_plan":
 - data.confirmationLevel is required and must be standard or destructive
 - do not compress multiple cleanup transforms into one broad cleanup step
 - if the request mixes trim, casing, duplicate removal, fill-down, split/join, or standardize-format work, prefer composite_plan with one exact cleanup step per transform
-- for operation="standardize_format", target the specific column or range being normalized and include exactly one formatType and one formatPattern per step
+- for operation="standardize_format", target the specific column or range being normalized and include exactly one formatType and one exact-safe formatPattern per step; date_text supports YYYY-MM-DD, YYYY/MM/DD, or YYYY.MM.DD, and number_text supports fixed-decimal patterns like #,##0.00 or 0.00
 - data_cleanup_plan is for cleanup and reshape requests and is distinct from sheet_update
 - destructive cleanup operations require data.confirmationLevel="destructive"
 - non-destructive cleanup operations require data.confirmationLevel="standard"
