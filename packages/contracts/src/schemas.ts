@@ -1307,6 +1307,164 @@ function extractWebImportFormulaSourceUrlKeys(formula: string): string[] {
   );
 }
 
+function extractFormulaFunctionArguments(formula: string, functionName: string): string[] | null {
+  const pattern = new RegExp(String.raw`\b${functionName}\s*\(`, "i");
+  const match = pattern.exec(formula);
+  if (!match) {
+    return null;
+  }
+
+  const args: string[] = [];
+  let current = "";
+  let depth = 0;
+  let inString = false;
+
+  for (let index = match.index + match[0].length; index < formula.length; index += 1) {
+    const char = formula[index];
+    if (inString) {
+      current += char;
+      if (char === "\"") {
+        if (formula[index + 1] === "\"") {
+          current += formula[index + 1];
+          index += 1;
+        } else {
+          inString = false;
+        }
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      current += char;
+      continue;
+    }
+
+    if (char === "(") {
+      depth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ")") {
+      if (depth === 0) {
+        args.push(current.trim());
+        return args;
+      }
+      depth -= 1;
+      current += char;
+      continue;
+    }
+
+    if (char === "," && depth === 0) {
+      args.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  return null;
+}
+
+function parseSpreadsheetFormulaStringLiteral(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.length < 2 || !trimmed.startsWith("\"") || !trimmed.endsWith("\"")) {
+    return null;
+  }
+
+  let parsed = "";
+  for (let index = 1; index < trimmed.length - 1; index += 1) {
+    const char = trimmed[index];
+    if (char !== "\"") {
+      parsed += char;
+      continue;
+    }
+
+    if (trimmed[index + 1] === "\"" && index + 1 < trimmed.length - 1) {
+      parsed += "\"";
+      index += 1;
+      continue;
+    }
+
+    return null;
+  }
+
+  return parsed;
+}
+
+function parseSpreadsheetFormulaPositiveIntegerLiteral(value: string | undefined): number | null {
+  const trimmed = value?.trim();
+  if (!trimmed || !/^[1-9][0-9]*$/.test(trimmed)) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+type WebTableImportFormulaPlan = {
+  provider: WebImportProvider;
+  sourceUrl: string;
+  selectorType: "table" | "list" | "xpath" | "direct";
+  selector?: string | number;
+  formula: string;
+};
+
+function addWebImportFormulaArgumentIssue(ctx: z.RefinementCtx): void {
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: "web import formula arguments must match sourceUrl, selectorType, and selector.",
+    path: ["formula"]
+  });
+}
+
+function validateWebImportFormulaArguments(
+  data: WebTableImportFormulaPlan,
+  sourceUrlKey: string | null,
+  ctx: z.RefinementCtx
+): void {
+  const functionName = WEB_IMPORT_FUNCTION_BY_PROVIDER[data.provider];
+  const args = extractFormulaFunctionArguments(data.formula, functionName);
+  if (!args) {
+    addWebImportFormulaArgumentIssue(ctx);
+    return;
+  }
+
+  const formulaSourceUrl = parseSpreadsheetFormulaStringLiteral(args[0]);
+  const formulaSourceUrlKey = formulaSourceUrl ? getPublicExternalDataUrlKey(formulaSourceUrl) : null;
+  if (!sourceUrlKey || formulaSourceUrlKey !== sourceUrlKey) {
+    addWebImportFormulaArgumentIssue(ctx);
+    return;
+  }
+
+  if (data.provider === "importhtml") {
+    const formulaSelectorType = parseSpreadsheetFormulaStringLiteral(args[1])?.toLowerCase();
+    const formulaSelector = parseSpreadsheetFormulaPositiveIntegerLiteral(args[2]);
+    if (
+      args.length !== 3 ||
+      formulaSelectorType !== data.selectorType ||
+      formulaSelector !== data.selector
+    ) {
+      addWebImportFormulaArgumentIssue(ctx);
+    }
+    return;
+  }
+
+  if (data.provider === "importxml") {
+    const formulaSelector = parseSpreadsheetFormulaStringLiteral(args[1]);
+    if (args.length !== 2 || formulaSelector !== data.selector) {
+      addWebImportFormulaArgumentIssue(ctx);
+    }
+    return;
+  }
+
+  if (args.length !== 1) {
+    addWebImportFormulaArgumentIssue(ctx);
+  }
+}
+
 const MarketDataPlanSchema = strictObject({
   ...ExternalDataPlanSharedFields,
   sourceType: z.literal("market_data"),
@@ -1378,6 +1536,8 @@ export const ExternalDataPlanDataSchema = z.union([
         });
       }
     }
+
+    validateWebImportFormulaArguments(data, sourceUrlKey, ctx);
   }
 
   if (data.sourceType === "market_data") {
