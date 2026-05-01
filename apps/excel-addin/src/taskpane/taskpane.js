@@ -3678,15 +3678,8 @@ async function validateTableLocalExecutionSnapshotForMode(snapshot, mode) {
   });
 }
 
-function getRangeMergeSnapshotStateForMode(snapshot, mode) {
-  const state = mode === "undo" ? snapshot?.before : snapshot?.after;
+function assertValidRangeMergeSnapshotState(state) {
   if (
-    !snapshot ||
-    snapshot.kind !== "range_merge" ||
-    typeof snapshot.targetSheet !== "string" ||
-    snapshot.targetSheet.trim().length === 0 ||
-    typeof snapshot.targetRange !== "string" ||
-    snapshot.targetRange.trim().length === 0 ||
     !state ||
     typeof state.merged !== "boolean" ||
     !Array.isArray(state.cells) ||
@@ -3694,29 +3687,53 @@ function getRangeMergeSnapshotStateForMode(snapshot, mode) {
   ) {
     throw new Error("That history entry is no longer available in this spreadsheet session.");
   }
+}
 
-  return state;
+function getRangeMergeSnapshotTransitionForMode(snapshot, mode) {
+  if (
+    !snapshot ||
+    snapshot.kind !== "range_merge" ||
+    typeof snapshot.targetSheet !== "string" ||
+    snapshot.targetSheet.trim().length === 0 ||
+    typeof snapshot.targetRange !== "string" ||
+    snapshot.targetRange.trim().length === 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  const from = mode === "undo" ? snapshot.after : snapshot.before;
+  const to = mode === "undo" ? snapshot.before : snapshot.after;
+  assertValidRangeMergeSnapshotState(from);
+  assertValidRangeMergeSnapshotState(to);
+
+  return { from, to };
 }
 
 async function resolveRangeMergeLocalExecutionSnapshotForMode(context, snapshot, mode) {
-  const state = getRangeMergeSnapshotStateForMode(snapshot, mode);
+  const transition = getRangeMergeSnapshotTransitionForMode(snapshot, mode);
   const worksheets = context.workbook.worksheets;
   const sheet = worksheets.getItem(snapshot.targetSheet);
   const target = sheet.getRange(snapshot.targetRange);
-  target.load?.(["rowCount", "columnCount"]);
-  await context.sync();
+  const currentState = await readExcelRangeMergeSnapshotState(context, target, snapshot.targetRange);
 
-  if (target.rowCount !== state.cells.length || target.columnCount !== (state.cells[0]?.length || 0)) {
+  if (
+    target.rowCount !== transition.to.cells.length ||
+    target.columnCount !== (transition.to.cells[0]?.length || 0)
+  ) {
     throw new Error("The saved undo snapshot no longer matches the current range shape.");
   }
 
-  if (typeof target.unmerge !== "function" || (state.merged && typeof target.merge !== "function")) {
+  if (!isSameRangeMergeSnapshotState(currentState, transition.from)) {
+    throw new Error("Range merge state changed since this history entry was captured.");
+  }
+
+  if (typeof target.unmerge !== "function" || (transition.to.merged && typeof target.merge !== "function")) {
     throw new Error("Excel host cannot restore merge snapshots on this range.");
   }
 
   return {
     target,
-    state
+    state: transition.to
   };
 }
 
