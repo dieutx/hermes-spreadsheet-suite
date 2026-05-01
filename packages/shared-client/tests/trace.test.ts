@@ -62,7 +62,7 @@ describe("shared client trace helpers", () => {
       hermesRunId: "run_safe_001"
     });
     response.serviceLabel = String.raw`C:\Users\runner\work\private-tool.ts`;
-    response.environmentLabel = String.raw`\\runner\share\secret.env`;
+    response.environmentLabel = String.raw`env=\\runner\share\secret.env`;
 
     const proof = formatProofLine(response);
 
@@ -71,6 +71,7 @@ describe("shared client trace helpers", () => {
     expect(proof).not.toContain("C:\\Users");
     expect(proof).not.toContain("\\\\runner");
     expect(proof).not.toContain("secret.env");
+    expect(proof).not.toContain("env=");
   });
 
   it("keeps safe proof identifiers visible", () => {
