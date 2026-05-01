@@ -1621,6 +1621,28 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.valueAggregations).toHaveLength(2);
   });
 
+  it("rejects pivot table plans with multi-cell target ranges", () => {
+    const parsed = PivotTablePlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1:D10",
+      rowGroups: ["Region"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      explanation: "Build a sales pivot by region.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1:D10"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.message).toBe("targetRange must be a single-cell A1 anchor.");
+  });
+
   it("accepts bounded numeric pivot filters and requires both bounds", () => {
     const parsed = PivotTablePlanDataSchema.parse({
       sourceSheet: "Sales",
