@@ -795,6 +795,32 @@ describe("shared client render helpers", () => {
     });
   });
 
+  it("sanitizes sensitive dry-run unsupported reasons before rendering them", () => {
+    const dryRunResult = {
+      simulated: false,
+      planDigest: "digest_sensitive",
+      workbookSessionKey: "excel_windows::workbook-123",
+      steps: [],
+      predictedAffectedRanges: [],
+      predictedSummaries: [],
+      overwriteRisk: "low",
+      reversible: false,
+      expiresAt: "2026-04-20T13:00:00.000Z",
+      unsupportedReason:
+        "TypeError: failed reading /root/claude/hermes-audit/services/gateway/src/routes/writeback.ts\n" +
+        "    at apply (/root/claude/hermes-audit/services/gateway/src/routes/writeback.ts:12:3) HERMES_API_SERVER_KEY"
+    } as any;
+
+    expect(formatDryRunSummary(dryRunResult)).toBe(
+      "Dry-run preview isn't available for this plan in this spreadsheet app."
+    );
+    expect(buildDryRunPreview(dryRunResult)).toMatchObject({
+      kind: "dry_run_result",
+      unsupportedReason: "Dry-run preview isn't available for this plan in this spreadsheet app.",
+      summary: "Dry-run preview isn't available for this plan in this spreadsheet app."
+    });
+  });
+
   it("renders composite previews for sheet import steps without assuming explanation exists", () => {
     const response = baseResponse({
       type: "composite_plan",

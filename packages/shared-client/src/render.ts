@@ -568,6 +568,10 @@ export function buildCompositeUpdatePreview(
 }
 
 const DRY_RUN_INTERNAL_LANGUAGE_PATTERN = /\b(contract|schema|structured body|validation|json|payload|parse|parser|normaliz(?:e|ation)|exact-safe|live demo subset)\b/i;
+const DRY_RUN_SENSITIVE_LANGUAGE_PATTERN =
+  /(?:^|\n)\s*at\s+\S+|(?:^|[\s(["'])\/(?:root|home|Users|var|tmp|workspace|app|srv|etc)\/|[A-Za-z]:\\|\b(?:TypeError|ReferenceError|SyntaxError|RangeError):/;
+const DRY_RUN_SECRET_IDENTIFIER_PATTERN =
+  /\b[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY)[A-Z0-9_]*\b/;
 
 function sanitizeDryRunUnsupportedReason(reason?: string): string | undefined {
   const resolvedReason = typeof reason === "string" ? reason.trim() : "";
@@ -645,7 +649,11 @@ function sanitizeDryRunUnsupportedReason(reason?: string): string | undefined {
     return "This preview can't represent that write safely on the current range.";
   }
 
-  if (DRY_RUN_INTERNAL_LANGUAGE_PATTERN.test(resolvedReason)) {
+  if (
+    DRY_RUN_INTERNAL_LANGUAGE_PATTERN.test(resolvedReason) ||
+    DRY_RUN_SENSITIVE_LANGUAGE_PATTERN.test(resolvedReason) ||
+    DRY_RUN_SECRET_IDENTIFIER_PATTERN.test(resolvedReason)
+  ) {
     return "Dry-run preview isn't available for this plan in this spreadsheet app.";
   }
 
