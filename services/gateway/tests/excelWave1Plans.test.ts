@@ -946,6 +946,187 @@ describe("Excel wave 1 plan helpers", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel row visibility writes", async () => {
+    const rowHidden = new Map([
+      ["3:3", false],
+      ["4:4", true],
+      ["5:5", false]
+    ]);
+    const worksheet = {
+      getRange: vi.fn((address: string) => {
+        if (address === "3:5") {
+          return {
+            set rowHidden(value: boolean) {
+              rowHidden.set("3:3", value);
+              rowHidden.set("4:4", value);
+              rowHidden.set("5:5", value);
+            }
+          };
+        }
+
+        return {
+          load: vi.fn(),
+          get rowHidden() {
+            return rowHidden.get(address);
+          },
+          set rowHidden(value: boolean | undefined) {
+            rowHidden.set(address, Boolean(value));
+          }
+        };
+      })
+    };
+    const worksheets = {
+      getItem: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return worksheet;
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "hide_rows",
+        targetSheet: "Sheet1",
+        startIndex: 2,
+        count: 3,
+        explanation: "Hide subtotal rows.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_hide_rows_snapshot_excel_001",
+      runId: "run_hide_rows_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_hide_rows_snapshot_excel_001"
+    });
+
+    expect(rowHidden.get("3:3")).toBe(true);
+    expect(rowHidden.get("4:4")).toBe(true);
+    expect(rowHidden.get("5:5")).toBe(true);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "hide_rows",
+      targetSheet: "Sheet1",
+      startIndex: 2,
+      count: 3,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_hide_rows_snapshot_excel_001",
+        kind: "workbook_structure",
+        operation: "row_column_visibility",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          dimension: "rows",
+          startIndex: 2,
+          count: 3,
+          hiddenStates: [false, true, false]
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          dimension: "rows",
+          startIndex: 2,
+          count: 3,
+          hiddenStates: [true, true, true]
+        }
+      }
+    });
+  });
+
+  it("attaches local undo snapshots for Excel column visibility writes", async () => {
+    const columnHidden = new Map([
+      ["B:B", true],
+      ["C:C", false]
+    ]);
+    const worksheet = {
+      getRange: vi.fn((address: string) => {
+        if (address === "B:C") {
+          return {
+            set columnHidden(value: boolean) {
+              columnHidden.set("B:B", value);
+              columnHidden.set("C:C", value);
+            }
+          };
+        }
+
+        return {
+          load: vi.fn(),
+          get columnHidden() {
+            return columnHidden.get(address);
+          },
+          set columnHidden(value: boolean | undefined) {
+            columnHidden.set(address, Boolean(value));
+          }
+        };
+      })
+    };
+    const worksheets = {
+      getItem: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return worksheet;
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "unhide_columns",
+        targetSheet: "Sheet1",
+        startIndex: 1,
+        count: 2,
+        explanation: "Unhide working columns.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_unhide_columns_snapshot_excel_001",
+      runId: "run_unhide_columns_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_unhide_columns_snapshot_excel_001"
+    });
+
+    expect(columnHidden.get("B:B")).toBe(false);
+    expect(columnHidden.get("C:C")).toBe(false);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "unhide_columns",
+      targetSheet: "Sheet1",
+      startIndex: 1,
+      count: 2,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_unhide_columns_snapshot_excel_001",
+        kind: "workbook_structure",
+        operation: "row_column_visibility",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          dimension: "columns",
+          startIndex: 1,
+          count: 2,
+          hiddenStates: [true, false]
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          dimension: "columns",
+          startIndex: 1,
+          count: 2,
+          hiddenStates: [false, false]
+        }
+      }
+    });
+  });
+
   it("attaches local undo snapshots for Excel sheet create writes", async () => {
     const existingWorksheet = {
       name: "Sheet1",
