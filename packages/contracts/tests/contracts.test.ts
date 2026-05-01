@@ -3686,6 +3686,21 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.scope).toBe("sheet");
   });
 
+  it("accepts named range identifiers with year suffixes", () => {
+    const parsed = NamedRangeUpdateDataSchema.parse({
+      operation: "rename",
+      name: "SalesData",
+      scope: "workbook",
+      newName: "SalesData2026",
+      explanation: "Rename a named range with a year suffix.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.newName).toBe("SalesData2026");
+  });
+
   it("rejects target-bearing named range updates whose affectedRanges omit the target range", () => {
     const parsed = NamedRangeUpdateDataSchema.safeParse({
       operation: "retarget",
@@ -3761,6 +3776,47 @@ describe("Hermes spreadsheet contracts", () => {
       requiresConfirmation: true,
       confirmationLevel: "standard",
       overwriteRisk: "high"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects named range names that hosts cannot represent exactly", () => {
+    const invalidNames = [
+      "Sales Total",
+      "A1",
+      "R1C1",
+      "trueBudget",
+      "C"
+    ];
+
+    for (const name of invalidNames) {
+      const parsed = NamedRangeUpdateDataSchema.safeParse({
+        operation: "create",
+        name,
+        scope: "workbook",
+        targetSheet: "Sheet1",
+        targetRange: "B2:D20",
+        explanation: "Create a named range with an invalid identifier.",
+        confidence: 0.82,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      });
+
+      expect(parsed.success).toBe(false);
+    }
+  });
+
+  it("rejects named range rename targets that hosts cannot represent exactly", () => {
+    const parsed = NamedRangeUpdateDataSchema.safeParse({
+      operation: "rename",
+      name: "InputRange",
+      scope: "workbook",
+      newName: "falseArchive",
+      explanation: "Rename a named range to an invalid identifier.",
+      confidence: 0.83,
+      requiresConfirmation: true,
+      confirmationLevel: "standard"
     });
 
     expect(parsed.success).toBe(false);
