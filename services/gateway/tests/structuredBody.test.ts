@@ -1149,6 +1149,7 @@ describe("structured body normalization", () => {
       data: {
         combiner: "and",
         clearExistingFilters: true,
+        confirmationLevel: "destructive",
         conditions: [
           { columnRef: "Status", operator: "equals", value: "Open" },
           { columnRef: "Revenue", operator: "greaterThanOrEqual", value: 1000 },

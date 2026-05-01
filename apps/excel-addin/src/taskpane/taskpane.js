@@ -8102,6 +8102,7 @@ function getStructuredPreview(response) {
         confidence: response.data.confidence,
         requiresConfirmation: response.data.requiresConfirmation,
         affectedRanges: response.data.affectedRanges,
+        confirmationLevel: response.data.confirmationLevel,
         summary: getRangeFilterStatusSummary(response.data)
       };
     case "range_format_update":
@@ -9077,6 +9078,7 @@ function renderStructuredPreview(response, message) {
           • ${preview.hasHeader ? "header" : "no header"}
           • ${preview.conditions.length} condition(s)
           • ${escapeHtml(preview.combiner)}
+          ${preview.confirmationLevel ? ` • ${escapeHtml(preview.confirmationLevel)}` : ""}
         </div>
         <div>${escapeHtml(preview.explanation)}</div>
         <div class="preview-meta">${escapeHtml(preview.summary)}</div>

@@ -6501,7 +6501,8 @@ describe("writeback confirmation flow", () => {
       clearExistingFilters: true,
       explanation: "Show only open items.",
       confidence: 0.93,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "destructive" as const
     };
 
     setRunResponse(traceBus, {
@@ -6518,7 +6519,8 @@ describe("writeback confirmation flow", () => {
       body: {
         requestId: "req_filter_typed",
         runId: "run_filter_typed",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -6564,7 +6566,8 @@ describe("writeback confirmation flow", () => {
       clearExistingFilters: true,
       explanation: "Show only open items.",
       confidence: 0.93,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "destructive" as const
     };
 
     setRunResponse(traceBus, {
@@ -6583,7 +6586,8 @@ describe("writeback confirmation flow", () => {
         requestId: "req_filter_undo_ready",
         runId: "run_filter_undo_ready",
         workbookSessionKey: "google_sheets::sheet-123",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -6639,7 +6643,8 @@ describe("writeback confirmation flow", () => {
         clearExistingFilters: true,
         explanation: "Show only open items.",
         confidence: 0.93,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive" as const
       },
       result: {
         kind: "range_filter",
@@ -6655,8 +6660,10 @@ describe("writeback confirmation flow", () => {
         explanation: "Show only open items.",
         confidence: 0.93,
         requiresConfirmation: true,
+        confirmationLevel: "destructive" as const,
         summary: "Applied the wrong filter rule."
-      }
+      },
+      destructiveConfirmation: { confirmed: true }
     });
   });
 

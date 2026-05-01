@@ -1165,7 +1165,8 @@ describe("HermesAgentClient", () => {
         hasHeader: true,
         combiner: "and",
         clearExistingFilters: true,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     });
     expect(response?.trace.some((event) => event.event === "range_filter_plan_ready")).toBe(true);

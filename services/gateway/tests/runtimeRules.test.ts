@@ -77,6 +77,7 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("distinct from sheet_update");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('move transfer plans require data.confirmationLevel="destructive"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('destructive cleanup operations require data.confirmationLevel="destructive"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain('data.clearExistingFilters=true requires data.confirmationLevel="destructive"');
     expect(SPREADSHEET_RUNTIME_RULES).not.toContain('target-sheet-only transfer defaults to data.targetRange="A1"');
   });
 
