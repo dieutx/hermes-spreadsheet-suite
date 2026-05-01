@@ -53,6 +53,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("formulaLanguage");
     expect(prompt).toContain("requiresConfirmation must be true");
     expect(prompt).toContain("targetRange must match");
+    expect(prompt).toContain("Do not use append_rows");
     expect(prompt).toContain("supportsNoteWrites");
   });
 

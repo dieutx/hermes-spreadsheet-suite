@@ -1435,6 +1435,21 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.values).toHaveLength(1);
   });
 
+  it("rejects append_rows sheet updates because hosts require explicit destination ranges", () => {
+    const parsed = SheetUpdateDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "A3:B3",
+      operation: "append_rows",
+      values: [["North", 42]],
+      explanation: "Append a row.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      shape: { rows: 1, columns: 2 }
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a multi-key range sort response envelope", () => {
     const parsed = HermesResponseSchema.parse({
       schemaVersion: "1.0.0",
