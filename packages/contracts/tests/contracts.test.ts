@@ -2023,6 +2023,28 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts chart affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = ChartPlanDataSchema.parse({
+      sourceSheet: "Sales",
+      sourceRange: "$A$1:$C$20",
+      targetSheet: "Sales Chart",
+      targetRange: "$A$1",
+      chartType: "line",
+      categoryField: "Month",
+      series: [
+        { field: "Revenue", label: "Revenue" }
+      ],
+      explanation: "Chart monthly revenue.",
+      confidence: 0.93,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sales!A1:C20", "Sales Chart!A1"]);
+  });
+
   it("accepts a table plan with native table options", () => {
     const parsed = TablePlanDataSchema.parse({
       targetSheet: "Sales",

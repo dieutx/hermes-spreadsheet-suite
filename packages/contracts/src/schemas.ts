@@ -1597,15 +1597,21 @@ const ChartPlanBaseDataSchema = strictObject({
 });
 
 export const ChartPlanDataSchema = ChartPlanBaseDataSchema.superRefine((data, ctx) => {
-  const sourceRefs = new Set([`${data.sourceSheet}!${data.sourceRange}`, data.sourceRange]);
-  const targetRefs = new Set([`${data.targetSheet}!${data.targetRange}`, data.targetRange]);
-  const includesSource = data.affectedRanges.some((range) => sourceRefs.has(range));
-  const includesTarget = data.affectedRanges.some((range) => targetRefs.has(range));
+  const requiredAffectedRanges = [
+    normalizeQualifiedA1RangeRef(data.sourceSheet, data.sourceRange),
+    normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange)
+  ].filter((value): value is string => value !== null);
+  const affectedRanges = new Set(
+    data.affectedRanges
+      .map((value) => normalizeAffectedA1RangeRef(value))
+      .filter((value): value is string => value !== null)
+  );
+  const missingAffectedRanges = requiredAffectedRanges.filter((value) => !affectedRanges.has(value));
 
-  if (!includesSource || !includesTarget) {
+  if (missingAffectedRanges.length > 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "affectedRanges must include the source and target ranges.",
+      message: "affectedRanges must include the qualified source and target ranges.",
       path: ["affectedRanges"]
     });
   }
