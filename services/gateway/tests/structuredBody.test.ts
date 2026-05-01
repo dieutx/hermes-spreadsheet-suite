@@ -424,10 +424,30 @@ describe("structured body normalization", () => {
       data: {
         operation: "create_sheet",
         sheetName: "Summary",
-        position: "end"
+        position: "end",
+        confirmationLevel: "standard"
       }
     });
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes workbook sheet deletion to destructive confirmation", () => {
+    const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
+      type: "workbook_structure_update",
+      data: {
+        action: "remove",
+        sheetTitle: "Archive",
+        explanation: "Delete an obsolete sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    }));
+
+    expect(parsed.data).toMatchObject({
+      operation: "delete_sheet",
+      sheetName: "Archive",
+      confirmationLevel: "destructive"
+    });
   });
 
   it("normalizes sheet structure range aliases before validation", () => {

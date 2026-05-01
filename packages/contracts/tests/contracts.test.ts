@@ -1427,6 +1427,42 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts workbook sheet deletion only with destructive confirmation", () => {
+    const parsed = WorkbookStructureUpdateDataSchema.parse({
+      operation: "delete_sheet",
+      sheetName: "Archive",
+      explanation: "Delete an obsolete sheet.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      confirmationLevel: "destructive",
+      overwriteRisk: "high"
+    });
+
+    expect(parsed.confirmationLevel).toBe("destructive");
+
+    const standardDeletion = WorkbookStructureUpdateDataSchema.safeParse({
+      ...parsed,
+      confirmationLevel: "standard"
+    });
+
+    expect(standardDeletion.success).toBe(false);
+  });
+
+  it("rejects destructive confirmation on non-delete workbook structure operations", () => {
+    const parsed = WorkbookStructureUpdateDataSchema.safeParse({
+      operation: "create_sheet",
+      sheetName: "Summary",
+      position: "end",
+      explanation: "Create a summary sheet.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      confirmationLevel: "destructive",
+      overwriteRisk: "none"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a destructive sheet structure delete-row plan", () => {
     const parsed = SheetStructureUpdateDataSchema.parse({
       targetSheet: "Sheet1",
