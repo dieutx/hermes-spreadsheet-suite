@@ -10081,6 +10081,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         (plan.operation === "autofit_rows" || plan.operation === "autofit_columns")
       );
       const autofitTarget = shouldSnapshotAutofit ? sheet.getRange(plan.targetRange) : null;
+      if (autofitTarget && typeof autofitTarget.load === "function") {
+        autofitTarget.load(["rowCount", "columnCount"]);
+        await context.sync();
+      }
       const autofitSnapshotTargets = autofitTarget
         ? prepareExcelRangeFormatSnapshotTargets(
             autofitTarget,

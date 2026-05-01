@@ -2197,6 +2197,7 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     });
 
     expect(targetRange.format.autofitRows).toHaveBeenCalledTimes(1);
+    expect(targetRange.load).toHaveBeenCalledWith(["rowCount", "columnCount"]);
     expect(result).toMatchObject({
       kind: "sheet_structure_update",
       operation: "autofit_rows",
@@ -2267,6 +2268,7 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     });
 
     expect(targetRange.format.autofitColumns).toHaveBeenCalledTimes(1);
+    expect(targetRange.load).toHaveBeenCalledWith(["rowCount", "columnCount"]);
     expect(result).toMatchObject({
       kind: "sheet_structure_update",
       operation: "autofit_columns",
