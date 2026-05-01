@@ -987,7 +987,7 @@ describe("shared client render helpers", () => {
         String.raw`C:\Users\runner\work\private-tool.ts`
       ],
       downstreamProvider: {
-        label: String.raw`\\runner\share\provider`,
+        label: String.raw`label=\\runner\share\provider`,
         model: "gpt-5"
       }
     });
@@ -998,6 +998,7 @@ describe("shared client render helpers", () => {
     expect(windowsMetaLine).not.toContain("C:\\Users");
     expect(windowsMetaLine).not.toContain("\\\\runner");
     expect(windowsMetaLine).not.toContain("private-tool");
+    expect(windowsMetaLine).not.toContain("label=");
   });
 
   it("formats the wave 2 trace labels", () => {
