@@ -116,11 +116,93 @@ function createRangeStub(options: {
   columnCount: number;
   values?: unknown[][];
   formulas?: (string | null)[][];
+  formatCells?: Array<Array<Partial<{
+    backgroundColor: string;
+    textColor: string;
+    fontFamily: string;
+    fontSize: number;
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+    strikethrough: boolean;
+    horizontalAlignment: string;
+    verticalAlignment: string;
+    wrapText: boolean;
+    numberFormat: string;
+    columnWidth: number;
+    rowHeight: number;
+  }>>>;
+  borders?: Record<string, Partial<{
+    lineStyle: string;
+    color: string;
+    weight: string;
+  }>>;
 }) {
+  const cloneFormatCell = (cell: Partial<{
+    backgroundColor: string;
+    textColor: string;
+    fontFamily: string;
+    fontSize: number;
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+    strikethrough: boolean;
+    horizontalAlignment: string;
+    verticalAlignment: string;
+    wrapText: boolean;
+    numberFormat: string;
+    columnWidth: number;
+    rowHeight: number;
+  }> = {}) => ({
+    backgroundColor: cell.backgroundColor ?? "#ffffff",
+    textColor: cell.textColor ?? "#000000",
+    fontFamily: cell.fontFamily ?? "Calibri",
+    fontSize: cell.fontSize ?? 11,
+    bold: cell.bold ?? false,
+    italic: cell.italic ?? false,
+    underline: cell.underline ?? false,
+    strikethrough: cell.strikethrough ?? false,
+    horizontalAlignment: cell.horizontalAlignment ?? "General",
+    verticalAlignment: cell.verticalAlignment ?? "Bottom",
+    wrapText: cell.wrapText ?? false,
+    numberFormat: cell.numberFormat ?? "General",
+    columnWidth: cell.columnWidth ?? 64,
+    rowHeight: cell.rowHeight ?? 20
+  });
+  const buildDefaultFormatCells = () =>
+    Array.from({ length: options.rowCount }, () =>
+      Array.from({ length: options.columnCount }, () => cloneFormatCell())
+    );
+  const cloneFormatCells = (cells?: typeof options.formatCells) =>
+    cells
+      ? cells.map((row) => row.map((cell) => cloneFormatCell(cell)))
+      : buildDefaultFormatCells();
+  const cloneBorders = (borders?: typeof options.borders) => {
+    const defaults = {
+      EdgeTop: { lineStyle: "None", color: "#000000", weight: "Thin" },
+      EdgeBottom: { lineStyle: "None", color: "#000000", weight: "Thin" },
+      EdgeLeft: { lineStyle: "None", color: "#000000", weight: "Thin" },
+      EdgeRight: { lineStyle: "None", color: "#000000", weight: "Thin" },
+      InsideHorizontal: { lineStyle: "None", color: "#000000", weight: "Thin" },
+      InsideVertical: { lineStyle: "None", color: "#000000", weight: "Thin" }
+    };
+
+    return Object.fromEntries(
+      Object.entries(defaults).map(([side, fallback]) => [
+        side,
+        {
+          ...fallback,
+          ...(borders?.[side] || {})
+        }
+      ])
+    );
+  };
   let currentValues = options.values ? options.values.map((row) => [...row]) : [];
   let currentFormulas = options.formulas
     ? options.formulas.map((row) => [...row])
     : currentValues.map((row) => row.map((value) => value == null ? "" : String(value)));
+  let currentFormatCells = cloneFormatCells(options.formatCells);
+  let currentBorders = cloneBorders(options.borders);
   const copyFromCalls: Array<{
     from: [number, number];
     to: [number, number];
@@ -136,11 +218,174 @@ function createRangeStub(options: {
     values: currentValues,
     formulas: currentFormulas,
     load: vi.fn(),
-    clear: vi.fn(),
+    clear: vi.fn((applyTo?: string) => {
+      if (applyTo === "Formats") {
+        currentFormatCells = buildDefaultFormatCells();
+        currentBorders = cloneBorders();
+      }
+    }),
     copyFromCalls,
+    __getFormatCells() {
+      return currentFormatCells.map((row) => row.map((cell) => cloneFormatCell(cell)));
+    },
+    __setFormatCells(nextCells: ReturnType<typeof cloneFormatCells>) {
+      currentFormatCells = nextCells.map((row) => row.map((cell) => cloneFormatCell(cell)));
+    },
+    __getBorders() {
+      return cloneBorders(currentBorders);
+    },
+    __setBorders(nextBorders: typeof currentBorders) {
+      currentBorders = cloneBorders(nextBorders);
+    },
+    format: {
+      borders: {
+        getItem(side: string) {
+          return {
+            load: vi.fn(),
+            get lineStyle() {
+              return currentBorders[side]?.lineStyle;
+            },
+            set lineStyle(value: string | undefined) {
+              currentBorders[side] = {
+                ...(currentBorders[side] || {}),
+                lineStyle: value
+              };
+            },
+            get color() {
+              return currentBorders[side]?.color;
+            },
+            set color(value: string | undefined) {
+              currentBorders[side] = {
+                ...(currentBorders[side] || {}),
+                color: value
+              };
+            },
+            get weight() {
+              return currentBorders[side]?.weight;
+            },
+            set weight(value: string | undefined) {
+              currentBorders[side] = {
+                ...(currentBorders[side] || {}),
+                weight: value
+              };
+            }
+          };
+        }
+      }
+    },
+    copyFrom: vi.fn((source: {
+      __getFormatCells?: () => ReturnType<typeof cloneFormatCells>;
+      __getBorders?: () => typeof currentBorders;
+    }, copyType: string, skipBlanks: boolean, transpose: boolean) => {
+      copyFromCalls.push({
+        from: [0, 0],
+        to: [0, 0],
+        copyType,
+        skipBlanks,
+        transpose
+      });
+      if (copyType === "Formats" && typeof source.__getFormatCells === "function") {
+        currentFormatCells = source.__getFormatCells();
+      }
+      if (copyType === "Formats" && typeof source.__getBorders === "function") {
+        currentBorders = cloneBorders(source.__getBorders());
+      }
+    }),
     getCell: vi.fn((rowIndex: number, columnIndex: number) => ({
       __cellPosition: [rowIndex, columnIndex],
       load: vi.fn(),
+      format: {
+        fill: {
+          get color() {
+            return currentFormatCells[rowIndex][columnIndex].backgroundColor;
+          },
+          set color(value: string) {
+            currentFormatCells[rowIndex][columnIndex].backgroundColor = value;
+          }
+        },
+        font: {
+          get color() {
+            return currentFormatCells[rowIndex][columnIndex].textColor;
+          },
+          set color(value: string) {
+            currentFormatCells[rowIndex][columnIndex].textColor = value;
+          },
+          get name() {
+            return currentFormatCells[rowIndex][columnIndex].fontFamily;
+          },
+          set name(value: string) {
+            currentFormatCells[rowIndex][columnIndex].fontFamily = value;
+          },
+          get size() {
+            return currentFormatCells[rowIndex][columnIndex].fontSize;
+          },
+          set size(value: number) {
+            currentFormatCells[rowIndex][columnIndex].fontSize = value;
+          },
+          get bold() {
+            return currentFormatCells[rowIndex][columnIndex].bold;
+          },
+          set bold(value: boolean) {
+            currentFormatCells[rowIndex][columnIndex].bold = value;
+          },
+          get italic() {
+            return currentFormatCells[rowIndex][columnIndex].italic;
+          },
+          set italic(value: boolean) {
+            currentFormatCells[rowIndex][columnIndex].italic = value;
+          },
+          get underline() {
+            return currentFormatCells[rowIndex][columnIndex].underline;
+          },
+          set underline(value: boolean) {
+            currentFormatCells[rowIndex][columnIndex].underline = value;
+          },
+          get strikethrough() {
+            return currentFormatCells[rowIndex][columnIndex].strikethrough;
+          },
+          set strikethrough(value: boolean) {
+            currentFormatCells[rowIndex][columnIndex].strikethrough = value;
+          }
+        },
+        get horizontalAlignment() {
+          return currentFormatCells[rowIndex][columnIndex].horizontalAlignment;
+        },
+        set horizontalAlignment(value: string) {
+          currentFormatCells[rowIndex][columnIndex].horizontalAlignment = value;
+        },
+        get verticalAlignment() {
+          return currentFormatCells[rowIndex][columnIndex].verticalAlignment;
+        },
+        set verticalAlignment(value: string) {
+          currentFormatCells[rowIndex][columnIndex].verticalAlignment = value;
+        },
+        get wrapText() {
+          return currentFormatCells[rowIndex][columnIndex].wrapText;
+        },
+        set wrapText(value: boolean) {
+          currentFormatCells[rowIndex][columnIndex].wrapText = value;
+        },
+        get columnWidth() {
+          return currentFormatCells[rowIndex][columnIndex].columnWidth;
+        },
+        set columnWidth(value: number) {
+          currentFormatCells[rowIndex][columnIndex].columnWidth = value;
+        },
+        get rowHeight() {
+          return currentFormatCells[rowIndex][columnIndex].rowHeight;
+        },
+        set rowHeight(value: number) {
+          currentFormatCells[rowIndex][columnIndex].rowHeight = value;
+        }
+      },
+      get numberFormat() {
+        return [[currentFormatCells[rowIndex][columnIndex].numberFormat]];
+      },
+      set numberFormat(value: string[][] | string) {
+        currentFormatCells[rowIndex][columnIndex].numberFormat = Array.isArray(value)
+          ? String(value[0]?.[0] ?? "General")
+          : String(value);
+      },
       get values() {
         return [[currentValues[rowIndex][columnIndex]]];
       },
@@ -1022,6 +1267,426 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
         [{ kind: "value", value: { type: "string", value: "Grace" } }, { kind: "value", value: { type: "string", value: "Hopper" } }]
       ]
     });
+  });
+
+  it("attaches an undo snapshot for Excel format copy transfers", async () => {
+    const sourceRange = createRangeStub({
+      address: "RawData!A2:B3",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["Ada", "Lovelace"],
+        ["Grace", "Hopper"]
+      ],
+      formatCells: [
+        [
+          { backgroundColor: "#ff0000", textColor: "#ffffff", bold: true, numberFormat: "$#,##0" },
+          { backgroundColor: "#00ff00", textColor: "#111111", bold: false, numberFormat: "0.00%" }
+        ],
+        [
+          { backgroundColor: "#0000ff", textColor: "#222222", bold: false, numberFormat: "yyyy-mm-dd" },
+          { backgroundColor: "#ffff00", textColor: "#333333", bold: true, numberFormat: "General" }
+        ]
+      ],
+      borders: {
+        EdgeTop: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+      }
+    });
+    const targetRange = createRangeStub({
+      address: "Archive!D5:E6",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["", ""],
+        ["", ""]
+      ],
+      formatCells: [
+        [
+          { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: "General" },
+          { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: "General" }
+        ],
+        [
+          { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: "General" },
+          { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: "General" }
+        ]
+      ],
+      borders: {
+        EdgeTop: { lineStyle: "None", color: "#000000", weight: "Thin" }
+      }
+    });
+    const worksheets = {
+      getItem: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return {
+            getRange: vi.fn((rangeName: string) => {
+              expect(rangeName).toBe("A2:B3");
+              return sourceRange;
+            })
+          };
+        }
+
+        expect(sheetName).toBe("Archive");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("D5:E6");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Archive",
+        targetRange: "D5:E6",
+        operation: "copy",
+        pasteMode: "formats",
+        transpose: false,
+        explanation: "Copy the source formatting into the archive block.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Archive!D5:E6"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_range_transfer_format_copy_undo_excel_001",
+      runId: "run_range_transfer_format_copy_undo_excel_001",
+      approvalToken: "token",
+      executionId: "exec_range_transfer_format_copy_undo_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      transferOperation: "copy",
+      pasteMode: "formats",
+      targetSheet: "Archive",
+      targetRange: "D5:E6",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_format_copy_undo_excel_001",
+        kind: "range_format",
+        targetSheet: "Archive",
+        targetRange: "D5:E6",
+        shape: {
+          rows: 2,
+          columns: 2
+        },
+        beforeFormatCells: [
+          [
+            { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] },
+            { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] }
+          ],
+          [
+            { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: [["General"]] },
+            { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: [["General"]] }
+          ]
+        ],
+        afterFormatCells: [
+          [
+            { backgroundColor: "#ff0000", textColor: "#ffffff", bold: true, numberFormat: [["$#,##0"]] },
+            { backgroundColor: "#00ff00", textColor: "#111111", bold: false, numberFormat: [["0.00%"]] }
+          ],
+          [
+            { backgroundColor: "#0000ff", textColor: "#222222", bold: false, numberFormat: [["yyyy-mm-dd"]] },
+            { backgroundColor: "#ffff00", textColor: "#333333", bold: true, numberFormat: [["General"]] }
+          ]
+        ],
+        beforeBorders: {
+          top: { lineStyle: "None", color: "#000000", weight: "Thin" }
+        },
+        afterBorders: {
+          top: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+        }
+      }
+    });
+    expect(targetRange.copyFrom).toHaveBeenCalledWith(sourceRange, "Formats", false, false);
+  });
+
+  it("attaches an undo snapshot for Excel format append transfers", async () => {
+    const sourceRange = createRangeStub({
+      address: "RawData!A2:B2",
+      rowCount: 1,
+      columnCount: 2,
+      values: [["Ada", "Lovelace"]],
+      formatCells: [
+        [
+          { backgroundColor: "#ff0000", textColor: "#ffffff", bold: true, numberFormat: "$#,##0" },
+          { backgroundColor: "#00ff00", textColor: "#111111", bold: false, numberFormat: "0.00%" }
+        ]
+      ],
+      borders: {
+        EdgeTop: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+      }
+    });
+    const targetRange = createRangeStub({
+      address: "Archive!D7:E7",
+      rowCount: 1,
+      columnCount: 2,
+      values: [["", ""]],
+      formatCells: [
+        [
+          { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: "General" },
+          { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: "General" }
+        ]
+      ],
+      borders: {
+        EdgeTop: { lineStyle: "None", color: "#000000", weight: "Thin" }
+      }
+    });
+    const worksheets = {
+      getItem: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return {
+            getRange: vi.fn((rangeName: string) => {
+              expect(rangeName).toBe("A2:B2");
+              return sourceRange;
+            })
+          };
+        }
+
+        expect(sheetName).toBe("Archive");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("D7:E7");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B2",
+        targetSheet: "Archive",
+        targetRange: "D7:E7",
+        operation: "append",
+        pasteMode: "formats",
+        transpose: false,
+        explanation: "Append the source formatting into the archive block.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B2", "Archive!D7:E7"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_range_transfer_format_append_undo_excel_001",
+      runId: "run_range_transfer_format_append_undo_excel_001",
+      approvalToken: "token",
+      executionId: "exec_range_transfer_format_append_undo_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      transferOperation: "append",
+      pasteMode: "formats",
+      targetSheet: "Archive",
+      targetRange: "D7:E7",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_format_append_undo_excel_001",
+        kind: "range_format",
+        targetSheet: "Archive",
+        targetRange: "D7:E7",
+        beforeFormatCells: [
+          [
+            { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] },
+            { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: [["General"]] }
+          ]
+        ],
+        afterFormatCells: [
+          [
+            { backgroundColor: "#ff0000", textColor: "#ffffff", bold: true, numberFormat: [["$#,##0"]] },
+            { backgroundColor: "#00ff00", textColor: "#111111", bold: false, numberFormat: [["0.00%"]] }
+          ]
+        ],
+        beforeBorders: {
+          top: { lineStyle: "None", color: "#000000", weight: "Thin" }
+        },
+        afterBorders: {
+          top: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+        }
+      }
+    });
+    expect(targetRange.copyFrom).toHaveBeenCalledWith(sourceRange, "Formats", false, false);
+  });
+
+  it("attaches composite undo snapshots for Excel format move transfers", async () => {
+    const sourceRange = createRangeStub({
+      address: "RawData!A2:B3",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["Ada", "Lovelace"],
+        ["Grace", "Hopper"]
+      ],
+      formatCells: [
+        [
+          { backgroundColor: "#ff0000", textColor: "#ffffff", bold: true, numberFormat: "$#,##0" },
+          { backgroundColor: "#00ff00", textColor: "#111111", bold: false, numberFormat: "0.00%" }
+        ],
+        [
+          { backgroundColor: "#0000ff", textColor: "#222222", bold: false, numberFormat: "yyyy-mm-dd" },
+          { backgroundColor: "#ffff00", textColor: "#333333", bold: true, numberFormat: "General" }
+        ]
+      ],
+      borders: {
+        EdgeTop: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+      }
+    });
+    const targetRange = createRangeStub({
+      address: "Archive!D5:E6",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["", ""],
+        ["", ""]
+      ],
+      formatCells: [
+        [
+          { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: "General" },
+          { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: "General" }
+        ],
+        [
+          { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: "General" },
+          { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: "General" }
+        ]
+      ],
+      borders: {
+        EdgeTop: { lineStyle: "None", color: "#000000", weight: "Thin" }
+      }
+    });
+    const worksheets = {
+      getItem: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return {
+            getRange: vi.fn((rangeName: string) => {
+              expect(rangeName).toBe("A2:B3");
+              return sourceRange;
+            })
+          };
+        }
+
+        expect(sheetName).toBe("Archive");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("D5:E6");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Archive",
+        targetRange: "D5:E6",
+        operation: "move",
+        pasteMode: "formats",
+        transpose: false,
+        explanation: "Move the source formatting into the archive block.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Archive!D5:E6"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_range_transfer_format_move_undo_excel_001",
+      runId: "run_range_transfer_format_move_undo_excel_001",
+      approvalToken: "token",
+      executionId: "exec_range_transfer_format_move_undo_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      transferOperation: "move",
+      pasteMode: "formats",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_format_move_undo_excel_001",
+        entries: [
+          {
+            baseExecutionId: "exec_range_transfer_format_move_undo_excel_001",
+            kind: "range_format",
+            targetSheet: "RawData",
+            targetRange: "A2:B3",
+            beforeFormatCells: [
+              [
+                { backgroundColor: "#ff0000", textColor: "#ffffff", bold: true, numberFormat: [["$#,##0"]] },
+                { backgroundColor: "#00ff00", textColor: "#111111", bold: false, numberFormat: [["0.00%"]] }
+              ],
+              [
+                { backgroundColor: "#0000ff", textColor: "#222222", bold: false, numberFormat: [["yyyy-mm-dd"]] },
+                { backgroundColor: "#ffff00", textColor: "#333333", bold: true, numberFormat: [["General"]] }
+              ]
+            ],
+            afterFormatCells: [
+              [
+                { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] },
+                { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] }
+              ],
+              [
+                { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] },
+                { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] }
+              ]
+            ],
+            beforeBorders: {
+              top: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+            },
+            afterBorders: {
+              top: { lineStyle: "None", color: "#000000", weight: "Thin" }
+            }
+          },
+          {
+            baseExecutionId: "exec_range_transfer_format_move_undo_excel_001",
+            kind: "range_format",
+            targetSheet: "Archive",
+            targetRange: "D5:E6",
+            beforeFormatCells: [
+              [
+                { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] },
+                { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] }
+              ],
+              [
+                { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: [["General"]] },
+                { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: [["General"]] }
+              ]
+            ],
+            afterFormatCells: [
+              [
+                { backgroundColor: "#ff0000", textColor: "#ffffff", bold: true, numberFormat: [["$#,##0"]] },
+                { backgroundColor: "#00ff00", textColor: "#111111", bold: false, numberFormat: [["0.00%"]] }
+              ],
+              [
+                { backgroundColor: "#0000ff", textColor: "#222222", bold: false, numberFormat: [["yyyy-mm-dd"]] },
+                { backgroundColor: "#ffff00", textColor: "#333333", bold: true, numberFormat: [["General"]] }
+              ]
+            ],
+            beforeBorders: {
+              top: { lineStyle: "None", color: "#000000", weight: "Thin" }
+            },
+            afterBorders: {
+              top: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+            }
+          }
+        ]
+      }
+    });
+    expect(targetRange.copyFrom).toHaveBeenCalledWith(sourceRange, "Formats", false, false);
+    expect(sourceRange.clear).toHaveBeenCalledWith("Formats");
   });
 
   it("uses Excel copy semantics for formula-mode transfers so relative references can rebase", async () => {
