@@ -2078,6 +2078,23 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts range filter affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = RangeFilterPlanDataSchema.parse({
+      targetSheet: "Sheet1",
+      targetRange: "$A$1:$F$25",
+      hasHeader: true,
+      conditions: [{ columnRef: "Status", operator: "equals", value: "Open" }],
+      combiner: "and",
+      clearExistingFilters: true,
+      explanation: "Filter open rows.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:F25"]
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sheet1!A1:F25"]);
+  });
+
   it("rejects filter conditions that violate operator-specific rules", () => {
     const emptyWithValue = RangeFilterConditionSchema.safeParse({
       columnRef: "Status",
