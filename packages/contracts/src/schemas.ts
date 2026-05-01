@@ -47,6 +47,46 @@ function analysisReportTargetShape(sectionCount: number) {
   };
 }
 
+function columnNumberToLetters(value: number): string {
+  let remaining = value;
+  let result = "";
+
+  while (remaining > 0) {
+    remaining -= 1;
+    result = String.fromCharCode(65 + (remaining % 26)) + result;
+    remaining = Math.floor(remaining / 26);
+  }
+
+  return result;
+}
+
+function formatParsedA1Range(value: NonNullable<ReturnType<typeof parseA1Range>>): string {
+  const start = `${columnNumberToLetters(value.column)}${value.row}`;
+  const end = `${columnNumberToLetters(value.endColumn)}${value.endRow}`;
+  return start === end ? start : `${start}:${end}`;
+}
+
+function normalizeQualifiedA1RangeRef(sheet: string, range: string): string | null {
+  const normalizedRange = parseA1Range(range.replace(/\$/g, ""));
+  if (!normalizedRange) {
+    return null;
+  }
+
+  return `${sheet.trim()}!${formatParsedA1Range(normalizedRange)}`;
+}
+
+function normalizeAffectedA1RangeRef(value: string): string | null {
+  const separatorIndex = value.lastIndexOf("!");
+  if (separatorIndex <= 0 || separatorIndex === value.length - 1) {
+    return null;
+  }
+
+  return normalizeQualifiedA1RangeRef(
+    value.slice(0, separatorIndex),
+    value.slice(separatorIndex + 1)
+  );
+}
+
 const StrictSingleCellA1StringSchema = z.string().min(1).max(128).refine(isSingleCellA1Range, {
   message: "must be a single-cell A1 range."
 });
@@ -1639,6 +1679,24 @@ export const RangeTransferPlanDataSchema = z.discriminatedUnion("operation", [
         ? "move transfer plans require destructive confirmation."
         : "copy and append transfer plans require standard confirmation.",
       path: ["confirmationLevel"]
+    });
+  }
+
+  const requiredAffectedRanges = [
+    normalizeQualifiedA1RangeRef(data.sourceSheet, data.sourceRange),
+    normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange)
+  ].filter((value): value is string => value !== null);
+  const affectedRanges = new Set(
+    data.affectedRanges
+      .map((value) => normalizeAffectedA1RangeRef(value))
+      .filter((value): value is string => value !== null)
+  );
+  const missingAffectedRanges = requiredAffectedRanges.filter((value) => !affectedRanges.has(value));
+  if (missingAffectedRanges.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the qualified source and target ranges.",
+      path: ["affectedRanges"]
     });
   }
 });
