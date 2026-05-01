@@ -841,5 +841,49 @@ describe("request router", () => {
       "The gateway hit an unexpected error while processing the request."
     );
     expect((embeddedResponse.body as any).error).not.toContain("qa_HERMES");
+
+    traceBus.ensureRun(
+      "run_status_windows_error_001",
+      "req_status_windows_error_001",
+      "sess_status_error_001"
+    );
+    traceBus.setError(
+      "run_status_windows_error_001",
+      String.raw`Provider failed at C:\Users\runner\work\request-status.ts:42`
+    );
+
+    const windowsResponse = await invokeGet(router, "run_status_windows_error_001", {
+      requestId: "req_status_windows_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(windowsResponse.statusCode).toBe(200);
+    expect((windowsResponse.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((windowsResponse.body as any).error).not.toContain("runner");
+    expect((windowsResponse.body as any).error).not.toContain("request-status");
+
+    traceBus.ensureRun(
+      "run_status_unc_error_001",
+      "req_status_unc_error_001",
+      "sess_status_error_001"
+    );
+    traceBus.setError(
+      "run_status_unc_error_001",
+      String.raw`Provider failed at \\runner\share\request-status.ts:42`
+    );
+
+    const uncResponse = await invokeGet(router, "run_status_unc_error_001", {
+      requestId: "req_status_unc_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(uncResponse.statusCode).toBe(200);
+    expect((uncResponse.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((uncResponse.body as any).error).not.toContain("runner");
+    expect((uncResponse.body as any).error).not.toContain("request-status");
   });
 });
