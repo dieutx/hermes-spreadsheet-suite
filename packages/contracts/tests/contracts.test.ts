@@ -1900,6 +1900,28 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts table affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = TablePlanDataSchema.parse({
+      targetSheet: "Sales",
+      targetRange: "$A$1:$F$50",
+      name: "SalesTable",
+      hasHeaders: true,
+      styleName: "TableStyleMedium2",
+      showBandedRows: true,
+      showBandedColumns: false,
+      showFilterButton: true,
+      showTotalsRow: false,
+      explanation: "Convert the sales range into a table.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sales!A1:F50"]);
+  });
+
   it("accepts a chart_update response envelope", () => {
     const parsed = HermesResponseSchema.parse({
       schemaVersion: "1.0.0",
