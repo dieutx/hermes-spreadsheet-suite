@@ -309,6 +309,33 @@ describe("Hermes spreadsheet contracts", () => {
     }
   });
 
+  it("rejects external data formulas that do not reference sourceUrl", () => {
+    const basePlan = {
+      sourceType: "web_table_import",
+      provider: "importdata",
+      targetSheet: "Imports",
+      targetRange: "A1",
+      explanation: "Import public CSV data.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Imports!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      selectorType: "direct",
+      sourceUrl: "https://example.com/data.csv"
+    } as const;
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=IMPORTDATA("https://other.example/data.csv")'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: "=IMPORTDATA(A1)"
+    }).success).toBe(false);
+  });
+
   it("rejects composite plans that fail to escalate destructive confirmation", () => {
     const parsed = CompositePlanDataSchema.safeParse({
       steps: [

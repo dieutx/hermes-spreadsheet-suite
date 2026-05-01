@@ -1115,16 +1115,24 @@ function isBlockedExternalDataHostname(hostname: string): boolean {
   );
 }
 
-function isPublicExternalDataUrl(value: string): boolean {
+function getPublicExternalDataUrlKey(value: string): string | null {
   try {
     const url = new URL(value);
-    return (
-      (url.protocol === "http:" || url.protocol === "https:") &&
-      !isBlockedExternalDataHostname(url.hostname)
-    );
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      isBlockedExternalDataHostname(url.hostname)
+    ) {
+      return null;
+    }
+
+    return url.href;
   } catch {
-    return false;
+    return null;
   }
+}
+
+function isPublicExternalDataUrl(value: string): boolean {
+  return getPublicExternalDataUrlKey(value) !== null;
 }
 
 function extractHttpUrls(value: string): string[] {
@@ -1152,7 +1160,8 @@ export const ExternalDataPlanDataSchema = z.union([
   WebTableImportPlanSchema
 ]).superRefine((data, ctx) => {
   if (data.sourceType === "web_table_import") {
-    if (!isPublicExternalDataUrl(data.sourceUrl)) {
+    const sourceUrlKey = getPublicExternalDataUrlKey(data.sourceUrl);
+    if (!sourceUrlKey) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "external data sourceUrl must use a public HTTP(S) URL.",
@@ -1160,13 +1169,23 @@ export const ExternalDataPlanDataSchema = z.union([
       });
     }
 
-    const unsafeFormulaUrl = extractHttpUrls(data.formula).find(
+    const formulaUrls = extractHttpUrls(data.formula);
+    const unsafeFormulaUrl = formulaUrls.find(
       (url) => !isPublicExternalDataUrl(url)
     );
     if (unsafeFormulaUrl) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "external data formula must not reference private or internal URLs.",
+        path: ["formula"]
+      });
+    } else if (
+      sourceUrlKey &&
+      !formulaUrls.some((url) => getPublicExternalDataUrlKey(url) === sourceUrlKey)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "external data formula must reference sourceUrl.",
         path: ["formula"]
       });
     }
