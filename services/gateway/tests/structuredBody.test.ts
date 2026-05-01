@@ -1610,6 +1610,48 @@ describe("structured body normalization", () => {
     expect(parsed.data.reversible).toBe(true);
   });
 
+  it("normalizes composite plans with table steps as non-reversible", () => {
+    const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
+      type: "composite_plan",
+      data: {
+        steps: [
+          {
+            stepId: "step_table",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              targetSheet: "Sales",
+              targetRange: "A1:F50",
+              name: "SalesTable",
+              hasHeaders: true,
+              showBandedRows: true,
+              showBandedColumns: false,
+              showFilterButton: true,
+              showTotalsRow: false,
+              explanation: "Convert the sales range into a table.",
+              confidence: 0.92,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!A1:F50"],
+              overwriteRisk: "low",
+              confirmationLevel: "standard"
+            }
+          }
+        ],
+        explanation: "Create a table.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: true,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      }
+    }));
+
+    expect(parsed.data.reversible).toBe(false);
+  });
+
   it("normalizes composite action aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "composite_plan",

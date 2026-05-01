@@ -443,6 +443,45 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("rejects reversible composite plans that contain table steps", () => {
+    const parsed = CompositePlanDataSchema.safeParse({
+      steps: [
+        {
+          stepId: "step_table",
+          dependsOn: [],
+          continueOnError: false,
+          plan: {
+            targetSheet: "Sales",
+            targetRange: "A1:F50",
+            name: "SalesTable",
+            hasHeaders: true,
+            showBandedRows: true,
+            showBandedColumns: false,
+            showFilterButton: true,
+            showTotalsRow: false,
+            explanation: "Convert the sales range into a table.",
+            confidence: 0.92,
+            requiresConfirmation: true,
+            affectedRanges: ["Sales!A1:F50"],
+            overwriteRisk: "low",
+            confirmationLevel: "standard"
+          }
+        }
+      ],
+      explanation: "Table workflow.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      reversible: true,
+      dryRunRecommended: true,
+      dryRunRequired: false
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts undo and redo request envelopes", () => {
     expect(
       UndoRequestSchema.parse({

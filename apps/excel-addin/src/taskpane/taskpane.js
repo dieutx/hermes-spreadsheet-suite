@@ -8218,7 +8218,7 @@ function getStructuredPreview(response) {
         kind: "composite_plan",
         stepCount: response.data.steps.length,
         steps: response.data.steps.map((step) => ({
-          ...buildCompositeStepPreview(step),
+          ...buildCompositeStepPreview(step, response.data.reversible === true),
           plan: step.plan,
           supportError: getExcelPlanSupportError(step.plan)
         })),
