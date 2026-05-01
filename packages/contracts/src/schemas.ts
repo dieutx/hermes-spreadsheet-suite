@@ -1025,6 +1025,13 @@ const MarketDataQuerySchema = strictObject({
 });
 
 const WebImportProviderSchema = z.enum(["importhtml", "importxml", "importdata"]);
+type WebImportProvider = z.infer<typeof WebImportProviderSchema>;
+const WEB_IMPORT_FUNCTION_BY_PROVIDER: Record<WebImportProvider, string> = {
+  importhtml: "IMPORTHTML",
+  importxml: "IMPORTXML",
+  importdata: "IMPORTDATA"
+};
+const WEB_IMPORT_FUNCTION_NAMES = Object.values(WEB_IMPORT_FUNCTION_BY_PROVIDER);
 
 function isPrivateIpv4Hostname(hostname: string): boolean {
   const parts = hostname.split(".");
@@ -1118,20 +1125,47 @@ function isBlockedExternalDataHostname(hostname: string): boolean {
   );
 }
 
-function isPublicExternalDataUrl(value: string): boolean {
+function getPublicExternalDataUrlKey(value: string): string | null {
   try {
     const url = new URL(value);
-    return (
-      (url.protocol === "http:" || url.protocol === "https:") &&
-      !isBlockedExternalDataHostname(url.hostname)
-    );
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      isBlockedExternalDataHostname(url.hostname)
+    ) {
+      return null;
+    }
+
+    return url.href;
   } catch {
-    return false;
+    return null;
   }
+}
+
+function isPublicExternalDataUrl(value: string): boolean {
+  return getPublicExternalDataUrlKey(value) !== null;
 }
 
 function extractHttpUrls(value: string): string[] {
   return value.match(/https?:\/\/[^\s"'`<>)\]}]+/gi) ?? [];
+}
+
+function extractFormulaFunctionSourceUrlKeys(formula: string, functionName: string): string[] {
+  const pattern = new RegExp(String.raw`\b${functionName}\s*\(\s*(["'])(.*?)\1`, "gi");
+  const keys: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(formula)) !== null) {
+    const key = getPublicExternalDataUrlKey(match[2]);
+    if (key) {
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
+function extractWebImportFormulaSourceUrlKeys(formula: string): string[] {
+  return WEB_IMPORT_FUNCTION_NAMES.flatMap((functionName) =>
+    extractFormulaFunctionSourceUrlKeys(formula, functionName)
+  );
 }
 
 const MarketDataPlanSchema = strictObject({
@@ -1155,7 +1189,8 @@ export const ExternalDataPlanDataSchema = z.union([
   WebTableImportPlanSchema
 ]).superRefine((data, ctx) => {
   if (data.sourceType === "web_table_import") {
-    if (!isPublicExternalDataUrl(data.sourceUrl)) {
+    const sourceUrlKey = getPublicExternalDataUrlKey(data.sourceUrl);
+    if (!sourceUrlKey) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "external data sourceUrl must use a public HTTP(S) URL.",
@@ -1163,7 +1198,8 @@ export const ExternalDataPlanDataSchema = z.union([
       });
     }
 
-    const unsafeFormulaUrl = extractHttpUrls(data.formula).find(
+    const formulaUrls = extractHttpUrls(data.formula);
+    const unsafeFormulaUrl = formulaUrls.find(
       (url) => !isPublicExternalDataUrl(url)
     );
     if (unsafeFormulaUrl) {
@@ -1172,6 +1208,22 @@ export const ExternalDataPlanDataSchema = z.union([
         message: "external data formula must not reference private or internal URLs.",
         path: ["formula"]
       });
+    } else if (sourceUrlKey) {
+      const providerSourceUrlKeys = extractFormulaFunctionSourceUrlKeys(
+        data.formula,
+        WEB_IMPORT_FUNCTION_BY_PROVIDER[data.provider]
+      );
+      const formulaSourceUrlKeys = extractWebImportFormulaSourceUrlKeys(data.formula);
+      if (
+        !providerSourceUrlKeys.some((key) => key === sourceUrlKey) ||
+        formulaSourceUrlKeys.some((key) => key !== sourceUrlKey)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "external data formula must reference sourceUrl.",
+          path: ["formula"]
+        });
+      }
     }
   }
 
