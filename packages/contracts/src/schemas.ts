@@ -1263,6 +1263,15 @@ export const ExternalDataPlanDataSchema = z.union([
   MarketDataPlanSchema,
   WebTableImportPlanSchema
 ]).superRefine((data, ctx) => {
+  const targetRefs = new Set([`${data.targetSheet}!${data.targetRange}`, data.targetRange]);
+  if (!data.affectedRanges.some((range) => targetRefs.has(range))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the target anchor.",
+      path: ["affectedRanges"]
+    });
+  }
+
   if (data.sourceType === "web_table_import") {
     const sourceUrlKey = getPublicExternalDataUrlKey(data.sourceUrl);
     if (!sourceUrlKey) {
