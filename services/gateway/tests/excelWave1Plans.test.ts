@@ -326,11 +326,12 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Keep open rows only.",
         confidence: 0.9,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     })).toContain("Prepared a filter plan");
 
-    expect(taskpane.getStructuredPreview({
+    const filterResponse = {
       type: "range_filter_plan",
       data: {
         targetSheet: "Sheet1",
@@ -343,13 +344,41 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Keep open rows only.",
         confidence: 0.9,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
-    })).toMatchObject({
+    };
+    const filterPreview = taskpane.getStructuredPreview(filterResponse);
+
+    expect(filterPreview).toMatchObject({
       kind: "range_filter_plan",
       targetSheet: "Sheet1",
-      targetRange: "A1:F25"
+      targetRange: "A1:F25",
+      confirmationLevel: "destructive"
     });
+
+    const filterHtml = taskpane.renderStructuredPreview(filterResponse, {
+      runId: "run_filter_preview",
+      requestId: "req_filter_preview"
+    });
+    expect(filterHtml).toContain("destructive");
+
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
+    expect(taskpane.buildWriteApprovalRequest({
+      requestId: "req_filter_preview",
+      runId: "run_filter_preview",
+      plan: filterPreview
+    })).toMatchObject({
+      requestId: "req_filter_preview",
+      runId: "run_filter_preview",
+      destructiveConfirmation: { confirmed: true },
+      plan: {
+        kind: "range_filter_plan",
+        confirmationLevel: "destructive"
+      }
+    });
+    expect(confirm).toHaveBeenCalledTimes(1);
   });
 
   it("returns typed writeback results for applied wave 1 plans", async () => {
@@ -439,7 +468,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Filter open rows.",
         confidence: 0.89,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       },
       requestId: "req_filter_001",
       runId: "run_filter_001",
@@ -509,7 +539,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Filter open rows.",
         confidence: 0.89,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       },
       requestId: "req_filter_snapshot_excel_001",
       runId: "run_filter_snapshot_excel_001",
@@ -596,7 +627,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Filter by the Amount column.",
         confidence: 0.89,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       },
       requestId: "req_filter_offset_001",
       runId: "run_filter_offset_001",
@@ -1636,7 +1668,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Keep open rows or large amounts.",
         confidence: 0.9,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     };
     const duplicateColumnResponse = {
@@ -1653,7 +1686,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Keep amounts in range.",
         confidence: 0.9,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     };
     const unsupportedDuplicateColumnResponse = {
@@ -1671,7 +1705,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Keep only active status rows.",
         confidence: 0.9,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     };
     const fractionalTopNResponse = {
@@ -1687,7 +1722,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Keep the top 2.5 amounts.",
         confidence: 0.9,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     };
 
@@ -1761,7 +1797,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Unsupported OR filter.",
         confidence: 0.89,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       },
       requestId: "req_filter_or_001",
       runId: "run_filter_or_001",
@@ -1781,7 +1818,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Keep amounts in range.",
         confidence: 0.89,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       },
       requestId: "req_filter_repeat_supported_001",
       runId: "run_filter_repeat_supported_001",
@@ -1820,7 +1858,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Unsupported repeated column filter.",
         confidence: 0.89,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       },
       requestId: "req_filter_repeat_001",
       runId: "run_filter_repeat_001",
@@ -1839,7 +1878,8 @@ describe("Excel wave 1 plan helpers", () => {
         clearExistingFilters: true,
         explanation: "Keep the top 2.5 amounts.",
         confidence: 0.89,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       },
       requestId: "req_filter_fractional_topn_001",
       runId: "run_filter_fractional_topn_001",
