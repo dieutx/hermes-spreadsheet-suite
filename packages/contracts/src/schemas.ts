@@ -705,6 +705,18 @@ export const SheetStructureUpdateDataSchema = z.discriminatedUnion("operation", 
       });
     }
   }
+
+  if ("targetRange" in data) {
+    const affectedRanges = data.affectedRanges ?? [];
+    const targetRefs = new Set([`${data.targetSheet}!${data.targetRange}`, data.targetRange]);
+    if (affectedRanges.length > 0 && !affectedRanges.some((range) => targetRefs.has(range))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "affectedRanges must include the target range.",
+        path: ["affectedRanges"]
+      });
+    }
+  }
 });
 
 export const RangeSortKeySchema = strictObject({
