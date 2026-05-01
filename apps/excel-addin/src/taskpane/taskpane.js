@@ -1761,6 +1761,43 @@ function createWorkbookStructureVisibilityLocalExecutionSnapshot({
   };
 }
 
+function normalizeWorkbookStructureTabColor(value) {
+  return value === null || value === undefined ? "" : String(value).trim();
+}
+
+function createWorkbookStructureTabColorLocalExecutionSnapshot({
+  executionId,
+  sheetName,
+  beforeColor,
+  afterColor
+}) {
+  if (!executionId || !sheetName || beforeColor === undefined || afterColor === undefined) {
+    return null;
+  }
+
+  const normalizedBeforeColor = normalizeWorkbookStructureTabColor(beforeColor);
+  const normalizedAfterColor = normalizeWorkbookStructureTabColor(afterColor);
+  if (normalizedBeforeColor === normalizedAfterColor) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "workbook_structure",
+    operation: "sheet_tab_color",
+    before: {
+      exists: true,
+      name: sheetName,
+      color: normalizedBeforeColor
+    },
+    after: {
+      exists: true,
+      name: sheetName,
+      color: normalizedAfterColor
+    }
+  };
+}
+
 function createWorkbookStructureCreateLocalExecutionSnapshot({
   executionId,
   sheetName,
@@ -2610,6 +2647,18 @@ function assertWorkbookStructureVisibilitySnapshotState(state) {
   }
 }
 
+function assertWorkbookStructureTabColorSnapshotState(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0 ||
+    typeof state.color !== "string"
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
 function assertWorkbookStructureCreateSnapshotState(state) {
   if (
     !state ||
@@ -2667,6 +2716,7 @@ function getWorkbookStructureSnapshotTransitionForMode(snapshot, mode) {
   if (
     snapshot?.operation !== "rename_sheet" &&
     snapshot?.operation !== "sheet_visibility" &&
+    snapshot?.operation !== "sheet_tab_color" &&
     snapshot?.operation !== "move_sheet" &&
     snapshot?.operation !== "create_sheet" &&
     snapshot?.operation !== "duplicate_sheet"
@@ -2802,6 +2852,27 @@ async function applyWorkbookStructureSnapshotTransition(context, transition) {
     return;
   }
 
+  if (transition.operation === "sheet_tab_color") {
+    assertWorkbookStructureTabColorSnapshotState(transition.from);
+    assertWorkbookStructureTabColorSnapshotState(transition.to);
+
+    const sheet = context.workbook.worksheets.getItem(transition.from.name);
+    if (typeof sheet.load === "function") {
+      sheet.load(["name", "tabColor"]);
+      await context.sync();
+    }
+
+    if (
+      normalizeWorkbookStructureTabColor(sheet.tabColor) !==
+      normalizeWorkbookStructureTabColor(transition.from.color)
+    ) {
+      throw new Error("Sheet tab color changed since this history entry was captured.");
+    }
+
+    sheet.tabColor = normalizeWorkbookStructureTabColor(transition.to.color);
+    return;
+  }
+
   if (transition.operation === "move_sheet") {
     assertWorkbookStructureMoveSnapshotState(transition.from);
     assertWorkbookStructureMoveSnapshotState(transition.to);
@@ -2850,6 +2921,9 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
     } else if (transition.operation === "sheet_visibility") {
       assertWorkbookStructureVisibilitySnapshotState(transition.from);
       assertWorkbookStructureVisibilitySnapshotState(transition.to);
+    } else if (transition.operation === "sheet_tab_color") {
+      assertWorkbookStructureTabColorSnapshotState(transition.from);
+      assertWorkbookStructureTabColorSnapshotState(transition.to);
     } else if (transition.operation === "move_sheet") {
       assertWorkbookStructureMoveSnapshotState(transition.from);
       assertWorkbookStructureMoveSnapshotState(transition.to);
@@ -2873,6 +2947,8 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
     if (typeof sheet.load === "function") {
       sheet.load(transition.operation === "sheet_visibility"
         ? ["name", "visibility"]
+        : transition.operation === "sheet_tab_color"
+          ? ["name", "tabColor"]
         : transition.operation === "create_sheet"
           ? ["name", "position", "visibility"]
         : transition.operation === "move_sheet"
@@ -2893,6 +2969,14 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
       sheet.position !== transition.from.position
     ) {
       throw new Error("Sheet position changed since this history entry was captured.");
+    }
+
+    if (
+      transition.operation === "sheet_tab_color" &&
+      normalizeWorkbookStructureTabColor(sheet.tabColor) !==
+        normalizeWorkbookStructureTabColor(transition.from.color)
+    ) {
+      throw new Error("Sheet tab color changed since this history entry was captured.");
     }
   });
 }
@@ -9991,6 +10075,15 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const sheet = worksheets.getItem(plan.targetSheet);
       const getDimensionRange = (isRowOperation) =>
         getExcelFullRowOrColumnRange(sheet, plan, isRowOperation);
+      let beforeTabColor;
+
+      if (plan.operation === "set_sheet_tab_color") {
+        if (typeof sheet.load === "function") {
+          sheet.load(["name", "tabColor"]);
+          await context.sync();
+        }
+        beforeTabColor = normalizeWorkbookStructureTabColor(sheet.tabColor);
+      }
 
       switch (plan.operation) {
         case "insert_rows":
@@ -10056,13 +10149,16 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           sheet.getRange(plan.targetRange).format.autofitColumns();
           break;
         case "set_sheet_tab_color":
-          sheet.tabColor = plan.color;
+          sheet.tabColor = normalizeWorkbookStructureTabColor(plan.color);
           break;
         default:
           throw new Error("Unsupported sheet structure update.");
       }
 
       await context.sync();
+      const afterTabColor = plan.operation === "set_sheet_tab_color"
+        ? normalizeWorkbookStructureTabColor(sheet.tabColor)
+        : undefined;
       const result = {
         kind: "sheet_structure_update",
         hostPlatform: platform,
@@ -10103,7 +10199,17 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           break;
       }
 
-      return result;
+      return attachLocalExecutionSnapshot(
+        result,
+        plan.operation === "set_sheet_tab_color"
+          ? createWorkbookStructureTabColorLocalExecutionSnapshot({
+              executionId,
+              sheetName: plan.targetSheet,
+              beforeColor: beforeTabColor,
+              afterColor: afterTabColor
+            })
+          : null
+      );
     }
 
     function convertColumnLettersToNumber(value) {
