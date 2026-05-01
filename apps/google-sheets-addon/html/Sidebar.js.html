@@ -1976,12 +1976,21 @@
     );
   }
 
+  function isTablePlanLike(plan) {
+    return Boolean(
+      plan &&
+      typeof plan.targetSheet === "string" &&
+      typeof plan.targetRange === "string" &&
+      typeof plan.hasHeaders === "boolean"
+    );
+  }
+
   function isLikelyReversibleCompositeStep(step, compositeReversible) {
     if (!step || !step.plan) {
       return false;
     }
 
-    if (isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan)) {
+    if (isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan) || isTablePlanLike(step.plan)) {
       return compositeReversible === true && step.plan.confirmationLevel !== "destructive";
     }
 

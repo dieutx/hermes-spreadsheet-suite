@@ -4826,6 +4826,58 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     });
   });
 
+  it("keeps table child steps non-reversible when the Excel composite is non-reversible", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    });
+
+    const preview = taskpane.getStructuredPreview({
+      type: "composite_plan",
+      data: {
+        steps: [
+          {
+            stepId: "step_table",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              targetSheet: "Sales",
+              targetRange: "A1:F20",
+              name: "SalesTable",
+              hasHeaders: true,
+              showBandedRows: true,
+              showBandedColumns: false,
+              showFilterButton: true,
+              showTotalsRow: false,
+              explanation: "Format the sales range as a table.",
+              confidence: 0.92,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!A1:F20"],
+              overwriteRisk: "low",
+              confirmationLevel: "standard"
+            }
+          }
+        ],
+        explanation: "Format the sales range as a table.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F20"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: false,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      }
+    });
+
+    expect(preview).toMatchObject({
+      kind: "composite_plan",
+      reversible: false,
+      steps: [
+        { stepId: "step_table", reversible: false }
+      ]
+    });
+  });
+
   it("flags unsupported composite steps before the user confirms the workflow", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})

@@ -22,6 +22,15 @@ function isChartPlanLike(plan) {
   );
 }
 
+function isTablePlanLike(plan) {
+  return Boolean(
+    plan &&
+    typeof plan.targetSheet === "string" &&
+    typeof plan.targetRange === "string" &&
+    typeof plan.hasHeaders === "boolean"
+  );
+}
+
 function isDestructiveCompositeStep(step) {
   return step?.plan?.confirmationLevel === "destructive";
 }
@@ -31,7 +40,7 @@ function isLikelyReversibleCompositeStep(step, compositeReversible = true) {
     return false;
   }
 
-  if (isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan)) {
+  if (isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan) || isTablePlanLike(step.plan)) {
     return compositeReversible === true && step.plan.confirmationLevel !== "destructive";
   }
 

@@ -443,7 +443,7 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects reversible composite plans that contain table steps", () => {
+  it("accepts reversible composite plans that contain snapshot-backed table steps", () => {
     const parsed = CompositePlanDataSchema.safeParse({
       steps: [
         {
@@ -479,7 +479,7 @@ describe("Hermes spreadsheet contracts", () => {
       dryRunRequired: false
     });
 
-    expect(parsed.success).toBe(false);
+    expect(parsed.success).toBe(true);
   });
 
   it("accepts undo and redo request envelopes", () => {

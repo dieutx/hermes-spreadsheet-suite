@@ -889,15 +889,7 @@ function normalizeCompositePlanData(value: unknown): unknown {
     step.plan.confirmationLevel === "destructive"
   );
   normalized.confirmationLevel = hasDestructiveStep ? "destructive" : "standard";
-  const hasTableStep = normalizedSteps.some((step) =>
-    isObject(step) &&
-    isObject(step.plan) &&
-    hasOwn(step.plan, "hasHeaders")
-  );
-
-  if (hasTableStep) {
-    normalized.reversible = false;
-  } else if (!hasOwn(normalized, "reversible")) {
+  if (!hasOwn(normalized, "reversible")) {
     normalized.reversible = false;
   }
 

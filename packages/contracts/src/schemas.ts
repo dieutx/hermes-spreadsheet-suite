@@ -2324,15 +2324,6 @@ export const CompositePlanDataSchema = strictObject({
     });
   }
 
-  const hasTableStep = data.steps.some((step) => "hasHeaders" in step.plan);
-  if (hasTableStep && data.reversible) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Composite reversible must be false when the plan contains table steps.",
-      path: ["reversible"]
-    });
-  }
-
   const visiting = new Set<string>();
   const visited = new Set<string>();
 
