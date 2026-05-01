@@ -2324,16 +2324,11 @@ export const CompositePlanDataSchema = strictObject({
     });
   }
 
-  const hasKnownNonReversibleStep = data.steps.some(
-    (step) =>
-      ("rowGroups" in step.plan) ||
-      ("chartType" in step.plan && "series" in step.plan) ||
-      ("hasHeaders" in step.plan)
-  );
-  if (hasKnownNonReversibleStep && data.reversible) {
+  const hasTableStep = data.steps.some((step) => "hasHeaders" in step.plan);
+  if (hasTableStep && data.reversible) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Composite reversible must be false when the plan contains known non-reversible steps.",
+      message: "Composite reversible must be false when the plan contains table steps.",
       path: ["reversible"]
     });
   }

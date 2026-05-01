@@ -2245,7 +2245,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
         affectedRanges: ["Sales Pivot!A1", "Sales Chart!A1"],
         overwriteRisk: "low",
         confirmationLevel: "standard",
-        reversible: false,
+        reversible: true,
         dryRunRecommended: true,
         dryRunRequired: false
       }
@@ -2256,9 +2256,10 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       kind: "composite_plan",
       stepCount: 2,
       dryRunRequired: false,
+      reversible: true,
       steps: [
-        { stepId: "step_pivot", destructive: false, reversible: false },
-        { stepId: "step_chart", destructive: false, reversible: false }
+        { stepId: "step_pivot", destructive: false, reversible: true },
+        { stepId: "step_chart", destructive: false, reversible: true }
       ]
     });
 

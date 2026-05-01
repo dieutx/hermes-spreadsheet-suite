@@ -1548,6 +1548,68 @@ describe("structured body normalization", () => {
     expect(parsed.data.reversible).toBe(true);
   });
 
+  it("preserves reversible analytic composite plans during normalization", () => {
+    const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
+      type: "composite_plan",
+      data: {
+        steps: [
+          {
+            stepId: "step_pivot",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              sourceSheet: "Sales",
+              sourceRange: "A1:C20",
+              targetSheet: "Sales Pivot",
+              targetRange: "A1",
+              rowGroups: ["Region"],
+              valueAggregations: [
+                { field: "Revenue", aggregation: "sum" }
+              ],
+              explanation: "Create a pivot table.",
+              confidence: 0.92,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!A1:C20", "Sales Pivot!A1"],
+              overwriteRisk: "low",
+              confirmationLevel: "standard"
+            }
+          },
+          {
+            stepId: "step_chart",
+            dependsOn: ["step_pivot"],
+            continueOnError: false,
+            plan: {
+              sourceSheet: "Sales Pivot",
+              sourceRange: "A1:B5",
+              targetSheet: "Sales Chart",
+              targetRange: "A1",
+              chartType: "line",
+              categoryField: "Region",
+              series: [{ field: "Revenue", label: "Revenue" }],
+              explanation: "Create a chart from the pivot table.",
+              confidence: 0.9,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales Pivot!A1:B5", "Sales Chart!A1"],
+              overwriteRisk: "low",
+              confirmationLevel: "standard"
+            }
+          }
+        ],
+        explanation: "Create a pivot table and chart.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales Pivot!A1", "Sales Chart!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: true,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      }
+    }));
+
+    expect(parsed.data.reversible).toBe(true);
+  });
+
   it("normalizes composite action aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "composite_plan",

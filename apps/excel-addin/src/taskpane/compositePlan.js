@@ -27,8 +27,12 @@ function isDestructiveCompositeStep(step) {
 }
 
 function isLikelyReversibleCompositeStep(step) {
-  if (!step?.plan || isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan)) {
+  if (!step?.plan) {
     return false;
+  }
+
+  if (isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan)) {
+    return step.plan.confirmationLevel !== "destructive";
   }
 
   if (step.plan.confirmationLevel === "destructive" ||

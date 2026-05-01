@@ -1977,11 +1977,14 @@
   }
 
   function isLikelyReversibleCompositeStep(step) {
-    if (!step || !step.plan || isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan)) {
+    if (!step || !step.plan) {
       return false;
     }
 
-    // Wave 6 should only advertise reversibility when an exact inverse is known.
+    if (isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan)) {
+      return step.plan.confirmationLevel !== "destructive";
+    }
+
     return false;
   }
 
