@@ -33,6 +33,11 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("unfreeze_panes must resolve to data.frozenRows=0 and data.frozenColumns=0");
   });
 
+  it("documents exact-safe range filter combiner support", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("data.combiner is required and must be and");
+    expect(SPREADSHEET_RUNTIME_RULES).not.toContain("and or or");
+  });
+
   it("makes reviewer-safe unavailable map to a concrete error response", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("EXTRACTION_UNAVAILABLE");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('prefer type="error"');
