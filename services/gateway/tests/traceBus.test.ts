@@ -96,6 +96,42 @@ describe("TraceBus", () => {
     expect(event.details).not.toHaveProperty("range");
   });
 
+  it("sanitizes Windows local paths in optional trace metadata", () => {
+    const bus = new TraceBus();
+
+    bus.append("run_windows_trace", {
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      label: "C:\\Users\\runner\\work\\internal.ts",
+      skillName: "SelectionExplainerSkill",
+      toolName: "C:\\Users\\runner\\tools\\extractor.ts",
+      providerLabel: "Gateway provider",
+      details: {
+        range: "A1:B2",
+        sheet: "C:\\Users\\runner\\sheets\\budget.xlsx",
+        attachmentId: "att_public_001",
+        mode: "demo"
+      }
+    });
+
+    const [event] = bus.list("run_windows_trace", 0);
+
+    expect(event).toMatchObject({
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      skillName: "SelectionExplainerSkill",
+      providerLabel: "Gateway provider",
+      details: {
+        range: "A1:B2",
+        attachmentId: "att_public_001",
+        mode: "demo"
+      }
+    });
+    expect(event).not.toHaveProperty("label");
+    expect(event).not.toHaveProperty("toolName");
+    expect(event.details).not.toHaveProperty("sheet");
+  });
+
   it("keeps requestId, hermesRunId, and the validated final response together", () => {
     const bus = new TraceBus();
     bus.ensureRun("run_2", "req_2");

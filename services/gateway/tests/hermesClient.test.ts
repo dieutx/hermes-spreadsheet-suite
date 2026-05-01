@@ -2003,7 +2003,7 @@ describe("HermesAgentClient", () => {
 
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       error: {
-        message: "APPROVAL_SECRET=secret_123 failed in /root/hermes/provider.ts:42"
+        message: "Provider failed in C:\\Users\\runner\\hermes\\provider.ts:42"
       }
     }), {
       status: 503,
@@ -2027,8 +2027,8 @@ describe("HermesAgentClient", () => {
       retryable: true,
       userAction: "Retry the request after the remote Hermes Agent service recovers."
     });
-    expect(JSON.stringify(response)).not.toContain("secret_123");
-    expect(JSON.stringify(response)).not.toContain("/root/hermes/provider.ts");
+    expect(JSON.stringify(response)).not.toContain("C:\\Users");
+    expect(JSON.stringify(response)).not.toContain("provider.ts");
   });
 
   it("sanitizes embedded provider error diagnostics before returning gateway error responses", async () => {
