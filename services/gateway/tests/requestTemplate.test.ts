@@ -126,6 +126,22 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("Repeated conditions on the same column are exact-safe only when exactly two custom criteria can be combined with AND.");
   });
 
+  it("advertises Excel top-N filters as exact-safe host support", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      source: {
+        ...baseRequest().source,
+        channel: "excel_windows"
+      },
+      host: {
+        ...baseRequest().host,
+        platform: "excel_windows"
+      }
+    }));
+
+    expect(prompt).toContain("topN filters are supported through native Excel top item filters");
+    expect(prompt).toContain("Use positive whole-number topN values only");
+  });
+
   it("includes reviewer-safe unavailable error guidance", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       reviewer: {
