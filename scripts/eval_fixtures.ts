@@ -58,6 +58,15 @@ function stringifyValue(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+function formatPublicSourceLabel(source: string): string {
+  const relative = path.relative(process.cwd(), path.resolve(source));
+  if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
+    return relative.split(path.sep).join("/");
+  }
+
+  return path.basename(source) || "fixtures";
+}
+
 function getPathValue(value: unknown, pathExpression: string): unknown {
   return pathExpression.split(".").reduce<unknown>((current, segment) => {
     if (Array.isArray(current) && /^\d+$/.test(segment)) {
@@ -225,7 +234,7 @@ export function evaluateCapabilityFixturePack(
   pack: CapabilityFixturePack,
   options: { source?: string } = {}
 ): CapabilityFixtureSummary {
-  const source = options.source ?? "inline";
+  const source = options.source ? formatPublicSourceLabel(options.source) : "inline";
   const results = (pack.fixtures || []).map((fixture) => evaluateCapabilityFixture(fixture));
   const passed = results.filter((result) => result.status === "passed").length;
 
@@ -243,7 +252,7 @@ function mergeSummaries(source: string, summaries: CapabilityFixtureSummary[]): 
   const passed = results.filter((result) => result.status === "passed").length;
 
   return {
-    source,
+    source: formatPublicSourceLabel(source),
     total: results.length,
     passed,
     failed: results.length - passed,
