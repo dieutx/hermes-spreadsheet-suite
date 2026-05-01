@@ -1480,8 +1480,27 @@ const PivotFilterSchema = strictObject({
   value2: CellValueSchema.optional()
 }).superRefine((data, ctx) => {
   const requiresSecondValue = data.operator === "between" || data.operator === "not_between";
+  const requiresNumericValue = [
+    "greater_than",
+    "greater_than_or_equal_to",
+    "less_than",
+    "less_than_or_equal_to",
+    "between",
+    "not_between"
+  ].includes(data.operator);
   const hasValue = data.value !== undefined;
   const hasSecondValue = data.value2 !== undefined;
+  const isNumericFilterValue = (value: unknown): boolean => {
+    if (typeof value === "number") {
+      return Number.isFinite(value);
+    }
+
+    if (typeof value === "string" && value.trim().length > 0) {
+      return Number.isFinite(Number(value.trim()));
+    }
+
+    return false;
+  };
 
   if (!hasValue) {
     ctx.addIssue({
@@ -1495,6 +1514,22 @@ const PivotFilterSchema = strictObject({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: `${data.operator} requires value2.`,
+      path: ["value2"]
+    });
+  }
+
+  if (requiresNumericValue && hasValue && !isNumericFilterValue(data.value)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${data.operator} requires numeric value.`,
+      path: ["value"]
+    });
+  }
+
+  if (requiresSecondValue && hasSecondValue && !isNumericFilterValue(data.value2)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${data.operator} requires numeric value2.`,
       path: ["value2"]
     });
   }
