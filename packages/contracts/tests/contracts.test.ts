@@ -336,6 +336,16 @@ describe("Hermes spreadsheet contracts", () => {
       ...basePlan,
       formula: "=IMPORTDATA(A1)"
     }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=IMPORTDATA(A1)&" https://example.com/data.csv"'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=IMPORTDATA("https://example.com/data.csv")&IMPORTDATA("https://other.example/data.csv")'
+    }).success).toBe(false);
   });
 
   it("rejects composite plans that fail to escalate destructive confirmation", () => {

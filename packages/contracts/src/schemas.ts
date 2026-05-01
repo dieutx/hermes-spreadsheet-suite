@@ -1025,6 +1025,13 @@ const MarketDataQuerySchema = strictObject({
 });
 
 const WebImportProviderSchema = z.enum(["importhtml", "importxml", "importdata"]);
+type WebImportProvider = z.infer<typeof WebImportProviderSchema>;
+const WEB_IMPORT_FUNCTION_BY_PROVIDER: Record<WebImportProvider, string> = {
+  importhtml: "IMPORTHTML",
+  importxml: "IMPORTXML",
+  importdata: "IMPORTDATA"
+};
+const WEB_IMPORT_FUNCTION_NAMES = Object.values(WEB_IMPORT_FUNCTION_BY_PROVIDER);
 
 function isPrivateIpv4Hostname(hostname: string): boolean {
   const parts = hostname.split(".");
@@ -1142,6 +1149,25 @@ function extractHttpUrls(value: string): string[] {
   return value.match(/https?:\/\/[^\s"'`<>)\]}]+/gi) ?? [];
 }
 
+function extractFormulaFunctionSourceUrlKeys(formula: string, functionName: string): string[] {
+  const pattern = new RegExp(String.raw`\b${functionName}\s*\(\s*(["'])(.*?)\1`, "gi");
+  const keys: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(formula)) !== null) {
+    const key = getPublicExternalDataUrlKey(match[2]);
+    if (key) {
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
+function extractWebImportFormulaSourceUrlKeys(formula: string): string[] {
+  return WEB_IMPORT_FUNCTION_NAMES.flatMap((functionName) =>
+    extractFormulaFunctionSourceUrlKeys(formula, functionName)
+  );
+}
+
 const MarketDataPlanSchema = strictObject({
   ...ExternalDataPlanSharedFields,
   sourceType: z.literal("market_data"),
@@ -1182,15 +1208,22 @@ export const ExternalDataPlanDataSchema = z.union([
         message: "external data formula must not reference private or internal URLs.",
         path: ["formula"]
       });
-    } else if (
-      sourceUrlKey &&
-      !formulaUrls.some((url) => getPublicExternalDataUrlKey(url) === sourceUrlKey)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "external data formula must reference sourceUrl.",
-        path: ["formula"]
-      });
+    } else if (sourceUrlKey) {
+      const providerSourceUrlKeys = extractFormulaFunctionSourceUrlKeys(
+        data.formula,
+        WEB_IMPORT_FUNCTION_BY_PROVIDER[data.provider]
+      );
+      const formulaSourceUrlKeys = extractWebImportFormulaSourceUrlKeys(data.formula);
+      if (
+        !providerSourceUrlKeys.some((key) => key === sourceUrlKey) ||
+        formulaSourceUrlKeys.some((key) => key !== sourceUrlKey)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "external data formula must reference sourceUrl.",
+          path: ["formula"]
+        });
+      }
     }
   }
 
