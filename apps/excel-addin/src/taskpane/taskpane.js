@@ -1839,6 +1839,121 @@ function createWorkbookStructureTabColorLocalExecutionSnapshot({
   };
 }
 
+function getWorkbookStructureDimensionVisibilityConfig(value) {
+  const operation = typeof value === "string" ? value : value?.operation;
+  const dimension = typeof value === "string" ? value : value?.dimension;
+
+  if (
+    operation === "hide_rows" ||
+    operation === "unhide_rows" ||
+    dimension === "rows"
+  ) {
+    return {
+      dimension: "rows",
+      isRowOperation: true,
+      hiddenProperty: "rowHidden"
+    };
+  }
+
+  if (
+    operation === "hide_columns" ||
+    operation === "unhide_columns" ||
+    dimension === "columns"
+  ) {
+    return {
+      dimension: "columns",
+      isRowOperation: false,
+      hiddenProperty: "columnHidden"
+    };
+  }
+
+  return null;
+}
+
+async function readWorkbookStructureDimensionVisibilitySnapshotState(context, sheet, input) {
+  const config = getWorkbookStructureDimensionVisibilityConfig(input);
+  const startIndex = Number(input?.startIndex);
+  const count = Number(input?.count);
+  const sheetName = input?.sheetName || input?.targetSheet || input?.name;
+  if (
+    !config ||
+    !sheetName ||
+    !Number.isInteger(startIndex) ||
+    startIndex < 0 ||
+    !Number.isInteger(count) ||
+    count < 1
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  const ranges = Array.from({ length: count }, (_, offset) =>
+    getExcelFullRowOrColumnRange(sheet, {
+      startIndex: startIndex + offset,
+      count: 1
+    }, config.isRowOperation)
+  );
+  for (const range of ranges) {
+    if (typeof range?.load === "function") {
+      range.load([config.hiddenProperty]);
+    }
+  }
+  await context.sync();
+
+  const hiddenStates = ranges.map((range) => {
+    const value = range?.[config.hiddenProperty];
+    if (typeof value !== "boolean") {
+      throw new Error("Excel host cannot read row or column visibility for exact undo.");
+    }
+    return value;
+  });
+
+  return {
+    exists: true,
+    name: sheetName,
+    dimension: config.dimension,
+    startIndex,
+    count,
+    hiddenStates
+  };
+}
+
+function isSameWorkbookStructureDimensionVisibilityState(left, right) {
+  return Boolean(
+    left &&
+    right &&
+    left.dimension === right.dimension &&
+    left.startIndex === right.startIndex &&
+    left.count === right.count &&
+    Array.isArray(left.hiddenStates) &&
+    Array.isArray(right.hiddenStates) &&
+    left.hiddenStates.length === right.hiddenStates.length &&
+    left.hiddenStates.every((value, index) => value === right.hiddenStates[index])
+  );
+}
+
+function createWorkbookStructureDimensionVisibilityLocalExecutionSnapshot({
+  executionId,
+  before,
+  after
+}) {
+  if (
+    !executionId ||
+    !before ||
+    !after ||
+    isSameWorkbookStructureDimensionVisibilityState(before, after)
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "workbook_structure",
+    operation: "row_column_visibility",
+    before,
+    after
+  };
+}
+
 function createWorkbookStructureFreezePaneLocalExecutionSnapshot({
   executionId,
   sheetName,
@@ -2745,6 +2860,25 @@ function assertWorkbookStructureFreezePaneSnapshotState(state) {
   }
 }
 
+function assertWorkbookStructureDimensionVisibilitySnapshotState(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0 ||
+    (state.dimension !== "rows" && state.dimension !== "columns") ||
+    !Number.isInteger(state.startIndex) ||
+    state.startIndex < 0 ||
+    !Number.isInteger(state.count) ||
+    state.count < 1 ||
+    !Array.isArray(state.hiddenStates) ||
+    state.hiddenStates.length !== state.count ||
+    !state.hiddenStates.every((value) => typeof value === "boolean")
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+}
+
 function assertWorkbookStructureCreateSnapshotState(state) {
   if (
     !state ||
@@ -2804,6 +2938,7 @@ function getWorkbookStructureSnapshotTransitionForMode(snapshot, mode) {
     snapshot?.operation !== "sheet_visibility" &&
     snapshot?.operation !== "sheet_tab_color" &&
     snapshot?.operation !== "sheet_freeze_panes" &&
+    snapshot?.operation !== "row_column_visibility" &&
     snapshot?.operation !== "move_sheet" &&
     snapshot?.operation !== "create_sheet" &&
     snapshot?.operation !== "duplicate_sheet"
@@ -2985,6 +3120,31 @@ async function applyWorkbookStructureSnapshotTransition(context, transition) {
     return;
   }
 
+  if (transition.operation === "row_column_visibility") {
+    assertWorkbookStructureDimensionVisibilitySnapshotState(transition.from);
+    assertWorkbookStructureDimensionVisibilitySnapshotState(transition.to);
+
+    const sheet = context.workbook.worksheets.getItem(transition.from.name);
+    const currentState = await readWorkbookStructureDimensionVisibilitySnapshotState(
+      context,
+      sheet,
+      transition.from
+    );
+    if (!isSameWorkbookStructureDimensionVisibilityState(currentState, transition.from)) {
+      throw new Error("Row or column visibility changed since this history entry was captured.");
+    }
+
+    const config = getWorkbookStructureDimensionVisibilityConfig(transition.to);
+    for (let offset = 0; offset < transition.to.count; offset += 1) {
+      const range = getExcelFullRowOrColumnRange(sheet, {
+        startIndex: transition.to.startIndex + offset,
+        count: 1
+      }, config.isRowOperation);
+      range[config.hiddenProperty] = transition.to.hiddenStates[offset];
+    }
+    return;
+  }
+
   if (transition.operation === "move_sheet") {
     assertWorkbookStructureMoveSnapshotState(transition.from);
     assertWorkbookStructureMoveSnapshotState(transition.to);
@@ -3039,6 +3199,9 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
     } else if (transition.operation === "sheet_freeze_panes") {
       assertWorkbookStructureFreezePaneSnapshotState(transition.from);
       assertWorkbookStructureFreezePaneSnapshotState(transition.to);
+    } else if (transition.operation === "row_column_visibility") {
+      assertWorkbookStructureDimensionVisibilitySnapshotState(transition.from);
+      assertWorkbookStructureDimensionVisibilitySnapshotState(transition.to);
     } else if (transition.operation === "move_sheet") {
       assertWorkbookStructureMoveSnapshotState(transition.from);
       assertWorkbookStructureMoveSnapshotState(transition.to);
@@ -3064,7 +3227,7 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
         ? ["name", "visibility"]
         : transition.operation === "sheet_tab_color"
           ? ["name", "tabColor"]
-        : transition.operation === "sheet_freeze_panes"
+        : transition.operation === "sheet_freeze_panes" || transition.operation === "row_column_visibility"
           ? ["name"]
         : transition.operation === "create_sheet"
           ? ["name", "position", "visibility"]
@@ -3100,6 +3263,17 @@ async function validateWorkbookStructureLocalExecutionSnapshotForMode(snapshot, 
       const currentState = await readWorkbookStructureFreezePaneSnapshotState(context, sheet);
       if (!isSameWorkbookStructureFreezePaneState(currentState, transition.from)) {
         throw new Error("Sheet freeze pane state changed since this history entry was captured.");
+      }
+    }
+
+    if (transition.operation === "row_column_visibility") {
+      const currentState = await readWorkbookStructureDimensionVisibilitySnapshotState(
+        context,
+        sheet,
+        transition.from
+      );
+      if (!isSameWorkbookStructureDimensionVisibilityState(currentState, transition.from)) {
+        throw new Error("Row or column visibility changed since this history entry was captured.");
       }
     }
   });
@@ -10205,6 +10379,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         (plan.operation === "freeze_panes" || plan.operation === "unfreeze_panes")
       );
       let beforeFreezePanes;
+      const dimensionVisibilityConfig = executionId
+        ? getWorkbookStructureDimensionVisibilityConfig(plan.operation)
+        : null;
+      let beforeDimensionVisibility;
       const shouldSnapshotAutofit = Boolean(
         executionId &&
         (plan.operation === "autofit_rows" || plan.operation === "autofit_columns")
@@ -10232,6 +10410,14 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
 
       if (shouldSnapshotFreezePanes) {
         beforeFreezePanes = await readWorkbookStructureFreezePaneSnapshotState(context, sheet);
+      }
+
+      if (dimensionVisibilityConfig) {
+        beforeDimensionVisibility = await readWorkbookStructureDimensionVisibilitySnapshotState(
+          context,
+          sheet,
+          { ...plan, sheetName: plan.targetSheet }
+        );
       }
 
       if (autofitSnapshotTargets) {
@@ -10323,6 +10509,13 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const afterFreezePanes = shouldSnapshotFreezePanes
         ? await readWorkbookStructureFreezePaneSnapshotState(context, sheet)
         : undefined;
+      const afterDimensionVisibility = dimensionVisibilityConfig
+        ? await readWorkbookStructureDimensionVisibilitySnapshotState(
+            context,
+            sheet,
+            { ...plan, sheetName: plan.targetSheet }
+          )
+        : undefined;
       const result = {
         kind: "sheet_structure_update",
         hostPlatform: platform,
@@ -10377,6 +10570,12 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           sheetName: plan.targetSheet,
           before: beforeFreezePanes,
           after: afterFreezePanes
+        });
+      } else if (beforeDimensionVisibility && afterDimensionVisibility) {
+        localExecutionSnapshot = createWorkbookStructureDimensionVisibilityLocalExecutionSnapshot({
+          executionId,
+          before: beforeDimensionVisibility,
+          after: afterDimensionVisibility
         });
       } else if (beforeAutofitFormatCells && afterAutofitFormatCells) {
         localExecutionSnapshot = createRangeFormatLocalExecutionSnapshot({
