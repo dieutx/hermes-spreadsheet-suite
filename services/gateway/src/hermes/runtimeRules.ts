@@ -130,8 +130,11 @@ For type="conditional_format_plan":
 - data.confidence is required
 - data.requiresConfirmation must be true
 - data.affectedRanges is required
+- data.confirmationLevel is required and must be standard or destructive
 - data.replacesExistingRules is required
 - data.managementMode is required and must be add, replace_all_on_target, or clear_on_target
+- clear_on_target and replace_all_on_target require data.confirmationLevel="destructive"
+- add conditional-format plans require data.confirmationLevel="standard"
 - do not return a vague highlight plan with only explanation and ranges
 - include a full contract-valid conditional-format rule payload
 - for row-highlighting logic driven by a status, breach, overdue, or risk column, or by comparisons between columns, prefer ruleType="custom_formula" with an exact formula instead of static row-by-row formatting

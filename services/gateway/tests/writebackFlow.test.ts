@@ -4669,6 +4669,7 @@ describe("writeback confirmation flow", () => {
       confidence: 0.97,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:D12"],
+      confirmationLevel: "destructive" as const,
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -4687,7 +4688,8 @@ describe("writeback confirmation flow", () => {
       body: {
         requestId: "req_conditional_format_typed",
         runId: "run_conditional_format_typed",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -4730,6 +4732,7 @@ describe("writeback confirmation flow", () => {
       confidence: 0.97,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:D12"],
+      confirmationLevel: "destructive" as const,
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -4750,7 +4753,8 @@ describe("writeback confirmation flow", () => {
         requestId: "req_conditional_format_undo_ready",
         runId: "run_conditional_format_undo_ready",
         workbookSessionKey: "excel_windows::workbook-123",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -4797,6 +4801,7 @@ describe("writeback confirmation flow", () => {
       confidence: 0.97,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:D12"],
+      confirmationLevel: "destructive" as const,
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -4815,7 +4820,8 @@ describe("writeback confirmation flow", () => {
       body: {
         requestId: "req_conditional_format_kind_mismatch",
         runId: "run_conditional_format_kind_mismatch",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -4865,6 +4871,7 @@ describe("writeback confirmation flow", () => {
         confidence: 0.97,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:D12"],
+        confirmationLevel: "standard" as const,
         replacesExistingRules: false,
         managementMode: "add",
         ruleType: "text_contains",
@@ -4883,6 +4890,7 @@ describe("writeback confirmation flow", () => {
         confidence: 0.97,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:D12"],
+        confirmationLevel: "standard" as const,
         replacesExistingRules: false,
         managementMode: "add",
         ruleType: "text_contains",
@@ -4905,6 +4913,7 @@ describe("writeback confirmation flow", () => {
       confidence: 0.97,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:D12"],
+      confirmationLevel: "destructive" as const,
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -4923,7 +4932,8 @@ describe("writeback confirmation flow", () => {
       body: {
         requestId: "req_conditional_format_replay",
         runId: "run_conditional_format_replay",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -4971,6 +4981,7 @@ describe("writeback confirmation flow", () => {
       confidence: 0.97,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:D12"],
+      confirmationLevel: "destructive" as const,
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -4994,7 +5005,8 @@ describe("writeback confirmation flow", () => {
           requestId: "req_conditional_format_superseded_token",
           runId: "run_conditional_format_superseded_token",
           workbookSessionKey: "google_sheets::sheet-123",
-          plan
+          plan,
+          destructiveConfirmation: { confirmed: true }
         }
       });
       expect(firstApproval.status).toBe(200);
@@ -5008,7 +5020,8 @@ describe("writeback confirmation flow", () => {
           requestId: "req_conditional_format_superseded_token",
           runId: "run_conditional_format_superseded_token",
           workbookSessionKey: "google_sheets::sheet-123",
-          plan
+          plan,
+          destructiveConfirmation: { confirmed: true }
         }
       });
       expect(secondApproval.status).toBe(200);
@@ -5065,6 +5078,7 @@ describe("writeback confirmation flow", () => {
       confidence: 0.97,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:D12"],
+      confirmationLevel: "destructive" as const,
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -5084,7 +5098,8 @@ describe("writeback confirmation flow", () => {
         requestId: "req_conditional_format_pending_conflict",
         runId: "run_conditional_format_pending_conflict",
         workbookSessionKey: "google_sheets::sheet-123",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
     expect(firstApproval.status).toBe(200);
@@ -5096,7 +5111,8 @@ describe("writeback confirmation flow", () => {
         requestId: "req_conditional_format_pending_conflict",
         runId: "run_conditional_format_pending_conflict",
         workbookSessionKey: "excel_windows::workbook-456",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -5117,6 +5133,7 @@ describe("writeback confirmation flow", () => {
       confidence: 0.97,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:D12"],
+      confirmationLevel: "destructive" as const,
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -5135,7 +5152,8 @@ describe("writeback confirmation flow", () => {
       body: {
         requestId: "req_conditional_format_reapprove_after_complete",
         runId: "run_conditional_format_reapprove_after_complete",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -5178,7 +5196,8 @@ describe("writeback confirmation flow", () => {
       body: {
         requestId: "req_conditional_format_reapprove_after_complete",
         runId: "run_conditional_format_reapprove_after_complete",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 

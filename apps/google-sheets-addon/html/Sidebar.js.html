@@ -3826,6 +3826,7 @@
           explanation: response.data.explanation,
           confidence: response.data.confidence,
           requiresConfirmation: response.data.requiresConfirmation,
+          confirmationLevel: response.data.confirmationLevel,
           summary: getConditionalFormatPreviewSummary(response.data)
         };
       case "data_validation_plan":
@@ -4402,6 +4403,7 @@
             ${escapeHtml(preview.targetSheet)}!${escapeHtml(preview.targetRange)}
             ${conditionalFields ? ` • ${escapeHtml(conditionalFields)}` : ""}
             ${preview.replacesExistingRules ? " • replaces existing rules" : ""}
+            ${preview.confirmationLevel ? ` • ${escapeHtml(preview.confirmationLevel)}` : ""}
           </div>
           <div>${escapeHtml(preview.explanation)}</div>
           <div class="preview-meta">${escapeHtml(preview.summary)}</div>

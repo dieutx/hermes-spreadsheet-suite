@@ -973,6 +973,7 @@ describe("structured body normalization", () => {
         targetSheet: "Support",
         targetRange: "G2:G50",
         managementMode: "replace_all_on_target",
+        confirmationLevel: "destructive",
         replacesExistingRules: true,
         ruleType: "custom_formula",
         formula: '=$G2="Breached"',
@@ -985,6 +986,27 @@ describe("structured body normalization", () => {
       }
     });
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
+  it("normalizes conditional format clear aliases to destructive confirmation", () => {
+    const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Support",
+        targetRange: "G2:G50",
+        action: "clear_rules",
+        explanation: "Clear conditional formatting from breached rows.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    }));
+
+    expect(parsed.data).toMatchObject({
+      managementMode: "clear_on_target",
+      affectedRanges: ["Support!G2:G50"],
+      confirmationLevel: "destructive",
+      replacesExistingRules: true
+    });
   });
 
   it("normalizes data validation prompt and error-message aliases before validation", () => {
@@ -1067,7 +1089,8 @@ describe("structured body normalization", () => {
     expect(conditionalFormat).toMatchObject({
       type: "conditional_format_plan",
       data: {
-        comparator: "less_than_or_equal_to"
+        comparator: "less_than_or_equal_to",
+        confirmationLevel: "standard"
       }
     });
     expect(() => HermesStructuredBodySchema.parse(conditionalFormat)).not.toThrow();

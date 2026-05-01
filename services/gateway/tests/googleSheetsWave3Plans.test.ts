@@ -354,6 +354,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.94,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "destructive",
         replacesExistingRules: true
       }
     };
@@ -368,6 +369,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
       targetSheet: "Sheet1",
       targetRange: "B2:B20",
       managementMode: "replace_all_on_target",
+      confirmationLevel: "destructive",
       ruleType: "text_contains",
       summary: "Will replace all conditional formatting on Sheet1!B2:B20."
     });
@@ -379,8 +381,26 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
 
     expect(supportedHtml).toContain("Confirm Conditional Formatting");
     expect(supportedHtml).toContain("replace_all_on_target");
+    expect(supportedHtml).toContain("destructive");
     expect(supportedHtml).toContain("text_contains");
     expect(supportedHtml).toContain("Will replace all conditional formatting on Sheet1!B2:B20.");
+
+    const confirm = vi.fn(() => true);
+    (sidebar.window as any).confirm = confirm;
+    expect(sidebar.buildWriteApprovalRequest({
+      requestId: "req_conditional_format_preview",
+      runId: "run_conditional_format_preview",
+      plan: sidebar.getStructuredPreview(supportedResponse)
+    })).toMatchObject({
+      requestId: "req_conditional_format_preview",
+      runId: "run_conditional_format_preview",
+      destructiveConfirmation: { confirmed: true },
+      plan: {
+        kind: "conditional_format_plan",
+        confirmationLevel: "destructive"
+      }
+    });
+    expect(confirm).toHaveBeenCalledTimes(1);
 
     const unsupportedHtml = sidebar.renderStructuredPreview({
       type: "conditional_format_plan",
@@ -396,6 +416,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.8,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     }, {
@@ -419,6 +440,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
       confidence: 0.82,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "standard",
       replacesExistingRules: false
     };
     const responses = [
@@ -554,6 +576,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.94,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "destructive",
         replacesExistingRules: true
       }
     });
@@ -642,6 +665,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.94,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "destructive",
         replacesExistingRules: true
       }
     });
@@ -804,6 +828,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.88,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     });
@@ -864,6 +889,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.85,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     });
@@ -910,6 +936,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.84,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     });
@@ -966,6 +993,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.9,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "destructive",
         replacesExistingRules: true
       }
     });
@@ -1013,6 +1041,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.8,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     })).toThrow(
@@ -1057,6 +1086,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.8,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "destructive",
         replacesExistingRules: true
       }
     })).toThrow(
@@ -1085,6 +1115,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.5,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     }, {
@@ -1124,6 +1155,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.5,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     })).toThrow(
@@ -1153,6 +1185,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.5,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     }, {
@@ -1193,6 +1226,7 @@ describe("Google Sheets wave 3 conditional-format plans", () => {
         confidence: 0.5,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     })).toThrow(
