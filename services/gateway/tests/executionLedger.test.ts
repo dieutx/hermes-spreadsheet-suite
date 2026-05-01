@@ -119,7 +119,7 @@ describe("ExecutionLedger", () => {
           stepId: "step_windows_unsafe",
           planType: "sheet_update",
           status: "completed",
-          summary: "Checked C:\\Users\\runner\\work\\step.ts"
+          summary: "Checked \\\\server\\share\\step.ts"
         }
       ]
     });

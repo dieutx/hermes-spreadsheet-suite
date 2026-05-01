@@ -105,7 +105,7 @@ describe("TraceBus", () => {
       label: "C:\\Users\\runner\\work\\internal.ts",
       skillName: "SelectionExplainerSkill",
       toolName: "C:\\Users\\runner\\tools\\extractor.ts",
-      providerLabel: "Gateway provider",
+      providerLabel: "\\\\server\\share\\provider.ts",
       details: {
         range: "A1:B2",
         sheet: "C:\\Users\\runner\\sheets\\budget.xlsx",
@@ -120,7 +120,6 @@ describe("TraceBus", () => {
       event: "skill_selected",
       timestamp: "2026-04-19T09:00:00.000Z",
       skillName: "SelectionExplainerSkill",
-      providerLabel: "Gateway provider",
       details: {
         range: "A1:B2",
         attachmentId: "att_public_001",
@@ -129,6 +128,7 @@ describe("TraceBus", () => {
     });
     expect(event).not.toHaveProperty("label");
     expect(event).not.toHaveProperty("toolName");
+    expect(event).not.toHaveProperty("providerLabel");
     expect(event.details).not.toHaveProperty("sheet");
   });
 

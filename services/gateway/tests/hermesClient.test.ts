@@ -2003,7 +2003,7 @@ describe("HermesAgentClient", () => {
 
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       error: {
-        message: "Provider failed in C:\\Users\\runner\\hermes\\provider.ts:42"
+        message: "Provider failed in \\\\server\\share\\provider.ts"
       }
     }), {
       status: 503,
@@ -2027,7 +2027,7 @@ describe("HermesAgentClient", () => {
       retryable: true,
       userAction: "Retry the request after the remote Hermes Agent service recovers."
     });
-    expect(JSON.stringify(response)).not.toContain("C:\\Users");
+    expect(JSON.stringify(response)).not.toContain("\\\\server");
     expect(JSON.stringify(response)).not.toContain("provider.ts");
   });
 
