@@ -19,7 +19,7 @@ This file keeps only findings that were checked back against the repo source.
 
 Files:
 
-- [services/gateway/src/routes/writeback.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/routes/writeback.ts)
+- [services/gateway/src/routes/writeback.ts](<repo-root>/services/gateway/src/routes/writeback.ts)
 
 What is true:
 
@@ -39,8 +39,8 @@ Why it matters:
 
 Files:
 
-- [apps/excel-addin/src/taskpane/taskpane.js](/root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/taskpane.js)
-- [apps/google-sheets-addon/src/Code.gs](/root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/src/Code.gs)
+- [apps/excel-addin/src/taskpane/taskpane.js](<repo-root>/apps/excel-addin/src/taskpane/taskpane.js)
+- [apps/google-sheets-addon/src/Code.gs](<repo-root>/apps/google-sheets-addon/src/Code.gs)
 
 What is true:
 
@@ -56,9 +56,9 @@ Why it matters:
 
 Files:
 
-- [packages/contracts/src/schemas.ts](/root/claude/hermes-spreadsheet-suite/packages/contracts/src/schemas.ts)
-- [apps/excel-addin/src/taskpane/taskpane.js](/root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/taskpane.js)
-- [apps/google-sheets-addon/src/Code.gs](/root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/src/Code.gs)
+- [packages/contracts/src/schemas.ts](<repo-root>/packages/contracts/src/schemas.ts)
+- [apps/excel-addin/src/taskpane/taskpane.js](<repo-root>/apps/excel-addin/src/taskpane/taskpane.js)
+- [apps/google-sheets-addon/src/Code.gs](<repo-root>/apps/google-sheets-addon/src/Code.gs)
 
 What is true:
 
@@ -80,7 +80,7 @@ Status:
 
 Files:
 
-- [services/gateway/src/routes/requests.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/routes/requests.ts)
+- [services/gateway/src/routes/requests.ts](<repo-root>/services/gateway/src/routes/requests.ts)
 
 What is true:
 
@@ -99,7 +99,7 @@ Why it matters:
 
 Files:
 
-- [services/gateway/src/lib/hermesClient.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/lib/hermesClient.ts)
+- [services/gateway/src/lib/hermesClient.ts](<repo-root>/services/gateway/src/lib/hermesClient.ts)
 
 Why it is provisional:
 
@@ -111,7 +111,7 @@ Why it is provisional:
 
 Files:
 
-- [services/gateway/src/lib/hermesClient.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/lib/hermesClient.ts)
+- [services/gateway/src/lib/hermesClient.ts](<repo-root>/services/gateway/src/lib/hermesClient.ts)
 
 Why it is provisional:
 
@@ -132,7 +132,7 @@ Actual source already does:
 
 See:
 
-- [packages/contracts/src/schemas.ts](/root/claude/hermes-spreadsheet-suite/packages/contracts/src/schemas.ts)
+- [packages/contracts/src/schemas.ts](<repo-root>/packages/contracts/src/schemas.ts)
 
 ## Recommended next review passes
 
