@@ -1987,18 +1987,19 @@ function applyTablePlan_(spreadsheet, plan, executionId) {
   preflightGoogleSheetsTablePlanExecution_(spreadsheet, targetRange, plan);
 
   const tableSnapshots = [];
-  const canSnapshotTableMetadata = Boolean(executionId);
   const shouldSnapshotBanding = Boolean(executionId) &&
     (plan.showBandedRows === true || plan.showBandedColumns === true);
+  const beforeBanding = shouldSnapshotBanding
+    ? readRangeBandingStateForSnapshot_(targetRange, plan.targetRange)
+    : null;
+  const canSnapshotTableMetadata = Boolean(executionId) &&
+    (!shouldSnapshotBanding || Boolean(beforeBanding && beforeBanding.bandings.length === 0));
   const tableName = typeof plan.name === 'string' ? plan.name.trim() : '';
   const beforeNamedRange = canSnapshotTableMetadata && tableName
     ? readNamedRangeStateForSnapshot_(findNamedRange_(spreadsheet, tableName), tableName)
     : null;
   const beforeFilter = canSnapshotTableMetadata && plan.showFilterButton === true
     ? readRangeFilterStateForSnapshot_(sheet, targetRange)
-    : null;
-  const beforeBanding = shouldSnapshotBanding
-    ? readRangeBandingStateForSnapshot_(targetRange, plan.targetRange)
     : null;
   const appliedBandings = [];
 
