@@ -21,7 +21,7 @@ from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.worksheet import Worksheet
 
 
-REPO_ROOT = Path("/root/claude/hermes-spreadsheet-suite")
+REPO_ROOT = Path(os.environ.get("HERMES_DEMO_REPO_ROOT", Path(__file__).resolve().parents[1])).resolve()
 DEMO_DIR = REPO_ROOT / "output" / "spreadsheet" / "hermes-demo-pack"
 WORKBOOK_PATH = DEMO_DIR / "hermes_demo_pack.xlsx"
 RESULTS_DIR = DEMO_DIR / "test-results"
