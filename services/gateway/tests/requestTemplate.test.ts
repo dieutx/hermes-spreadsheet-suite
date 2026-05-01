@@ -89,6 +89,13 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).not.toContain("topN filters and repeated conditions on the same column are unsupported");
   });
 
+  it("advertises Google Sheets validation blank-semantics limits", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
+
+    expect(prompt).toContain("List validation cannot preserve allowBlank=true exactly");
+    expect(prompt).toContain("Single-value checkbox validation cannot preserve allowBlank=false exactly");
+  });
+
   it("treats missing note-write capability as unsupported", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
 
