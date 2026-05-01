@@ -1407,6 +1407,118 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     expect(targetRange.copyFrom).toHaveBeenCalledWith(sourceRange, "Formats", false, false);
   });
 
+  it("attaches an undo snapshot for Excel format append transfers", async () => {
+    const sourceRange = createRangeStub({
+      address: "RawData!A2:B2",
+      rowCount: 1,
+      columnCount: 2,
+      values: [["Ada", "Lovelace"]],
+      formatCells: [
+        [
+          { backgroundColor: "#ff0000", textColor: "#ffffff", bold: true, numberFormat: "$#,##0" },
+          { backgroundColor: "#00ff00", textColor: "#111111", bold: false, numberFormat: "0.00%" }
+        ]
+      ],
+      borders: {
+        EdgeTop: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+      }
+    });
+    const targetRange = createRangeStub({
+      address: "Archive!D7:E7",
+      rowCount: 1,
+      columnCount: 2,
+      values: [["", ""]],
+      formatCells: [
+        [
+          { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: "General" },
+          { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: "General" }
+        ]
+      ],
+      borders: {
+        EdgeTop: { lineStyle: "None", color: "#000000", weight: "Thin" }
+      }
+    });
+    const worksheets = {
+      getItem: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return {
+            getRange: vi.fn((rangeName: string) => {
+              expect(rangeName).toBe("A2:B2");
+              return sourceRange;
+            })
+          };
+        }
+
+        expect(sheetName).toBe("Archive");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("D7:E7");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B2",
+        targetSheet: "Archive",
+        targetRange: "D7:E7",
+        operation: "append",
+        pasteMode: "formats",
+        transpose: false,
+        explanation: "Append the source formatting into the archive block.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B2", "Archive!D7:E7"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_range_transfer_format_append_undo_excel_001",
+      runId: "run_range_transfer_format_append_undo_excel_001",
+      approvalToken: "token",
+      executionId: "exec_range_transfer_format_append_undo_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      transferOperation: "append",
+      pasteMode: "formats",
+      targetSheet: "Archive",
+      targetRange: "D7:E7",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_format_append_undo_excel_001",
+        kind: "range_format",
+        targetSheet: "Archive",
+        targetRange: "D7:E7",
+        beforeFormatCells: [
+          [
+            { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] },
+            { backgroundColor: "#eeeeee", textColor: "#444444", bold: false, numberFormat: [["General"]] }
+          ]
+        ],
+        afterFormatCells: [
+          [
+            { backgroundColor: "#ff0000", textColor: "#ffffff", bold: true, numberFormat: [["$#,##0"]] },
+            { backgroundColor: "#00ff00", textColor: "#111111", bold: false, numberFormat: [["0.00%"]] }
+          ]
+        ],
+        beforeBorders: {
+          top: { lineStyle: "None", color: "#000000", weight: "Thin" }
+        },
+        afterBorders: {
+          top: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+        }
+      }
+    });
+    expect(targetRange.copyFrom).toHaveBeenCalledWith(sourceRange, "Formats", false, false);
+  });
+
   it("attaches composite undo snapshots for Excel format move transfers", async () => {
     const sourceRange = createRangeStub({
       address: "RawData!A2:B3",
@@ -1530,7 +1642,13 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
                 { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] },
                 { backgroundColor: "#ffffff", textColor: "#000000", bold: false, numberFormat: [["General"]] }
               ]
-            ]
+            ],
+            beforeBorders: {
+              top: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+            },
+            afterBorders: {
+              top: { lineStyle: "None", color: "#000000", weight: "Thin" }
+            }
           },
           {
             baseExecutionId: "exec_range_transfer_format_move_undo_excel_001",
@@ -1556,7 +1674,13 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
                 { backgroundColor: "#0000ff", textColor: "#222222", bold: false, numberFormat: [["yyyy-mm-dd"]] },
                 { backgroundColor: "#ffff00", textColor: "#333333", bold: true, numberFormat: [["General"]] }
               ]
-            ]
+            ],
+            beforeBorders: {
+              top: { lineStyle: "None", color: "#000000", weight: "Thin" }
+            },
+            afterBorders: {
+              top: { lineStyle: "Continuous", color: "#ff0000", weight: "Thin" }
+            }
           }
         ]
       }
