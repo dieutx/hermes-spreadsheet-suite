@@ -8449,6 +8449,7 @@ function containsSensitiveGatewayErrorText(text) {
     /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(value) ||
     /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(value) ||
     /(?:^|\s)[A-Za-z]:\\[^\s]+/.test(value) ||
+    /(?:^|[\s=:])\\\\[^\s]+/.test(value) ||
     /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(value) ||
     /\b(?:stack trace|traceback)\b/i.test(value)
   );
