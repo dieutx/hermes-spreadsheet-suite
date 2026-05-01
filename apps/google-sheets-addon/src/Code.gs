@@ -1761,6 +1761,12 @@ function hasChartAxisTitles_(plan) {
   );
 }
 
+function validatePieChartSeriesCount_(plan) {
+  if (plan.chartType === 'pie' && (!Array.isArray(plan.series) || plan.series.length !== 1)) {
+    throw new Error('Google Sheets host only supports one series when creating pie charts.');
+  }
+}
+
 function buildChartSeriesOptions_(plan) {
   const options = {};
 
@@ -1834,6 +1840,7 @@ function applyChartPlan_(spreadsheet, plan, executionId) {
   if (plan.chartType === 'pie' && hasChartAxisTitles_(plan)) {
     throw new Error('Google Sheets host does not support axis titles for pie charts.');
   }
+  validatePieChartSeriesCount_(plan);
 
   const sourceSheet = spreadsheet.getSheetByName(plan.sourceSheet);
   const targetSheet = spreadsheet.getSheetByName(plan.targetSheet);

@@ -3061,6 +3061,10 @@
         return "Choose at least one value series for the chart.";
       }
 
+      if (preview.chartType === "pie" && preview.series.length !== 1) {
+        return "Pie charts support exactly one series in Google Sheets. Remove extra series or choose a chart type with axes.";
+      }
+
       const seenFields = new Set([preview.categoryField.trim()]);
       for (const series of preview.series) {
         const field = String(series && series.field || "").trim();

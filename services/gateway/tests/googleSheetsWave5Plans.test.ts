@@ -861,6 +861,49 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     );
   });
 
+  it("fails closed when a pie chart requests multiple series in Google Sheets", () => {
+    const sidebar = loadSidebarContext();
+    const response = {
+      type: "chart_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:C20",
+        targetSheet: "Sales Chart",
+        targetRange: "A1",
+        chartType: "pie",
+        categoryField: "Region",
+        series: [
+          { field: "Revenue", label: "Revenue" },
+          { field: "Margin", label: "Margin" }
+        ],
+        title: "Revenue by Region",
+        explanation: "Chart revenue and margin by region.",
+        confidence: 0.93,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(sidebar.isWritePlanResponse(response)).toBe(false);
+    const html = sidebar.renderStructuredPreview(response, {
+      runId: "run_chart_pie_multi_series_preview_google_001",
+      requestId: "req_chart_pie_multi_series_preview_google_001"
+    });
+    expect(html).toContain("Pie charts support exactly one series");
+    expect(html).not.toContain("Confirm Chart");
+
+    const { applyWritePlan } = loadCodeModule({
+      spreadsheet: {
+        getSheetByName: vi.fn()
+      }
+    });
+    expect(() => applyWritePlan({ plan: response.data })).toThrow(
+      "Google Sheets host only supports one series when creating pie charts."
+    );
+  });
+
   it("accepts a demo-safe chart plan when a series label is omitted", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A1:C20",
