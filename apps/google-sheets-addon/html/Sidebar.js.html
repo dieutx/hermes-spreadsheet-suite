@@ -644,7 +644,7 @@
 
     if (
       /Unsupported filter operator/i.test(message) ||
-      /grid filters cannot represent operator "topN" exactly/i.test(message)
+      /grid filters cannot represent .*topN.*exactly/i.test(message)
     ) {
       return formatUserFacingErrorText(
         "This filter condition is not supported here.",
@@ -3166,10 +3166,6 @@
 
       if (hasRepeatedFilterPreviewColumns(preview.conditions)) {
         return "This Google Sheets flow can't apply multiple conditions to the same filter column in one exact step.";
-      }
-
-      if (Array.isArray(preview.conditions) && preview.conditions.some((condition) => condition && condition.operator === "topN")) {
-        return "This Google Sheets flow can't apply top-N grid filters exactly yet.";
       }
 
       return "";

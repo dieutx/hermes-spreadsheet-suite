@@ -392,6 +392,95 @@ describe("Google Sheets wave 1 helper compilation", () => {
     });
   });
 
+  it("applies exact top-N Google Sheets filters with hidden values", () => {
+    const setColumnFilterCriteria = vi.fn();
+    const createFilter = vi.fn(() => ({
+      setColumnFilterCriteria,
+      removeColumnFilterCriteria: vi.fn()
+    }));
+    const targetRange = {
+      getNumColumns() {
+        return 2;
+      },
+      getNumRows() {
+        return 5;
+      },
+      getColumn() {
+        return 3;
+      },
+      getRow() {
+        return 1;
+      },
+      getA1Notation() {
+        return "C1:D5";
+      },
+      getValues() {
+        return [
+          ["Status", "Amount"],
+          ["Open", 10],
+          ["Closed", 12],
+          ["Open", 7],
+          ["Pending", ""]
+        ];
+      },
+      getDisplayValues() {
+        return [
+          ["Status", "Amount"],
+          ["Open", "10"],
+          ["Closed", "12"],
+          ["Open", "7"],
+          ["Pending", ""]
+        ];
+      },
+      createFilter
+    };
+    const sheet = {
+      getFilter() {
+        return null;
+      },
+      getRange(rangeA1: string) {
+        expect(rangeA1).toBe("C1:D5");
+        return targetRange;
+      }
+    };
+    const spreadsheet = {
+      getSheetByName(sheetName: string) {
+        expect(sheetName).toBe("Sheet1");
+        return sheet;
+      }
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "C1:D5",
+        hasHeader: true,
+        conditions: [
+          { columnRef: "Amount", operator: "topN", value: 2 }
+        ],
+        combiner: "and",
+        clearExistingFilters: true,
+        explanation: "Keep the top two amounts.",
+        confidence: 0.88,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_filter",
+      targetSheet: "Sheet1",
+      targetRange: "C1:D5",
+      conditions: [
+        { columnRef: "Amount", operator: "topN", value: 2 }
+      ]
+    });
+    expect(setColumnFilterCriteria).toHaveBeenCalledWith(2, {
+      kind: "hiddenValues",
+      values: ["7", ""]
+    });
+  });
+
   it("attaches local undo snapshots for Google Sheets range filter writes", () => {
     const criteriaByColumn = new Map<number, unknown>([
       [1, { kind: "textEquals", value: "Closed" }]
@@ -679,9 +768,9 @@ describe("Google Sheets wave 1 helper compilation", () => {
       getDisplayValues() {
         return [
           ["Status", "Amount"],
-          ["Open", "10"],
           ["Closed", "12"],
-          ["Open", "7"]
+          ["Open", "10"],
+          ["Pending", "10"]
         ];
       },
       createFilter: vi.fn(() => ({
@@ -718,7 +807,7 @@ describe("Google Sheets wave 1 helper compilation", () => {
         confidence: 0.88,
         requiresConfirmation: true
       }
-    })).toThrow('Google Sheets grid filters cannot represent operator "topN" exactly.');
+    })).toThrow("Google Sheets grid filters cannot represent topN exactly when duplicate display values cross the cutoff.");
 
     expect(() => applyWritePlan({
       plan: {
@@ -916,7 +1005,7 @@ describe("Google Sheets wave 1 helper compilation", () => {
         requiresConfirmation: true
       }
     };
-    const unsupportedTopNResponse = {
+    const topNResponse = {
       type: "range_filter_plan",
       data: {
         targetSheet: "Sheet1",
@@ -956,11 +1045,11 @@ describe("Google Sheets wave 1 helper compilation", () => {
       requestId: "req_filter_preview_unsupported_google_or"
     })).toContain("can't combine multiple filter conditions with OR exactly");
 
-    expect(sidebar.isWritePlanResponse(unsupportedTopNResponse)).toBe(false);
-    expect(sidebar.renderStructuredPreview(unsupportedTopNResponse, {
+    expect(sidebar.isWritePlanResponse(topNResponse)).toBe(true);
+    expect(sidebar.renderStructuredPreview(topNResponse, {
       runId: "run_filter_preview_unsupported_google_topn",
       requestId: "req_filter_preview_unsupported_google_topn"
-    })).toContain("can't apply top-N grid filters exactly yet");
+    })).toContain("Confirm Filter");
 
     const duplicateHtml = sidebar.renderStructuredPreview(duplicateColumnResponse, {
       runId: "run_filter_preview_unsupported_google_duplicate",

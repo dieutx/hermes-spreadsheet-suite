@@ -439,7 +439,7 @@ function sanitizeHostExecutionError_(error, fallbackMessage) {
 
   if (
     /Unsupported filter operator/i.test(message) ||
-    /grid filters cannot represent operator "topN" exactly/i.test(message)
+    /grid filters cannot represent .*topN.*exactly/i.test(message)
   ) {
     return formatUserFacingErrorText_(
       'This filter condition is not supported here.',
@@ -8306,7 +8306,100 @@ function getOrCreateFilter_(sheet, target, clearExistingFilters) {
   return filter;
 }
 
-function buildFilterCriteria_(condition) {
+function normalizeTopNFilterNumber_(value, displayValue) {
+  if (typeof value === 'number' && isFinite(value)) {
+    return value;
+  }
+
+  const text = String(displayValue === undefined || displayValue === null ? value : displayValue).trim();
+  if (!text) {
+    return null;
+  }
+
+  const parsed = Number(text.replace(/[,$%\s]/g, ''));
+  return isFinite(parsed) ? parsed : null;
+}
+
+function buildTopNFilterCriteria_(condition, options) {
+  const rank = Number(condition.value);
+  if (!isFinite(rank) || rank <= 0 || Math.floor(rank) !== rank) {
+    throw new Error('Google Sheets grid filters require a positive integer topN value.');
+  }
+
+  if (!options || !options.target || !options.columnPosition) {
+    throw new Error('Google Sheets grid filters require target data for exact topN filters.');
+  }
+
+  const displayValues = options.target.getDisplayValues();
+  const rawValues = typeof options.target.getValues === 'function'
+    ? options.target.getValues()
+    : displayValues;
+  const columnIndex = options.columnPosition - 1;
+  const dataStartRow = options.hasHeader ? 1 : 0;
+  const candidates = [];
+  const hiddenDisplayValues = [];
+
+  for (let rowIndex = dataStartRow; rowIndex < displayValues.length; rowIndex += 1) {
+    const displayValue = String((displayValues[rowIndex] || [])[columnIndex] ?? '');
+    const rawValue = (rawValues[rowIndex] || [])[columnIndex];
+    const numericValue = normalizeTopNFilterNumber_(rawValue, displayValue);
+
+    if (numericValue === null) {
+      hiddenDisplayValues.push(displayValue);
+      continue;
+    }
+
+    candidates.push({
+      displayValue: displayValue,
+      numericValue: numericValue,
+      rowIndex: rowIndex
+    });
+  }
+
+  const rankedCandidates = candidates.slice().sort(function(left, right) {
+    if (right.numericValue !== left.numericValue) {
+      return right.numericValue - left.numericValue;
+    }
+    return left.rowIndex - right.rowIndex;
+  });
+  const visibleCandidates = rankedCandidates.slice(0, rank);
+  const hiddenCandidates = rankedCandidates.slice(rank);
+  const visibleDisplayValues = Object.create(null);
+
+  visibleCandidates.forEach(function(candidate) {
+    visibleDisplayValues[candidate.displayValue] = true;
+  });
+
+  hiddenCandidates.forEach(function(candidate) {
+    if (visibleDisplayValues[candidate.displayValue]) {
+      throw new Error('Google Sheets grid filters cannot represent topN exactly when duplicate display values cross the cutoff.');
+    }
+  });
+
+  hiddenDisplayValues.forEach(function(displayValue) {
+    if (visibleDisplayValues[displayValue]) {
+      throw new Error('Google Sheets grid filters cannot represent topN exactly when duplicate display values cross the cutoff.');
+    }
+  });
+
+  const hiddenValues = [];
+  const seenHiddenValues = Object.create(null);
+  hiddenCandidates
+    .map(function(candidate) { return candidate.displayValue; })
+    .concat(hiddenDisplayValues)
+    .forEach(function(displayValue) {
+      if (!seenHiddenValues[displayValue]) {
+        hiddenValues.push(displayValue);
+        seenHiddenValues[displayValue] = true;
+      }
+    });
+
+  return SpreadsheetApp.newFilterCriteria()
+    .setHiddenValues(hiddenValues)
+    .build();
+}
+
+function buildFilterCriteria_(condition, options) {
   const builder = SpreadsheetApp.newFilterCriteria();
 
   switch (condition.operator) {
@@ -8341,7 +8434,7 @@ function buildFilterCriteria_(condition) {
     case 'isNotEmpty':
       return builder.whenCellNotEmpty().build();
     case 'topN':
-      throw new Error('Google Sheets grid filters cannot represent operator "topN" exactly.');
+      return buildTopNFilterCriteria_(condition, options);
     default:
       throw new Error('Unsupported filter operator: ' + condition.operator);
   }
@@ -9873,8 +9966,8 @@ function applyWritePlan(input) {
 
     const resolvedConditions = plan.conditions.map(function(condition) {
       return {
-        columnPosition: resolveRelativeColumnRef_(condition.columnRef, target, plan.hasHeader),
-        criteria: buildFilterCriteria_(condition)
+        condition: condition,
+        columnPosition: resolveRelativeColumnRef_(condition.columnRef, target, plan.hasHeader)
       };
     });
     const seenColumns = {};
@@ -9894,7 +9987,11 @@ function applyWritePlan(input) {
     const beforeFilter = readRangeFilterStateForSnapshot_(sheet, target);
     const filter = getOrCreateFilter_(sheet, target, plan.clearExistingFilters);
     resolvedConditions.forEach(function(condition) {
-      filter.setColumnFilterCriteria(condition.columnPosition, condition.criteria);
+      filter.setColumnFilterCriteria(condition.columnPosition, buildFilterCriteria_(condition.condition, {
+        target: target,
+        columnPosition: condition.columnPosition,
+        hasHeader: plan.hasHeader
+      }));
     });
 
     SpreadsheetApp.flush();
