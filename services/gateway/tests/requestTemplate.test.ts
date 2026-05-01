@@ -54,6 +54,8 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("requiresConfirmation must be true");
     expect(prompt).toContain("targetRange must match");
     expect(prompt).toContain("supportsNoteWrites");
+    expect(prompt).toContain("number_compare values must be finite numbers");
+    expect(prompt).toContain("date_compare values must be valid YYYY-MM-DD literals");
   });
 
   it("includes a host capability matrix for Google Sheets planning", () => {
