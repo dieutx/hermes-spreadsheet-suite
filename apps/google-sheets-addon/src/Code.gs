@@ -7704,12 +7704,12 @@ function applyWritePlan(input) {
 
     assertNonOverlappingTransfer_(plan, actualTargetRange);
     const canSnapshotCopyTransfer = plan.operation === 'copy' && plan.pasteMode !== 'formats';
-    const canSnapshotValueMoveTransfer = plan.operation === 'move' && plan.pasteMode === 'values';
-    const shouldSnapshotTargetCells = canSnapshotCopyTransfer || canSnapshotValueMoveTransfer;
+    const canSnapshotCellMoveTransfer = plan.operation === 'move' && plan.pasteMode !== 'formats';
+    const shouldSnapshotTargetCells = canSnapshotCopyTransfer || canSnapshotCellMoveTransfer;
     const beforeValues = shouldSnapshotTargetCells ? resolvedTargetRange.getValues() : null;
     const beforeFormulas = shouldSnapshotTargetCells ? resolvedTargetRange.getFormulas() : null;
-    const beforeSourceValues = canSnapshotValueMoveTransfer ? sourceRange.getValues() : null;
-    const beforeSourceFormulas = canSnapshotValueMoveTransfer ? sourceRange.getFormulas() : null;
+    const beforeSourceValues = canSnapshotCellMoveTransfer ? sourceRange.getValues() : null;
+    const beforeSourceFormulas = canSnapshotCellMoveTransfer ? sourceRange.getFormulas() : null;
     writeTransferToTarget_(resolvedTargetRange, sourceRange, plan);
 
     if (plan.operation === 'move') {
@@ -7728,7 +7728,7 @@ function applyWritePlan(input) {
         afterValues: resolvedTargetRange.getValues(),
         afterFormulas: resolvedTargetRange.getFormulas()
       }))
-      : canSnapshotValueMoveTransfer
+      : canSnapshotCellMoveTransfer
         ? attachLocalExecutionSnapshot_(result, createCompositeLocalExecutionSnapshot_({
           executionId: input.executionId,
           entries: [

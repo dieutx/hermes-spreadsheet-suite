@@ -1027,6 +1027,139 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
+  it("attaches composite undo snapshots for Google Sheets formula move transfers", () => {
+    const sourceRange = createRangeStub({
+      a1Notation: "A2:B3",
+      row: 2,
+      column: 1,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["=A1+1", "=B1+1"],
+        ["=A2+1", "=B2+1"]
+      ],
+      formulas: [
+        ["=A1+1", "=B1+1"],
+        ["=A2+1", "=B2+1"]
+      ]
+    });
+    const targetRange = createRangeStub({
+      a1Notation: "D5:E6",
+      row: 5,
+      column: 4,
+      numRows: 2,
+      numColumns: 2,
+      values: [
+        ["Old", "Target"],
+        ["Keep", "Safe"]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ]
+    });
+    sourceRange.copyTo = vi.fn((destination: typeof targetRange, pasteType: string, transpose: boolean) => {
+      expect(destination).toBe(targetRange);
+      expect(pasteType).toBe("PASTE_FORMULA");
+      expect(transpose).toBe(false);
+      destination.setFormulas([
+        ["=D4+1", "=E4+1"],
+        ["=D5+1", "=E5+1"]
+      ]);
+    });
+
+    const sourceSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("A2:B3");
+        return sourceRange;
+      })
+    };
+    const targetSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("D5:E6");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return sourceSheet;
+        }
+
+        expect(sheetName).toBe("Report");
+        return targetSheet;
+      })
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Report",
+        targetRange: "D5:E6",
+        operation: "move",
+        pasteMode: "formulas",
+        transpose: false,
+        explanation: "Move formulas into the report block.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Report!D5:E6"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      executionId: "exec_range_transfer_formula_move_undo_sheets_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      hostPlatform: "google_sheets",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Report",
+      targetRange: "D5:E6",
+      transferOperation: "move",
+      pasteMode: "formulas",
+      transpose: false,
+      summary: "Moved RawData!A2:B3 to Report!D5:E6.",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_formula_move_undo_sheets_001",
+        entries: [
+          {
+            baseExecutionId: "exec_range_transfer_formula_move_undo_sheets_001",
+            targetSheet: "RawData",
+            targetRange: "A2:B3",
+            beforeCells: [
+              [{ kind: "formula", formula: "=A1+1" }, { kind: "formula", formula: "=B1+1" }],
+              [{ kind: "formula", formula: "=A2+1" }, { kind: "formula", formula: "=B2+1" }]
+            ],
+            afterCells: [
+              [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }],
+              [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+            ]
+          },
+          {
+            baseExecutionId: "exec_range_transfer_formula_move_undo_sheets_001",
+            targetSheet: "Report",
+            targetRange: "D5:E6",
+            beforeCells: [
+              [{ kind: "value", value: { type: "string", value: "Old" } }, { kind: "value", value: { type: "string", value: "Target" } }],
+              [{ kind: "value", value: { type: "string", value: "Keep" } }, { kind: "value", value: { type: "string", value: "Safe" } }]
+            ],
+            afterCells: [
+              [{ kind: "formula", formula: "=D4+1" }, { kind: "formula", formula: "=E4+1" }],
+              [{ kind: "formula", formula: "=D5+1" }, { kind: "formula", formula: "=E5+1" }]
+            ]
+          }
+        ]
+      }
+    });
+    expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
+    expect(sourceRange.clearContent).toHaveBeenCalledTimes(1);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects formula appends when Google Sheets targetRange is a search window", () => {
     const sourceRange = createRangeStub({
       a1Notation: "A2:B3",
