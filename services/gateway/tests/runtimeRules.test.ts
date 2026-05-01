@@ -82,6 +82,12 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).not.toContain('target-sheet-only transfer defaults to data.targetRange="A1"');
   });
 
+  it("documents cross-host named range identifier constraints", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain('For type="named_range_update"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("not start with true or false");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("not be A1/R1C1 cell references");
+  });
+
   it("documents unsupported fuzzy cleanup and overlap ambiguity as fail-closed unsupported operations", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("fuzzy");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("heuristic");

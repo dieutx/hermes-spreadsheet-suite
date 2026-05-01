@@ -276,6 +276,7 @@ For type="named_range_update":
 - data.operation is required and must be create, rename, delete, or retarget
 - data.scope is required and must be workbook or sheet
 - data.name is required
+- data.name and data.newName must start with a letter or underscore, contain only letters/numbers/underscores, not start with true or false, not be R or C, and not be A1/R1C1 cell references
 - data.explanation is required
 - data.confidence is required
 - data.requiresConfirmation must be true
