@@ -2278,6 +2278,29 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects static range format plans whose affectedRanges omit the target range", () => {
+    const parsed = RangeFormatUpdateDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "A1:J10",
+      format: {
+        border: {
+          outer: {
+            style: "solid",
+            color: "#1f1f1f"
+          }
+        }
+      },
+      explanation: "Apply a border around the selected table.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!K1:K10"],
+      confirmationLevel: "standard",
+      overwriteRisk: "low"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a replace-all single-color conditional format plan", () => {
     const parsed = ConditionalFormatPlanDataSchema.parse({
       targetSheet: "Sheet1",

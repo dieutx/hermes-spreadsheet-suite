@@ -1957,6 +1957,15 @@ export const RangeFormatUpdateDataSchema = strictObject({
   affectedRanges: z.array(z.string().min(1).max(128)).min(1).max(10),
   confirmationLevel: z.literal("standard"),
   overwriteRisk: OverwriteRiskSchema.optional()
+}).superRefine((data, ctx) => {
+  const targetRef = `${data.targetSheet}!${data.targetRange}`;
+  if (!data.affectedRanges.includes(targetRef)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the qualified target range.",
+      path: ["affectedRanges"]
+    });
+  }
 });
 
 export const ConditionalFormatManagementModeSchema = z.enum([
