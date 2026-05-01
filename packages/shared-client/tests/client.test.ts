@@ -980,6 +980,24 @@ describe("shared client render helpers", () => {
     expect(embeddedMetaLine).toContain("skills SelectionExplainerSkill");
     expect(embeddedMetaLine).toContain("provider Hermes Gateway");
     expect(embeddedMetaLine).not.toContain("qa_HERMES");
+
+    const windowsResponse = baseResponse({
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        String.raw`C:\Users\runner\work\private-tool.ts`
+      ],
+      downstreamProvider: {
+        label: String.raw`\\runner\share\provider`,
+        model: "gpt-5"
+      }
+    });
+
+    const windowsMetaLine = getResponseMetaLine(windowsResponse);
+
+    expect(windowsMetaLine).toContain("skills SelectionExplainerSkill");
+    expect(windowsMetaLine).not.toContain("C:\\Users");
+    expect(windowsMetaLine).not.toContain("\\\\runner");
+    expect(windowsMetaLine).not.toContain("private-tool");
   });
 
   it("formats the wave 2 trace labels", () => {
