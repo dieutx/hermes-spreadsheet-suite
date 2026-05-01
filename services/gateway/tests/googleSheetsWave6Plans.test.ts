@@ -2245,7 +2245,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
         affectedRanges: ["Sales Pivot!A1", "Sales Chart!A1"],
         overwriteRisk: "low",
         confirmationLevel: "standard",
-        reversible: false,
+        reversible: true,
         dryRunRecommended: true,
         dryRunRequired: false
       }
@@ -2256,9 +2256,10 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       kind: "composite_plan",
       stepCount: 2,
       dryRunRequired: false,
+      reversible: true,
       steps: [
-        { stepId: "step_pivot", destructive: false, reversible: false },
-        { stepId: "step_chart", destructive: false, reversible: false }
+        { stepId: "step_pivot", destructive: false, reversible: true },
+        { stepId: "step_chart", destructive: false, reversible: true }
       ]
     });
 
@@ -2270,6 +2271,54 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(html).toContain("step_pivot");
     expect(html).toContain("step_chart");
     expect(html).not.toContain("does not support exact-safe pivot table creation yet");
+  });
+
+  it("keeps snapshot-backed analytic child steps non-reversible when the Google Sheets composite is non-reversible", () => {
+    const sidebar = loadSidebarContext();
+
+    const preview = sidebar.getStructuredPreview({
+      type: "composite_plan",
+      data: {
+        steps: [
+          {
+            stepId: "step_pivot",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              sourceSheet: "Sales",
+              sourceRange: "A1:C20",
+              targetSheet: "Sales Pivot",
+              targetRange: "A1",
+              rowGroups: ["Region"],
+              valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+              explanation: "Create a pivot table.",
+              confidence: 0.92,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!A1:C20", "Sales Pivot!A1"],
+              overwriteRisk: "low",
+              confirmationLevel: "standard"
+            }
+          }
+        ],
+        explanation: "Create a pivot table.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales Pivot!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: false,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      }
+    });
+
+    expect(preview).toMatchObject({
+      kind: "composite_plan",
+      reversible: false,
+      steps: [
+        { stepId: "step_pivot", reversible: false }
+      ]
+    });
   });
 
   it("flags unsupported composite steps before the user confirms the workflow", () => {

@@ -26,9 +26,13 @@ function isDestructiveCompositeStep(step) {
   return step?.plan?.confirmationLevel === "destructive";
 }
 
-function isLikelyReversibleCompositeStep(step) {
-  if (!step?.plan || isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan)) {
+function isLikelyReversibleCompositeStep(step, compositeReversible = true) {
+  if (!step?.plan) {
     return false;
+  }
+
+  if (isPivotTablePlanLike(step.plan) || isChartPlanLike(step.plan)) {
+    return compositeReversible === true && step.plan.confirmationLevel !== "destructive";
   }
 
   if (step.plan.confirmationLevel === "destructive" ||
@@ -69,13 +73,13 @@ export function buildCompositeStepSummary(step) {
   return `Execute ${step?.stepId || "workflow step"}.`;
 }
 
-export function buildCompositeStepPreview(step) {
+export function buildCompositeStepPreview(step, compositeReversible = true) {
   return {
     stepId: step.stepId,
     dependsOn: step.dependsOn || [],
     continueOnError: Boolean(step.continueOnError),
     destructive: isDestructiveCompositeStep(step),
-    reversible: isLikelyReversibleCompositeStep(step),
+    reversible: isLikelyReversibleCompositeStep(step, compositeReversible),
     summary: buildCompositeStepSummary(step)
   };
 }

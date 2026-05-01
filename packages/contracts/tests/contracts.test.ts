@@ -382,36 +382,96 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("rejects composite plans that mark known non-reversible steps as reversible", () => {
+  it("accepts reversible composite plans that contain snapshot-backed analytic steps", () => {
     const parsed = CompositePlanDataSchema.safeParse({
       steps: [
         {
-          stepId: "step_chart",
+          stepId: "step_pivot",
           dependsOn: [],
           continueOnError: false,
           plan: {
             sourceSheet: "Sales",
             sourceRange: "A1:C20",
+            targetSheet: "Sales Pivot",
+            targetRange: "A1",
+            rowGroups: ["Region"],
+            valueAggregations: [
+              { field: "Revenue", aggregation: "sum" }
+            ],
+            explanation: "Create a pivot table.",
+            confidence: 0.92,
+            requiresConfirmation: true,
+            affectedRanges: ["Sales!A1:C20", "Sales Pivot!A1"],
+            overwriteRisk: "low",
+            confirmationLevel: "standard"
+          }
+        },
+        {
+          stepId: "step_chart",
+          dependsOn: ["step_pivot"],
+          continueOnError: false,
+          plan: {
+            sourceSheet: "Sales Pivot",
+            sourceRange: "A1:B5",
             targetSheet: "Sales Chart",
             targetRange: "A1",
             chartType: "line",
-            categoryField: "Month",
+            categoryField: "Region",
             series: [
               { field: "Revenue", label: "Revenue" }
             ],
             explanation: "Create a chart.",
             confidence: 0.92,
             requiresConfirmation: true,
-            affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+            affectedRanges: ["Sales Pivot!A1:B5", "Sales Chart!A1"],
             overwriteRisk: "low",
             confirmationLevel: "standard"
           }
         }
       ],
-      explanation: "Chart workflow.",
+      explanation: "Pivot and chart workflow.",
       confidence: 0.92,
       requiresConfirmation: true,
-      affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+      affectedRanges: ["Sales Pivot!A1", "Sales Chart!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      reversible: true,
+      dryRunRecommended: true,
+      dryRunRequired: false
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects reversible composite plans that contain table steps", () => {
+    const parsed = CompositePlanDataSchema.safeParse({
+      steps: [
+        {
+          stepId: "step_table",
+          dependsOn: [],
+          continueOnError: false,
+          plan: {
+            targetSheet: "Sales",
+            targetRange: "A1:F50",
+            name: "SalesTable",
+            hasHeaders: true,
+            showBandedRows: true,
+            showBandedColumns: false,
+            showFilterButton: true,
+            showTotalsRow: false,
+            explanation: "Convert the sales range into a table.",
+            confidence: 0.92,
+            requiresConfirmation: true,
+            affectedRanges: ["Sales!A1:F50"],
+            overwriteRisk: "low",
+            confirmationLevel: "standard"
+          }
+        }
+      ],
+      explanation: "Table workflow.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50"],
       overwriteRisk: "low",
       confirmationLevel: "standard",
       reversible: true,
