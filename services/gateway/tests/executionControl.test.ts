@@ -61,7 +61,8 @@ function buildDryRunBody(overrides?: Partial<Record<string, unknown>>) {
             position: "end",
             explanation: "Create a report sheet.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard"
           }
         }
       ],
@@ -562,6 +563,7 @@ describe("execution control routes", () => {
                 confidence: 0.9,
                 explanation: "Create a report sheet.",
                 requiresConfirmation: true,
+                confirmationLevel: "standard",
                 operation: "create_sheet"
               },
               continueOnError: false,
@@ -595,6 +597,7 @@ describe("execution control routes", () => {
               confidence: 0.9,
               explanation: "Create a report sheet.",
               requiresConfirmation: true,
+              confirmationLevel: "standard",
               operation: "create_sheet"
             },
             continueOnError: false,
@@ -672,7 +675,8 @@ describe("execution control routes", () => {
                 position: "end",
                 explanation: longExplanation,
                 confidence: 0.9,
-                requiresConfirmation: true
+                requiresConfirmation: true,
+                confirmationLevel: "standard"
               }
             }
           ]
@@ -705,7 +709,8 @@ describe("execution control routes", () => {
                 position: "end",
                 explanation: unsafeExplanation,
                 confidence: 0.9,
-                requiresConfirmation: true
+                requiresConfirmation: true,
+                confirmationLevel: "standard"
               }
             }
           ]
@@ -744,7 +749,8 @@ describe("execution control routes", () => {
                 position: "end",
                 explanation: "Create stage 2.",
                 confidence: 0.9,
-                requiresConfirmation: true
+                requiresConfirmation: true,
+                confirmationLevel: "standard"
               }
             },
             {
@@ -757,7 +763,8 @@ describe("execution control routes", () => {
                 position: "end",
                 explanation: "Create stage 1.",
                 confidence: 0.9,
-                requiresConfirmation: true
+                requiresConfirmation: true,
+                confirmationLevel: "standard"
               }
             }
           ]
