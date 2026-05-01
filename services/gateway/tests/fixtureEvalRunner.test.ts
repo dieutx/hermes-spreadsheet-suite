@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  evaluateCapabilityFixtureDirectory,
   evaluateCapabilityFixturePack,
   type CapabilityFixturePack
 } from "../../../scripts/eval_fixtures.ts";
@@ -166,5 +167,12 @@ describe("capability fixture eval runner", () => {
       passed: 1,
       failed: 0
     });
+  });
+
+  it("reports fixture directory sources without exposing the local checkout path", () => {
+    const result = evaluateCapabilityFixtureDirectory(`${process.cwd()}/fixtures/capability-eval`);
+
+    expect(result.source).toBe("fixtures/capability-eval");
+    expect(JSON.stringify(result)).not.toContain(process.cwd());
   });
 });
