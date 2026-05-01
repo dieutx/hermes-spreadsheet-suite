@@ -13,4 +13,15 @@ describe("public error formatting", () => {
       "(redacted)"
     );
   });
+
+  it("sanitizes UNC paths in validation issue messages and paths", () => {
+    expect(sanitizeClientIssueMessage(
+      String.raw`Invalid value produced near \\runner\share\schema.ts:42`
+    )).toBe("Invalid request field.");
+    expect(formatClientIssuePath([
+      "context",
+      String.raw`\\runner\share\debug`,
+      "values"
+    ])).toBe("(redacted)");
+  });
 });
