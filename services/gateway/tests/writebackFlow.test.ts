@@ -4648,7 +4648,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Clear existing conditional rules before applying the new business rule.",
       confidence: 0.97,
       requiresConfirmation: true,
-      affectedRanges: ["B2:D12"],
+      affectedRanges: ["Sheet1!B2:D12"],
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -4709,7 +4709,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Clear existing conditional rules before applying the new business rule.",
       confidence: 0.97,
       requiresConfirmation: true,
-      affectedRanges: ["B2:D12"],
+      affectedRanges: ["Sheet1!B2:D12"],
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -4776,7 +4776,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Clear existing conditional rules before applying the new business rule.",
       confidence: 0.97,
       requiresConfirmation: true,
-      affectedRanges: ["B2:D12"],
+      affectedRanges: ["Sheet1!B2:D12"],
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -4844,7 +4844,7 @@ describe("writeback confirmation flow", () => {
         explanation: "Highlight rows that contain urgent text.",
         confidence: 0.97,
         requiresConfirmation: true,
-        affectedRanges: ["B2:D12"],
+        affectedRanges: ["Sheet1!B2:D12"],
         replacesExistingRules: false,
         managementMode: "add",
         ruleType: "text_contains",
@@ -4862,7 +4862,7 @@ describe("writeback confirmation flow", () => {
         explanation: "Highlight rows that contain urgent text.",
         confidence: 0.97,
         requiresConfirmation: true,
-        affectedRanges: ["B2:D12"],
+        affectedRanges: ["Sheet1!B2:D12"],
         replacesExistingRules: false,
         managementMode: "add",
         ruleType: "text_contains",
@@ -4884,7 +4884,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Clear existing conditional rules before applying the new business rule.",
       confidence: 0.97,
       requiresConfirmation: true,
-      affectedRanges: ["B2:D12"],
+      affectedRanges: ["Sheet1!B2:D12"],
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -4950,7 +4950,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Clear existing conditional rules before applying the new business rule.",
       confidence: 0.97,
       requiresConfirmation: true,
-      affectedRanges: ["B2:D12"],
+      affectedRanges: ["Sheet1!B2:D12"],
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -5044,7 +5044,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Clear existing conditional rules before applying the new business rule.",
       confidence: 0.97,
       requiresConfirmation: true,
-      affectedRanges: ["B2:D12"],
+      affectedRanges: ["Sheet1!B2:D12"],
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
@@ -5096,7 +5096,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Clear existing conditional rules before applying the new business rule.",
       confidence: 0.97,
       requiresConfirmation: true,
-      affectedRanges: ["B2:D12"],
+      affectedRanges: ["Sheet1!B2:D12"],
       replacesExistingRules: true,
       managementMode: "clear_on_target"
     };
