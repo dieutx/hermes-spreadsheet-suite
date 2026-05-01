@@ -1513,6 +1513,25 @@ export const PivotTablePlanDataSchema = strictObject({
   overwriteRisk: OverwriteRiskSchema,
   confirmationLevel: ConfirmationLevelSchema
 }).superRefine((data, ctx) => {
+  const requiredAffectedRanges = [
+    normalizeQualifiedA1RangeRef(data.sourceSheet, data.sourceRange),
+    normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange)
+  ].filter((value): value is string => value !== null);
+  const affectedRanges = new Set(
+    data.affectedRanges
+      .map((value) => normalizeAffectedA1RangeRef(value))
+      .filter((value): value is string => value !== null)
+  );
+  const missingAffectedRanges = requiredAffectedRanges.filter((value) => !affectedRanges.has(value));
+
+  if (missingAffectedRanges.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the qualified source and target ranges.",
+      path: ["affectedRanges"]
+    });
+  }
+
   if (!data.sort) {
     return;
   }
