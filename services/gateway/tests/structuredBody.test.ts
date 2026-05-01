@@ -1983,13 +1983,13 @@ describe("structured body normalization", () => {
       "sheet_update missing shape",
       {
         type: "sheet_update",
-        data: {
-          targetSheet: "Sheet1",
-          targetRange: "A1",
-          operation: "append_rows",
-          values: [[1]],
-          explanation: "Shape is required.",
-          confidence: 0.8,
+          data: {
+            targetSheet: "Sheet1",
+            targetRange: "A1",
+            operation: "replace_range",
+            values: [[1]],
+            explanation: "Shape is required.",
+            confidence: 0.8,
           requiresConfirmation: true
         }
       },
