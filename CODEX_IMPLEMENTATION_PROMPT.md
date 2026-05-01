@@ -2,7 +2,7 @@
 
 You are working in this repository:
 
-`/root/claude/hermes-spreadsheet-suite`
+`<repo-root>`
 
 Your job is to upgrade the gateway/client flow so the spreadsheet assistant behaves like a real remote Hermes-powered spreadsheet AI, especially for formula debugging and fix/apply workflows.
 

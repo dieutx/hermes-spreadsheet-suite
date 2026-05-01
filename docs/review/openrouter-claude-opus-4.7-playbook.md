@@ -20,21 +20,21 @@ Ask Claude to review the repo like a strict senior engineer:
 
 Always include:
 
-- [repo-brief.md](/root/claude/hermes-spreadsheet-suite/docs/review/repo-brief.md)
-- [README.md](/root/claude/hermes-spreadsheet-suite/README.md)
-- [reviewer-checklist.md](/root/claude/hermes-spreadsheet-suite/docs/reviewer-checklist.md)
+- [repo-brief.md](<repo-root>/docs/review/repo-brief.md)
+- [README.md](<repo-root>/README.md)
+- [reviewer-checklist.md](<repo-root>/docs/reviewer-checklist.md)
 
 Then include the most relevant code slices:
 
-- [schemas.ts](/root/claude/hermes-spreadsheet-suite/packages/contracts/src/schemas.ts)
-- [structuredBody.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/hermes/structuredBody.ts)
-- [hermesClient.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/lib/hermesClient.ts)
-- [requests.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/routes/requests.ts)
-- [uploads.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/routes/uploads.ts)
-- [writeback.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/routes/writeback.ts)
-- [Code.gs](/root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/src/Code.gs)
-- [Sidebar.js.html](/root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/html/Sidebar.js.html)
-- [taskpane.js](/root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/taskpane.js)
+- [schemas.ts](<repo-root>/packages/contracts/src/schemas.ts)
+- [structuredBody.ts](<repo-root>/services/gateway/src/hermes/structuredBody.ts)
+- [hermesClient.ts](<repo-root>/services/gateway/src/lib/hermesClient.ts)
+- [requests.ts](<repo-root>/services/gateway/src/routes/requests.ts)
+- [uploads.ts](<repo-root>/services/gateway/src/routes/uploads.ts)
+- [writeback.ts](<repo-root>/services/gateway/src/routes/writeback.ts)
+- [Code.gs](<repo-root>/apps/google-sheets-addon/src/Code.gs)
+- [Sidebar.js.html](<repo-root>/apps/google-sheets-addon/html/Sidebar.js.html)
+- [taskpane.js](<repo-root>/apps/excel-addin/src/taskpane/taskpane.js)
 
 ## Recommended review question
 

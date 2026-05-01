@@ -14,10 +14,10 @@ Scope:
 ## Current Supported Surface
 
 Source-evidenced from:
-- [packages/contracts/src/schemas.ts](/root/claude/hermes-spreadsheet-suite/packages/contracts/src/schemas.ts)
-- [services/gateway/src/routes/writeback.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/routes/writeback.ts)
-- [apps/excel-addin/src/taskpane/taskpane.js](/root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/taskpane.js)
-- [apps/google-sheets-addon/src/Code.gs](/root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/src/Code.gs)
+- [packages/contracts/src/schemas.ts](<repo-root>/packages/contracts/src/schemas.ts)
+- [services/gateway/src/routes/writeback.ts](<repo-root>/services/gateway/src/routes/writeback.ts)
+- [apps/excel-addin/src/taskpane/taskpane.js](<repo-root>/apps/excel-addin/src/taskpane/taskpane.js)
+- [apps/google-sheets-addon/src/Code.gs](<repo-root>/apps/google-sheets-addon/src/Code.gs)
 
 Already supported:
 - `chat`
@@ -123,7 +123,7 @@ Opus 4.7 identified these as the biggest expansion gaps for a practical spreadsh
 
 ## Recommended Contract Additions
 
-In [packages/contracts/src/schemas.ts](/root/claude/hermes-spreadsheet-suite/packages/contracts/src/schemas.ts):
+In [packages/contracts/src/schemas.ts](<repo-root>/packages/contracts/src/schemas.ts):
 
 1. Expand `CapabilitiesSchema`
 - `supportsConditionalFormat`
@@ -188,11 +188,11 @@ In [packages/contracts/src/schemas.ts](/root/claude/hermes-spreadsheet-suite/pac
 ## Gateway / Runtime / Render / Writeback Work
 
 Primary source files:
-- [services/gateway/src/hermes/runtimeRules.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/hermes/runtimeRules.ts)
-- [services/gateway/src/hermes/requestTemplate.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/hermes/requestTemplate.ts)
-- [services/gateway/src/routes/writeback.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/routes/writeback.ts)
-- [packages/shared-client/src/render.ts](/root/claude/hermes-spreadsheet-suite/packages/shared-client/src/render.ts)
-- [packages/shared-client/src/types.ts](/root/claude/hermes-spreadsheet-suite/packages/shared-client/src/types.ts)
+- [services/gateway/src/hermes/runtimeRules.ts](<repo-root>/services/gateway/src/hermes/runtimeRules.ts)
+- [services/gateway/src/hermes/requestTemplate.ts](<repo-root>/services/gateway/src/hermes/requestTemplate.ts)
+- [services/gateway/src/routes/writeback.ts](<repo-root>/services/gateway/src/routes/writeback.ts)
+- [packages/shared-client/src/render.ts](<repo-root>/packages/shared-client/src/render.ts)
+- [packages/shared-client/src/types.ts](<repo-root>/packages/shared-client/src/types.ts)
 
 Recommended changes:
 - Teach runtime rules and request template every new response type explicitly.

@@ -7,7 +7,7 @@
 - [x] Trimmed this pass down to findings that are still reproducible on `db683c4`.
 
 ## Current test blockers
-- [ ] Excel host suites still import the taskpane from an author-local path under `/root/claude/...`, so the Excel host tests cannot load the add-in module on this machine.
+- [ ] Excel host suites still import the taskpane from an author-local path under `<repo-root>`, so the Excel host tests cannot load the add-in module on this machine.
   Evidence: `services/gateway/tests/excelWave1Plans.test.ts:17`, `services/gateway/tests/excelWave2Plans.test.ts:6`, `services/gateway/tests/excelWave3Plans.test.ts:6`, `services/gateway/tests/excelWave4Plans.test.ts:6`, `services/gateway/tests/excelWave5Plans.test.ts:6`, `services/gateway/tests/excelWave6Plans.test.ts:6`
 - [ ] Invalid-response debug-artifact tests still enumerate `/tmp`, which resolves to `E:\tmp` on Windows and keeps the suite red before those assertions reach the code under test.
   Evidence: `services/gateway/tests/hermesClient.test.ts:2046-2127`

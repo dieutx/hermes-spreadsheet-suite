@@ -811,7 +811,7 @@ Expected:
 Run:
 
 ```bash
-cd /root/claude/hermes-spreadsheet-suite
+cd <repo-root>
 npm run dev:gateway
 ```
 

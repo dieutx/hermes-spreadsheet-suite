@@ -1199,9 +1199,9 @@ Expected: PASS with no regressions outside Wave 5.
 Run:
 
 ```bash
-node --check /root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/taskpane.js
-bash -lc 'awk "/<script>/{flag=1;next}/<\\/script>/{flag=0}flag" /root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/html/Sidebar.js.html > /tmp/hermes-wave5-sidebar.js && node --check /tmp/hermes-wave5-sidebar.js'
-bash -lc 'cp /root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/src/Code.gs /tmp/hermes-wave5-code-gs.js && node --check /tmp/hermes-wave5-code-gs.js'
+node --check <repo-root>/apps/excel-addin/src/taskpane/taskpane.js
+bash -lc 'awk "/<script>/{flag=1;next}/<\\/script>/{flag=0}flag" <repo-root>/apps/google-sheets-addon/html/Sidebar.js.html > /tmp/hermes-wave5-sidebar.js && node --check /tmp/hermes-wave5-sidebar.js'
+bash -lc 'cp <repo-root>/apps/google-sheets-addon/src/Code.gs /tmp/hermes-wave5-code-gs.js && node --check /tmp/hermes-wave5-code-gs.js'
 npm --workspace @hermes/gateway run build
 ```
 

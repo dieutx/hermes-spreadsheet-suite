@@ -6,19 +6,19 @@
 
 ## Still open
 - [ ] Excel dev manifest is still pinned to a local dev host.
-  Evidence: [apps/excel-addin/manifest.xml](/root/claude/hermes-spreadsheet-suite/apps/excel-addin/manifest.xml)
+  Evidence: [apps/excel-addin/manifest.xml](<repo-root>/apps/excel-addin/manifest.xml)
   Notes:
   - `SourceLocation`, icon URLs, and `Taskpane.Url` still point to `https://localhost:3000/...`
   - this is a portability blocker for local/shared-host scenarios, not a gateway contract bug
 
 - [ ] Invalid-response debug dumps are still hard-coded to `/tmp`.
-  Evidence: [services/gateway/src/lib/hermesClient.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/src/lib/hermesClient.ts)
+  Evidence: [services/gateway/src/lib/hermesClient.ts](<repo-root>/services/gateway/src/lib/hermesClient.ts)
   Notes:
   - `INVALID_HERMES_DEBUG_PREFIX` still uses `/tmp/hermes-spreadsheet-invalid`
   - this is a portability issue for Windows forensic/debug flows
 
 - [ ] Invalid-response debug tests still enumerate `/tmp`.
-  Evidence: [services/gateway/tests/hermesClient.test.ts](/root/claude/hermes-spreadsheet-suite/services/gateway/tests/hermesClient.test.ts)
+  Evidence: [services/gateway/tests/hermesClient.test.ts](<repo-root>/services/gateway/tests/hermesClient.test.ts)
   Notes:
   - tests still call `fs.readdir("/tmp")` and `fs.readFile("/tmp/...")`
   - this keeps the Windows-path blocker real in the test suite design

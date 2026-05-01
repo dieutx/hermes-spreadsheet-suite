@@ -943,9 +943,9 @@ Run:
 
 ```bash
 npm test -- services/gateway/tests/excelWave1Plans.test.ts services/gateway/tests/excelWritePlan.test.ts
-node --check /root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/structurePlan.js
-node --check /root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/sortFilterPlan.js
-node --check /root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/taskpane.js
+node --check <repo-root>/apps/excel-addin/src/taskpane/structurePlan.js
+node --check <repo-root>/apps/excel-addin/src/taskpane/sortFilterPlan.js
+node --check <repo-root>/apps/excel-addin/src/taskpane/taskpane.js
 ```
 
 Expected: PASS with valid syntax and typed result coverage.
@@ -1170,8 +1170,8 @@ Run:
 
 ```bash
 npm test -- services/gateway/tests/googleSheetsWave1Plans.test.ts
-bash -lc 'awk "/<script>/{flag=1;next}/<\\/script>/{flag=0}flag" /root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/html/Sidebar.js.html > /tmp/hermes-wave1-sidebar.js && node --check /tmp/hermes-wave1-sidebar.js'
-bash -lc 'cp /root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/src/Code.gs /tmp/hermes-wave1-code-gs.js && node --check /tmp/hermes-wave1-code-gs.js'
+bash -lc 'awk "/<script>/{flag=1;next}/<\\/script>/{flag=0}flag" <repo-root>/apps/google-sheets-addon/html/Sidebar.js.html > /tmp/hermes-wave1-sidebar.js && node --check /tmp/hermes-wave1-sidebar.js'
+bash -lc 'cp <repo-root>/apps/google-sheets-addon/src/Code.gs /tmp/hermes-wave1-code-gs.js && node --check /tmp/hermes-wave1-code-gs.js'
 ```
 
 Expected: PASS with valid Apps Script syntax and sidebar branching.
@@ -1229,11 +1229,11 @@ Expected: PASS with no regressions to existing request validation, upload, and h
 Run:
 
 ```bash
-node --check /root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/structurePlan.js
-node --check /root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/sortFilterPlan.js
-node --check /root/claude/hermes-spreadsheet-suite/apps/excel-addin/src/taskpane/taskpane.js
-bash -lc 'awk "/<script>/{flag=1;next}/<\\/script>/{flag=0}flag" /root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/html/Sidebar.js.html > /tmp/hermes-wave1-sidebar.js && node --check /tmp/hermes-wave1-sidebar.js'
-bash -lc 'cp /root/claude/hermes-spreadsheet-suite/apps/google-sheets-addon/src/Code.gs /tmp/hermes-wave1-code-gs.js && node --check /tmp/hermes-wave1-code-gs.js'
+node --check <repo-root>/apps/excel-addin/src/taskpane/structurePlan.js
+node --check <repo-root>/apps/excel-addin/src/taskpane/sortFilterPlan.js
+node --check <repo-root>/apps/excel-addin/src/taskpane/taskpane.js
+bash -lc 'awk "/<script>/{flag=1;next}/<\\/script>/{flag=0}flag" <repo-root>/apps/google-sheets-addon/html/Sidebar.js.html > /tmp/hermes-wave1-sidebar.js && node --check /tmp/hermes-wave1-sidebar.js'
+bash -lc 'cp <repo-root>/apps/google-sheets-addon/src/Code.gs /tmp/hermes-wave1-code-gs.js && node --check /tmp/hermes-wave1-code-gs.js'
 npm --workspace @hermes/gateway run build
 ```
 
