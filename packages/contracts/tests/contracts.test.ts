@@ -2821,6 +2821,23 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts named range affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = NamedRangeUpdateDataSchema.parse({
+      operation: "retarget",
+      name: "InputRange",
+      scope: "sheet",
+      sheetName: "Sheet1",
+      targetSheet: "Sheet1",
+      targetRange: "$B$2:$D$20",
+      explanation: "Retarget the named input block.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:D20"]
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sheet1!B2:D20"]);
+  });
+
   it("rejects sheet-scoped named ranges without sheetName", () => {
     const parsed = NamedRangeUpdateDataSchema.safeParse({
       operation: "delete",
