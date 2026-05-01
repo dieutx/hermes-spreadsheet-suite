@@ -1860,6 +1860,39 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(html).toContain("symbol CURRENCY:BTCUSD");
   });
 
+  it("fails closed when a Google Sheets external data formula references a different source URL", () => {
+    const sidebar = loadSidebarContext();
+
+    const response = {
+      type: "external_data_plan",
+      data: {
+        sourceType: "web_table_import",
+        provider: "importdata",
+        sourceUrl: "https://example.com/data.csv",
+        selectorType: "direct",
+        targetSheet: "Imports",
+        targetRange: "A1",
+        formula: '=IMPORTDATA("https://other.example/data.csv")',
+        explanation: "Import a public CSV into the sheet.",
+        confidence: 0.86,
+        requiresConfirmation: true,
+        affectedRanges: ["Imports!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(sidebar.isWritePlanResponse(response)).toBe(false);
+
+    const html = sidebar.renderStructuredPreview(response, {
+      runId: "run_external_data_preview_source_mismatch",
+      requestId: "req_external_data_preview_source_mismatch"
+    });
+
+    expect(html).toContain("Google Sheets external data formulas must reference sourceUrl.");
+    expect(html).not.toContain("Confirm External Data");
+  });
+
   it("renders exact-safe Google Sheets table-like previews and rejects unsupported totals rows", () => {
     const sidebar = loadSidebarContext();
     const response = {
@@ -6132,6 +6165,59 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     })).toThrow("Google Sheets host could not verify the applied external data formula.");
     expect(targetRange.setFormula).toHaveBeenCalledWith('=GOOGLEFINANCE("CURRENCY:BTCUSD","price")');
     expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("fails closed before applying an external data formula with a mismatched source URL", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1",
+      row: 1,
+      column: 1,
+      numRows: 1,
+      numColumns: 1
+    });
+    targetRange.setFormula = vi.fn();
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("A1");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getId() {
+        return "sheet-123";
+      },
+      getSheetByName(name: string) {
+        if (name === "Imports") {
+          return sheet;
+        }
+        return null;
+      }
+    };
+
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(() => code.applyWritePlan({
+      requestId: "req_external_data_apply_source_mismatch",
+      runId: "run_external_data_apply_source_mismatch",
+      approvalToken: "token",
+      plan: {
+        sourceType: "web_table_import",
+        provider: "importdata",
+        sourceUrl: "https://example.com/data.csv",
+        selectorType: "direct",
+        targetSheet: "Imports",
+        targetRange: "A1",
+        formula: '=IMPORTDATA("https://other.example/data.csv")',
+        explanation: "Import a public CSV into the sheet.",
+        confidence: 0.86,
+        requiresConfirmation: true,
+        affectedRanges: ["Imports!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    })).toThrow("Google Sheets external data formulas must reference sourceUrl.");
+
+    expect(targetRange.setFormula).not.toHaveBeenCalled();
   });
 
   it("applies Google Sheets table-like plans with banding and filters", () => {

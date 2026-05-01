@@ -2998,6 +2998,133 @@
     return "";
   }
 
+  function isBlockedExternalDataHostname(hostname) {
+    const normalized = String(hostname || "")
+      .replace(/^\[|\]$/g, "")
+      .replace(/\.+$/g, "")
+      .toLowerCase();
+    const ipv4Parts = normalized.split(".");
+    const ipv4Octets = ipv4Parts.length === 4
+      ? ipv4Parts.map((part) => (/^\d+$/.test(part) ? Number(part) : NaN))
+      : [];
+    const isPrivateIpv4 = ipv4Octets.length === 4 &&
+      ipv4Octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255) &&
+      (
+        ipv4Octets[0] === 0 ||
+        ipv4Octets[0] === 10 ||
+        ipv4Octets[0] === 127 ||
+        (ipv4Octets[0] === 169 && ipv4Octets[1] === 254) ||
+        (ipv4Octets[0] === 172 && ipv4Octets[1] >= 16 && ipv4Octets[1] <= 31) ||
+        (ipv4Octets[0] === 192 && ipv4Octets[1] === 168)
+      );
+
+    return normalized === "localhost" ||
+      normalized.endsWith(".localhost") ||
+      normalized === "localdomain" ||
+      normalized.endsWith(".localdomain") ||
+      normalized === "::1" ||
+      normalized === "0:0:0:0:0:0:0:1" ||
+      normalized === "internal" ||
+      normalized.startsWith("internal.") ||
+      normalized.endsWith(".internal") ||
+      normalized.endsWith(".local") ||
+      isPrivateIpv4;
+  }
+
+  function getPublicExternalDataUrlKey(value) {
+    const trimmed = String(value || "").trim();
+    try {
+      if (typeof URL === "function") {
+        const url = new URL(trimmed);
+        if (
+          (url.protocol !== "http:" && url.protocol !== "https:") ||
+          isBlockedExternalDataHostname(url.hostname)
+        ) {
+          return null;
+        }
+
+        return url.href;
+      }
+    } catch {
+      // Fall through to the lightweight parser used in Apps Script test sandboxes.
+    }
+
+    const match = trimmed.match(/^(https?):\/\/([^/?#\s]+)([^\s]*)$/i);
+    if (!match) {
+      return null;
+    }
+
+    const protocol = match[1].toLowerCase();
+    const authority = match[2].replace(/^[^@]*@/, "");
+    const hostname = authority.replace(/:\d+$/, "");
+    if (isBlockedExternalDataHostname(hostname)) {
+      return null;
+    }
+
+    return `${protocol}://${authority.toLowerCase()}${match[3] || ""}`;
+  }
+
+  function extractExternalDataHttpUrls(value) {
+    return String(value || "").match(/https?:\/\/[^\s"'`<>)\]}]+/gi) || [];
+  }
+
+  function extractExternalDataFormulaSourceUrlKeys(formula, functionName) {
+    const pattern = new RegExp(`\\b${functionName}\\s*\\(\\s*(["'])(.*?)\\1`, "gi");
+    const keys = [];
+    let match = pattern.exec(String(formula || ""));
+    while (match) {
+      const key = getPublicExternalDataUrlKey(match[2]);
+      if (key) {
+        keys.push(key);
+      }
+      match = pattern.exec(String(formula || ""));
+    }
+    return keys;
+  }
+
+  function getExternalDataProviderFunctionName(provider) {
+    switch (provider) {
+      case "importhtml":
+        return "IMPORTHTML";
+      case "importxml":
+        return "IMPORTXML";
+      case "importdata":
+        return "IMPORTDATA";
+      default:
+        return "";
+    }
+  }
+
+  function getGoogleSheetsExternalDataFormulaSourceError(preview) {
+    const sourceUrlKey = getPublicExternalDataUrlKey(preview.sourceUrl);
+    if (!sourceUrlKey) {
+      return "Choose a public HTTP(S) source URL for the web import first.";
+    }
+
+    const formulaUrls = extractExternalDataHttpUrls(preview.formula);
+    if (formulaUrls.some((url) => !getPublicExternalDataUrlKey(url))) {
+      return "Google Sheets external data formulas must use public HTTP(S) URLs.";
+    }
+
+    const functionName = getExternalDataProviderFunctionName(preview.provider);
+    if (!functionName) {
+      return "This Google Sheets flow can't import that external source exactly.";
+    }
+
+    const providerSourceKeys = extractExternalDataFormulaSourceUrlKeys(preview.formula, functionName);
+    const allWebImportSourceKeys = ["IMPORTHTML", "IMPORTXML", "IMPORTDATA"].flatMap((name) =>
+      extractExternalDataFormulaSourceUrlKeys(preview.formula, name)
+    );
+    if (
+      !providerSourceKeys.some((key) => key === sourceUrlKey) ||
+      allWebImportSourceKeys.some((key) => key !== sourceUrlKey)
+    ) {
+      return "Google Sheets external data formulas must reference sourceUrl.";
+    }
+
+    return "";
+  }
+
   function getGoogleSheetsPlanSupportError(preview) {
     if (!preview) {
       return "";
@@ -3137,9 +3264,10 @@
           if (!Number.isInteger(preview.selector) || Number(preview.selector) < 1) {
             return "IMPORTHTML requires a positive table or list index.";
           }
-          return /IMPORTHTML\s*\(/i.test(preview.formula)
-            ? ""
-            : "Google Sheets web table imports using IMPORTHTML must contain IMPORTHTML(...).";
+          if (!/IMPORTHTML\s*\(/i.test(preview.formula)) {
+            return "Google Sheets web table imports using IMPORTHTML must contain IMPORTHTML(...).";
+          }
+          return getGoogleSheetsExternalDataFormulaSourceError(preview);
         }
 
         if (preview.provider === "importxml") {
@@ -3149,9 +3277,10 @@
           if (typeof preview.selector !== "string" || !preview.selector.trim()) {
             return "IMPORTXML requires an xpath selector.";
           }
-          return /IMPORTXML\s*\(/i.test(preview.formula)
-            ? ""
-            : "Google Sheets XML imports must contain IMPORTXML(...).";
+          if (!/IMPORTXML\s*\(/i.test(preview.formula)) {
+            return "Google Sheets XML imports must contain IMPORTXML(...).";
+          }
+          return getGoogleSheetsExternalDataFormulaSourceError(preview);
         }
 
         if (preview.provider === "importdata") {
@@ -3161,9 +3290,10 @@
           if (preview.selector !== undefined) {
             return "IMPORTDATA does not use a selector.";
           }
-          return /IMPORTDATA\s*\(/i.test(preview.formula)
-            ? ""
-            : "Google Sheets direct imports must contain IMPORTDATA(...).";
+          if (!/IMPORTDATA\s*\(/i.test(preview.formula)) {
+            return "Google Sheets direct imports must contain IMPORTDATA(...).";
+          }
+          return getGoogleSheetsExternalDataFormulaSourceError(preview);
         }
 
         return "This Google Sheets flow can't import that external source exactly.";
