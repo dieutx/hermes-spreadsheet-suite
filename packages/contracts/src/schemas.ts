@@ -868,7 +868,7 @@ export const RangeFilterPlanDataSchema = strictObject({
   targetRange: A1TargetRangeSchema,
   hasHeader: z.boolean(),
   conditions: z.array(RangeFilterConditionSchema).min(1).max(10),
-  combiner: z.enum(["and", "or"]),
+  combiner: z.literal("and"),
   clearExistingFilters: z.boolean(),
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),

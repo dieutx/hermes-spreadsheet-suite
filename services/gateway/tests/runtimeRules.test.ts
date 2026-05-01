@@ -44,6 +44,11 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('validation plans that preserve existing validation require data.confirmationLevel="standard"');
   });
 
+  it("documents exact-safe range filter combiner support", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("data.combiner is required and must be and");
+    expect(SPREADSHEET_RUNTIME_RULES).not.toContain("and or or");
+  });
+
   it("makes reviewer-safe unavailable map to a concrete error response", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("EXTRACTION_UNAVAILABLE");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('prefer type="error"');
