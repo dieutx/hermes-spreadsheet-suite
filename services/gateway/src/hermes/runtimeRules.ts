@@ -403,6 +403,7 @@ For type="external_data_plan":
   - provider must be googlefinance
   - data.query.symbol is required
   - formula must contain GOOGLEFINANCE(...)
+  - formula must use literal GOOGLEFINANCE arguments that match data.query symbol, attribute, startDate, endDate, and interval when present
 - for web_table_import:
   - provider must be importhtml, importxml, or importdata
   - data.sourceUrl is required

@@ -461,6 +461,40 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.affectedRanges).toEqual(["Market Data!B2"]);
   });
 
+  it("rejects market data formulas that do not match query fields", () => {
+    const basePlan = {
+      sourceType: "market_data",
+      provider: "googlefinance",
+      targetSheet: "Markets",
+      targetRange: "B2",
+      explanation: "Load Google Finance data.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Markets!B2"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      query: {
+        symbol: "NASDAQ:GOOG",
+        attribute: "price"
+      }
+    } as const;
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=GOOGLEFINANCE("NYSE:IBM","price")'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=GOOGLEFINANCE("NASDAQ:GOOG","volume")'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=GOOGLEFINANCE(A1,"price")'
+    }).success).toBe(false);
+  });
+
   it("rejects composite plans that fail to escalate destructive confirmation", () => {
     const parsed = CompositePlanDataSchema.safeParse({
       steps: [

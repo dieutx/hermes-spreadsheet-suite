@@ -1331,6 +1331,93 @@ function extractWebImportFormulaSourceUrlKeys(formula: string): string[] {
   );
 }
 
+function extractFormulaFunctionArguments(formula: string, functionName: string): string[] | null {
+  const pattern = new RegExp(String.raw`\b${functionName}\s*\(`, "i");
+  const match = pattern.exec(formula);
+  if (!match) {
+    return null;
+  }
+
+  const args: string[] = [];
+  let current = "";
+  let depth = 0;
+  let inString = false;
+
+  for (let index = match.index + match[0].length; index < formula.length; index += 1) {
+    const char = formula[index];
+    if (inString) {
+      current += char;
+      if (char === "\"") {
+        if (formula[index + 1] === "\"") {
+          current += formula[index + 1];
+          index += 1;
+        } else {
+          inString = false;
+        }
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      current += char;
+      continue;
+    }
+
+    if (char === "(") {
+      depth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ")") {
+      if (depth === 0) {
+        args.push(current.trim());
+        return args;
+      }
+      depth -= 1;
+      current += char;
+      continue;
+    }
+
+    if (char === "," && depth === 0) {
+      args.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  return null;
+}
+
+function parseSpreadsheetFormulaStringLiteral(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.length < 2 || !trimmed.startsWith("\"") || !trimmed.endsWith("\"")) {
+    return null;
+  }
+
+  let parsed = "";
+  for (let index = 1; index < trimmed.length - 1; index += 1) {
+    const char = trimmed[index];
+    if (char !== "\"") {
+      parsed += char;
+      continue;
+    }
+
+    if (trimmed[index + 1] === "\"" && index + 1 < trimmed.length - 1) {
+      parsed += "\"";
+      index += 1;
+      continue;
+    }
+
+    return null;
+  }
+
+  return parsed;
+}
+
 const MarketDataPlanSchema = strictObject({
   ...ExternalDataPlanSharedFields,
   sourceType: z.literal("market_data"),
@@ -1411,6 +1498,39 @@ export const ExternalDataPlanDataSchema = z.union([
         message: "market_data formulas must contain GOOGLEFINANCE(...).",
         path: ["formula"]
       });
+    }
+
+    const args = extractFormulaFunctionArguments(data.formula, "GOOGLEFINANCE");
+    const expectedArgs: Array<[number, string | undefined, string]> = [
+      [0, data.query.symbol, "symbol"],
+      [1, data.query.attribute, "attribute"],
+      [2, data.query.startDate, "startDate"],
+      [3, data.query.endDate, "endDate"],
+      [4, data.query.interval, "interval"]
+    ];
+
+    if (!args) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "market_data formulas must expose literal GOOGLEFINANCE query arguments.",
+        path: ["formula"]
+      });
+    } else {
+      for (const [index, expected, fieldName] of expectedArgs) {
+        if (expected === undefined) {
+          continue;
+        }
+
+        const actual = parseSpreadsheetFormulaStringLiteral(args[index]);
+        if (actual !== expected.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `market_data formula must match query.${fieldName}.`,
+            path: ["formula"]
+          });
+          break;
+        }
+      }
     }
     return;
   }
