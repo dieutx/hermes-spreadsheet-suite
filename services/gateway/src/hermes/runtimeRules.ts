@@ -144,6 +144,8 @@ For type="conditional_format_plan":
 - replace_all_on_target removes existing target rules before applying the new rule
 - conditional formatting is distinct from range_format_update
 - use conditional_format_plan for highlight, duplicate-marking, threshold-coloring, date-based rules, color scales, and clear conditional formatting requests
+- number_compare values must be finite numbers
+- date_compare values must be valid YYYY-MM-DD literals
 - honor host-exact semantics for supported conditional-format mappings
 - if the requested conditional-format behavior cannot be represented exactly on the current host, return type="error" with data.code="UNSUPPORTED_OPERATION"
 - unsupported mappings must fail closed

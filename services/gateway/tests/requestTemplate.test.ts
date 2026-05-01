@@ -57,6 +57,8 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("supportsNoteWrites");
     expect(prompt).toContain("data.name must start with a letter or underscore");
     expect(prompt).toContain("For color_scale, points are ordered minimum, optional midpoint, maximum");
+    expect(prompt).toContain("number_compare values must be finite numbers");
+    expect(prompt).toContain("date_compare values must be valid YYYY-MM-DD literals");
   });
 
   it("includes a host capability matrix for Google Sheets planning", () => {

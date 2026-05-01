@@ -93,6 +93,8 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("use range_format_update for static numberFormat changes");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("host-exact");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("unsupported mappings must fail closed");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("number_compare values must be finite numbers");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("date_compare values must be valid YYYY-MM-DD literals");
   });
 
   it("documents wave-4 transfer and cleanup plan families with destructive confirmation rules", () => {
