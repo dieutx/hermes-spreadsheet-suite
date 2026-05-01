@@ -8165,6 +8165,7 @@ function getStructuredPreview(response) {
         explanation: response.data.explanation,
         confidence: response.data.confidence,
         requiresConfirmation: response.data.requiresConfirmation,
+        confirmationLevel: response.data.confirmationLevel || (response.data.replacesExistingValidation ? "destructive" : "standard"),
         affectedRanges: response.data.affectedRanges,
         summary: getDataValidationStatusSummary(response.data)
       };
@@ -9159,6 +9160,7 @@ function renderStructuredPreview(response, message) {
           ${preview.allowBlank ? " • allow blank" : " • no blank"}
           • ${escapeHtml(preview.invalidDataBehavior)}
           ${preview.replacesExistingValidation ? " • replaces existing validation" : ""}
+          ${preview.confirmationLevel ? ` • ${escapeHtml(preview.confirmationLevel)}` : ""}
         </div>
         <div>${escapeHtml(preview.explanation)}</div>
         ${preview.formula ? `<div class="preview-meta">${escapeHtml(preview.formula)}</div>` : ""}
