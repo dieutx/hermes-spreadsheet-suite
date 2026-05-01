@@ -973,6 +973,7 @@ describe("structured body normalization", () => {
         targetSheet: "Support",
         targetRange: "G2:G50",
         managementMode: "replace_all_on_target",
+        confirmationLevel: "destructive",
         replacesExistingRules: true,
         ruleType: "custom_formula",
         formula: '=$G2="Breached"',
@@ -1067,7 +1068,8 @@ describe("structured body normalization", () => {
     expect(conditionalFormat).toMatchObject({
       type: "conditional_format_plan",
       data: {
-        comparator: "less_than_or_equal_to"
+        comparator: "less_than_or_equal_to",
+        confirmationLevel: "standard"
       }
     });
     expect(() => HermesStructuredBodySchema.parse(conditionalFormat)).not.toThrow();

@@ -2721,6 +2721,7 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.96,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "destructive",
       replacesExistingRules: true
     });
 
@@ -2743,6 +2744,7 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.92,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "standard",
       replacesExistingRules: false
     });
 
@@ -2760,6 +2762,22 @@ describe("Hermes spreadsheet contracts", () => {
       },
       explanation: "Invalid clear plan.",
       confidence: 0.4,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "destructive",
+      replacesExistingRules: true
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects conditional format clears without destructive confirmation", () => {
+    const parsed = ConditionalFormatPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      managementMode: "clear_on_target",
+      explanation: "Clear existing conditional formatting rules.",
+      confidence: 0.93,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:B20"],
       replacesExistingRules: true
@@ -2792,6 +2810,7 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.9,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "destructive",
       replacesExistingRules: true
     });
 
@@ -2813,6 +2832,7 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.91,
       requiresConfirmation: true,
       affectedRanges: ["Summary!A2:D20"],
+      confirmationLevel: "standard",
       replacesExistingRules: false
     });
 
@@ -2834,6 +2854,7 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.96,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "standard",
       replacesExistingRules: false
     });
 
@@ -2885,6 +2906,7 @@ describe("Hermes spreadsheet contracts", () => {
         confidence: 0.96,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "destructive",
         replacesExistingRules: true
       }
     });

@@ -131,6 +131,7 @@ describe("Excel wave 3 conditional-format plans", () => {
         confidence: 0.94,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "destructive",
         replacesExistingRules: true
       }
     };
@@ -145,6 +146,7 @@ describe("Excel wave 3 conditional-format plans", () => {
       targetSheet: "Sheet1",
       targetRange: "B2:B20",
       managementMode: "replace_all_on_target",
+      confirmationLevel: "destructive",
       ruleType: "text_contains"
     });
 
@@ -155,7 +157,25 @@ describe("Excel wave 3 conditional-format plans", () => {
 
     expect(html).toContain("Confirm Conditional Formatting");
     expect(html).toContain("replace_all_on_target");
+    expect(html).toContain("destructive");
     expect(html).toContain("text_contains");
+
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
+    expect(taskpane.buildWriteApprovalRequest({
+      requestId: "req_conditional_format_preview",
+      runId: "run_conditional_format_preview",
+      plan: taskpane.getStructuredPreview(response)
+    })).toMatchObject({
+      requestId: "req_conditional_format_preview",
+      runId: "run_conditional_format_preview",
+      destructiveConfirmation: { confirmed: true },
+      plan: {
+        kind: "conditional_format_plan",
+        confirmationLevel: "destructive"
+      }
+    });
+    expect(confirm).toHaveBeenCalledTimes(1);
   });
 
   it("renders color scale conditional-format previews as confirmable in Excel", async () => {
@@ -179,6 +199,7 @@ describe("Excel wave 3 conditional-format plans", () => {
         confidence: 0.91,
         requiresConfirmation: true,
         affectedRanges: ["Summary!A2:D20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       }
     };
@@ -284,6 +305,7 @@ describe("Excel wave 3 conditional-format plans", () => {
         confidence: 0.94,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "destructive",
         replacesExistingRules: true
       },
       requestId: "req_conditional_format_apply_001",
@@ -361,6 +383,7 @@ describe("Excel wave 3 conditional-format plans", () => {
         confidence: 0.94,
         requiresConfirmation: true,
         affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "destructive",
         replacesExistingRules: true
       },
       requestId: "req_conditional_format_snapshot_excel_001",
@@ -441,7 +464,8 @@ describe("Excel wave 3 conditional-format plans", () => {
         },
         explanation: "Highlight overdue rows.",
         confidence: 0.94,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       },
       requestId: "req_conditional_format_no_snapshot_excel_001",
       runId: "run_conditional_format_no_snapshot_excel_001",
@@ -507,6 +531,7 @@ describe("Excel wave 3 conditional-format plans", () => {
         confidence: 0.91,
         requiresConfirmation: true,
         affectedRanges: ["Summary!A2:D20"],
+        confirmationLevel: "standard",
         replacesExistingRules: false
       },
       requestId: "req_conditional_color_scale_apply_001",

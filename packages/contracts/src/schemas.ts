@@ -2247,6 +2247,7 @@ const ConditionalFormatPlanSharedFields = {
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
   affectedRanges: z.array(z.string().min(1).max(128)).min(1).max(10),
+  confirmationLevel: ConfirmationLevelSchema,
   replacesExistingRules: z.boolean()
 } satisfies z.ZodRawShape;
 
@@ -2463,6 +2464,19 @@ export const ConditionalFormatPlanDataSchema = z.union([
       code: z.ZodIssueCode.custom,
       message: "affectedRanges must include the qualified target range.",
       path: ["affectedRanges"]
+    });
+  }
+
+  const isDestructive =
+    data.managementMode === "replace_all_on_target" ||
+    data.managementMode === "clear_on_target";
+  if (data.confirmationLevel !== (isDestructive ? "destructive" : "standard")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: isDestructive
+        ? "Conditional-format replace and clear plans require destructive confirmation."
+        : "Conditional-format add plans require standard confirmation.",
+      path: ["confirmationLevel"]
     });
   }
 });

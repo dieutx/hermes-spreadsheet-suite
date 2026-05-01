@@ -8135,6 +8135,7 @@ function getStructuredPreview(response) {
         confidence: response.data.confidence,
         requiresConfirmation: response.data.requiresConfirmation,
         affectedRanges: response.data.affectedRanges,
+        confirmationLevel: response.data.confirmationLevel,
         replacesExistingRules: response.data.replacesExistingRules,
         summary: getConditionalFormatPreviewSummary(response.data)
       };
@@ -9126,6 +9127,7 @@ function renderStructuredPreview(response, message) {
         <div class="preview-meta">
           ${escapeHtml(preview.targetSheet)}!${escapeHtml(preview.targetRange)}
           ${conditionalFields ? ` • ${escapeHtml(conditionalFields)}` : ""}
+          ${preview.confirmationLevel ? ` • ${escapeHtml(preview.confirmationLevel)}` : ""}
         </div>
         <div>${escapeHtml(preview.explanation)}</div>
         <div class="preview-meta">${escapeHtml(preview.summary)}</div>

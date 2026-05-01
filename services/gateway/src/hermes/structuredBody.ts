@@ -1394,6 +1394,7 @@ function normalizeConditionalFormatPlanData(value: unknown): unknown {
     "confidence",
     "requiresConfirmation",
     "affectedRanges",
+    "confirmationLevel",
     "replacesExistingRules",
     "managementMode",
     "ruleType",
@@ -1521,6 +1522,14 @@ function normalizeConditionalFormatPlanData(value: unknown): unknown {
     if (targetRef) {
       normalized.affectedRanges = [targetRef];
     }
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel =
+      normalized.managementMode === "replace_all_on_target" ||
+      normalized.managementMode === "clear_on_target"
+        ? "destructive"
+        : "standard";
   }
 
   return normalized;
