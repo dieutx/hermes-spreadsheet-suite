@@ -2277,11 +2277,16 @@ export const ConditionalFormatPlanDataSchema = z.union([
     })
   ])
 ]).superRefine((data, ctx) => {
-  const targetRefs = new Set([`${data.targetSheet}!${data.targetRange}`, data.targetRange]);
-  if (!data.affectedRanges.some((range) => targetRefs.has(range))) {
+  const targetRef = normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange);
+  const affectedRanges = new Set(
+    data.affectedRanges
+      .map((value) => normalizeAffectedA1RangeRef(value))
+      .filter((value): value is string => value !== null)
+  );
+  if (targetRef !== null && !affectedRanges.has(targetRef)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "affectedRanges must include the target range.",
+      message: "affectedRanges must include the qualified target range.",
       path: ["affectedRanges"]
     });
   }
