@@ -758,6 +758,16 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain('Prefer type="chart_plan"');
   });
 
+  it("requires categoryField in chart plan contract guidance", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Create a line chart of revenue by month on a new sheet."
+    }));
+
+    expect(prompt).toContain("data.chartType, data.categoryField, data.series");
+    expect(prompt).toContain("categoryField must reference the source header used for the category axis");
+    expect(prompt).not.toContain("Use categoryField when the chart should use a named category axis");
+  });
+
   it("keeps advisory chart how-to prompts on the chat path", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "Explain how to create a line chart for this data."

@@ -1698,6 +1698,28 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.verticalAxisTitle).toBe("USD");
   });
 
+  it("rejects chart plans that omit the category field", () => {
+    const parsed = ChartPlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:C20",
+      targetSheet: "Sales Chart",
+      targetRange: "A1",
+      chartType: "line",
+      series: [
+        { field: "Revenue", label: "Revenue" }
+      ],
+      title: "Revenue",
+      explanation: "Chart monthly revenue.",
+      confidence: 0.93,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a table plan with native table options", () => {
     const parsed = TablePlanDataSchema.parse({
       targetSheet: "Sales",
