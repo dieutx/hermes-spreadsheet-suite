@@ -1221,6 +1221,166 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
+  it("attaches undo snapshots for Google Sheets pivot table creation", () => {
+    const anchorRange = createRangeStub({
+      a1Notation: "A1",
+      row: 1,
+      column: 1,
+      numRows: 1,
+      numColumns: 1,
+      values: [[""]]
+    });
+    const sourceRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6,
+      displayValues: [
+        ["Region", "Rep", "Quarter", "Revenue", "Status", "Deals"]
+      ]
+    });
+    const pivotTables: Array<Record<string, unknown>> = [];
+    const pivotTable = {
+      getAnchorCell: vi.fn(() => anchorRange),
+      remove: vi.fn(() => {
+        pivotTables.splice(0, pivotTables.length);
+      }),
+      addRowGroup: vi.fn(),
+      addColumnGroup: vi.fn(),
+      addPivotValue: vi.fn(),
+      addFilter: vi.fn()
+    };
+    anchorRange.createPivotTable = vi.fn(() => {
+      pivotTables.push(pivotTable);
+      return pivotTable;
+    });
+
+    const targetSheet = {
+      getRange: vi.fn(() => anchorRange),
+      getPivotTables: vi.fn(() => pivotTables)
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "Sales") {
+          return { getRange: vi.fn(() => sourceRange) };
+        }
+        if (sheetName === "Sales Pivot") {
+          return targetSheet;
+        }
+        return null;
+      })
+    };
+    const plan = {
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      columnGroups: [],
+      valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+      filters: [],
+      explanation: "Build a pivot table by region.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    };
+
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+    const result = applyWritePlan({
+      plan,
+      executionId: "exec_pivot_snapshot_sheets_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "pivot_table_update",
+      operation: "pivot_table_update",
+      hostPlatform: "google_sheets",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_pivot_snapshot_sheets_001",
+        kind: "pivot_table",
+        targetSheet: "Sales Pivot",
+        targetRange: "A1",
+        before: {
+          exists: false,
+          targetRange: "A1"
+        },
+        after: {
+          exists: true,
+          targetRange: "A1"
+        },
+        plan
+      }
+    });
+    expect(targetSheet.getPivotTables).toHaveBeenCalledTimes(1);
+    expect(anchorRange.createPivotTable).toHaveBeenCalledWith(sourceRange);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects pivot undo snapshots when the Google Sheets anchor is not blank", () => {
+    const anchorRange = createRangeStub({
+      a1Notation: "A1",
+      row: 1,
+      column: 1,
+      numRows: 1,
+      numColumns: 1,
+      values: [["Existing"]]
+    });
+    const sourceRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6,
+      displayValues: [
+        ["Region", "Rep", "Quarter", "Revenue", "Status", "Deals"]
+      ]
+    });
+    anchorRange.createPivotTable = vi.fn();
+
+    const targetSheet = {
+      getRange: vi.fn(() => anchorRange),
+      getPivotTables: vi.fn(() => [])
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "Sales") {
+          return { getRange: vi.fn(() => sourceRange) };
+        }
+        if (sheetName === "Sales Pivot") {
+          return targetSheet;
+        }
+        return null;
+      })
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    expect(() => applyWritePlan({
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        targetSheet: "Sales Pivot",
+        targetRange: "A1",
+        rowGroups: ["Region"],
+        columnGroups: [],
+        valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+        filters: [],
+        explanation: "Build a pivot table by region.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      },
+      executionId: "exec_pivot_snapshot_nonblank_sheets_001"
+    })).toThrow("Google Sheets host requires a blank pivot table target anchor for exact undo.");
+    expect(anchorRange.createPivotTable).not.toHaveBeenCalled();
+  });
+
   it("applies bounded numeric pivot filters through Code.gs", () => {
     const anchorRange = createRangeStub({
       a1Notation: "A1",
@@ -1299,6 +1459,72 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
       ],
       summary: "Created pivot table on Sales Pivot!A1."
     });
+  });
+
+  it("applies Google Sheets pivot table snapshots on the server", () => {
+    const anchorRange = createRangeStub({
+      a1Notation: "A1",
+      row: 1,
+      column: 1,
+      numRows: 1,
+      numColumns: 1,
+      values: [[""]]
+    });
+    const pivotTables: Array<Record<string, unknown>> = [];
+    const pivotTable = {
+      getAnchorCell: vi.fn(() => anchorRange),
+      remove: vi.fn(() => {
+        pivotTables.splice(0, pivotTables.length);
+      })
+    };
+    pivotTables.push(pivotTable);
+    const targetSheet = {
+      getRange: vi.fn(() => anchorRange),
+      getPivotTables: vi.fn(() => pivotTables)
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales Pivot");
+        return targetSheet;
+      })
+    };
+    const { validateExecutionCellSnapshot, applyExecutionCellSnapshot, flush } = loadCodeModule({ spreadsheet });
+    const snapshot = {
+      kind: "pivot_table",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      from: {
+        exists: true,
+        targetRange: "A1"
+      },
+      to: {
+        exists: false,
+        targetRange: "A1"
+      },
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        targetSheet: "Sales Pivot",
+        targetRange: "A1",
+        rowGroups: ["Region"],
+        columnGroups: [],
+        valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+        filters: []
+      }
+    };
+
+    expect(validateExecutionCellSnapshot(snapshot)).toEqual({
+      ok: true,
+      targetSheet: "Sales Pivot",
+      targetRange: "A1"
+    });
+    expect(applyExecutionCellSnapshot(snapshot)).toEqual({
+      ok: true,
+      targetSheet: "Sales Pivot",
+      targetRange: "A1"
+    });
+    expect(pivotTable.remove).toHaveBeenCalledTimes(1);
+    expect(flush).toHaveBeenCalledTimes(1);
   });
 
   it("uses Wave 5 update summaries for sidebar status and response text", () => {
