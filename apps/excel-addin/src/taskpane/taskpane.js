@@ -9945,9 +9945,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const actualTargetRange = buildA1RangeFromBounds(
         deriveTransferTargetBounds(plan, resolvedTargetRange)
       );
-      const canSnapshotCopyTransfer = plan.operation === "copy" && plan.pasteMode !== "formats";
+      const canSnapshotTargetOnlyTransfer =
+        (plan.operation === "copy" || plan.operation === "append") && plan.pasteMode !== "formats";
       const canSnapshotCellMoveTransfer = plan.operation === "move" && plan.pasteMode !== "formats";
-      const shouldSnapshotTargetCells = canSnapshotCopyTransfer || canSnapshotCellMoveTransfer;
+      const shouldSnapshotTargetCells = canSnapshotTargetOnlyTransfer || canSnapshotCellMoveTransfer;
       const beforeValues = shouldSnapshotTargetCells ? cloneMatrix(resolvedTargetRange.values) : null;
       const beforeFormulas = shouldSnapshotTargetCells ? cloneMatrix(resolvedTargetRange.formulas) : null;
       const beforeSourceValues = canSnapshotCellMoveTransfer ? cloneMatrix(sourceRange.values) : null;
@@ -9984,7 +9985,7 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         })
       };
 
-      return canSnapshotCopyTransfer
+      return canSnapshotTargetOnlyTransfer
         ? attachLocalExecutionSnapshot(result, createLocalExecutionSnapshot({
             executionId,
             targetSheet: plan.targetSheet,

@@ -1145,6 +1145,113 @@ describe("Excel wave 4 transfer and cleanup plans", () => {
     ]);
   });
 
+  it("attaches an undo snapshot for Excel value append transfers", async () => {
+    const sourceRange = createRangeStub({
+      address: "RawData!A2:B3",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["Ada", "Lovelace"],
+        ["Grace", "Hopper"]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ]
+    });
+    const targetRange = createRangeStub({
+      address: "Archive!D5:E6",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["Old", "Target"],
+        ["Keep", "Safe"]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ]
+    });
+
+    const worksheets = {
+      getItem: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return {
+            getRange: vi.fn((rangeName: string) => {
+              expect(rangeName).toBe("A2:B3");
+              return sourceRange;
+            })
+          };
+        }
+
+        expect(sheetName).toBe("Archive");
+        return {
+          getRange: vi.fn((rangeName: string) => {
+            expect(rangeName).toBe("D5:E6");
+            return targetRange;
+          })
+        };
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: { worksheets }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B3",
+        targetSheet: "Archive",
+        targetRange: "D5:E6",
+        operation: "append",
+        pasteMode: "values",
+        transpose: false,
+        explanation: "Append finalized rows into the archive block.",
+        confidence: 0.93,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B3", "Archive!D5:E6"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      requestId: "req_range_transfer_append_undo_excel_001",
+      runId: "run_range_transfer_append_undo_excel_001",
+      approvalToken: "token",
+      executionId: "exec_range_transfer_append_undo_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      hostPlatform: "excel_windows",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B3",
+      targetSheet: "Archive",
+      targetRange: "D5:E6",
+      transferOperation: "append",
+      pasteMode: "values",
+      transpose: false,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_append_undo_excel_001",
+        targetSheet: "Archive",
+        targetRange: "D5:E6",
+        beforeCells: [
+          [{ kind: "value", value: { type: "string", value: "Old" } }, { kind: "value", value: { type: "string", value: "Target" } }],
+          [{ kind: "value", value: { type: "string", value: "Keep" } }, { kind: "value", value: { type: "string", value: "Safe" } }]
+        ],
+        afterCells: [
+          [{ kind: "value", value: { type: "string", value: "Ada" } }, { kind: "value", value: { type: "string", value: "Lovelace" } }],
+          [{ kind: "value", value: { type: "string", value: "Grace" } }, { kind: "value", value: { type: "string", value: "Hopper" } }]
+        ]
+      }
+    });
+    expect(targetRange.values).toEqual([
+      ["Ada", "Lovelace"],
+      ["Grace", "Hopper"]
+    ]);
+    expect(sourceRange.clear).not.toHaveBeenCalled();
+  });
+
   it("rejects value appends in Excel when targetRange is a one-row anchor", async () => {
     const sourceRange = createRangeStub({
       address: "RawData!A2:B3",
