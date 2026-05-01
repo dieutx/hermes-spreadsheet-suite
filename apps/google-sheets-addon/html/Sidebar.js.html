@@ -255,6 +255,10 @@
     return snapshot && snapshot.kind === "range_filter";
   }
 
+  function isRangeBandingLocalExecutionSnapshot(snapshot) {
+    return snapshot && snapshot.kind === "range_banding";
+  }
+
   function isRangeMergeLocalExecutionSnapshot(snapshot) {
     return snapshot && snapshot.kind === "range_merge";
   }
@@ -360,6 +364,16 @@
         targetSheet: entry.targetSheet,
         targetRange: entry.targetRange,
         filter: mode === "undo" ? entry.beforeFilter : entry.afterFilter
+      };
+    }
+
+    if (isRangeBandingLocalExecutionSnapshot(entry)) {
+      return {
+        kind: "range_banding",
+        targetSheet: entry.targetSheet,
+        targetRange: entry.targetRange,
+        from: mode === "undo" ? entry.afterBanding : entry.beforeBanding,
+        to: mode === "undo" ? entry.beforeBanding : entry.afterBanding
       };
     }
 
