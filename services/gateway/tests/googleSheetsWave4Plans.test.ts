@@ -1639,7 +1639,119 @@ describe("Google Sheets wave 4 transfer and cleanup plans", () => {
         }
       }
     });
+    expect(sourceRange.copyTo).toHaveBeenCalledWith(targetRange, "PASTE_FORMAT", false);
     expect(sourceRange.copyTo).toHaveBeenCalledTimes(1);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("attaches an undo snapshot for Google Sheets format append transfers", () => {
+    const sourceRange = createRangeStub({
+      a1Notation: "A2:B2",
+      row: 2,
+      column: 1,
+      numRows: 1,
+      numColumns: 2,
+      values: [["Ada", "Lovelace"]],
+      format: {
+        backgrounds: [["#ff0000", "#00ff00"]],
+        fontColors: [["#ffffff", "#111111"]],
+        fontWeights: [["bold", "normal"]],
+        numberFormats: [["$#,##0", "0.00%"]]
+      }
+    });
+    const targetRange = createRangeStub({
+      a1Notation: "F5:G5",
+      row: 5,
+      column: 6,
+      numRows: 1,
+      numColumns: 2,
+      values: [["", ""]],
+      format: {
+        backgrounds: [["#ffffff", "#eeeeee"]],
+        fontColors: [["#000000", "#444444"]],
+        fontWeights: [["normal", "normal"]],
+        numberFormats: [["General", "General"]]
+      }
+    });
+
+    const sourceSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("A2:B2");
+        return sourceRange;
+      })
+    };
+    const targetSheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("F5:G5");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "RawData") {
+          return sourceSheet;
+        }
+
+        expect(sheetName).toBe("Report");
+        return targetSheet;
+      })
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        sourceSheet: "RawData",
+        sourceRange: "A2:B2",
+        targetSheet: "Report",
+        targetRange: "F5:G5",
+        operation: "append",
+        pasteMode: "formats",
+        transpose: false,
+        explanation: "Append the source formatting into the report block.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["RawData!A2:B2", "Report!F5:G5"],
+        overwriteRisk: "medium",
+        confirmationLevel: "destructive"
+      },
+      executionId: "exec_range_transfer_format_append_undo_sheets_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "range_transfer_update",
+      operation: "range_transfer_update",
+      hostPlatform: "google_sheets",
+      sourceSheet: "RawData",
+      sourceRange: "A2:B2",
+      targetSheet: "Report",
+      targetRange: "F5:G5",
+      transferOperation: "append",
+      pasteMode: "formats",
+      transpose: false,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_range_transfer_format_append_undo_sheets_001",
+        kind: "range_format",
+        targetSheet: "Report",
+        targetRange: "F5:G5",
+        shape: {
+          rows: 1,
+          columns: 2
+        },
+        beforeFormat: {
+          backgrounds: [["#ffffff", "#eeeeee"]],
+          fontColors: [["#000000", "#444444"]],
+          fontWeights: [["normal", "normal"]],
+          numberFormats: [["General", "General"]]
+        },
+        afterFormat: {
+          backgrounds: [["#ff0000", "#00ff00"]],
+          fontColors: [["#ffffff", "#111111"]],
+          fontWeights: [["bold", "normal"]],
+          numberFormats: [["$#,##0", "0.00%"]]
+        }
+      }
+    });
+    expect(sourceRange.copyTo).toHaveBeenCalledWith(targetRange, "PASTE_FORMAT", false);
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
