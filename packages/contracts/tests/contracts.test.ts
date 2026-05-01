@@ -1669,6 +1669,36 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.error?.issues[0]?.message).toBe("targetRange must be a single-cell A1 anchor.");
   });
 
+  it("rejects pivot sort fields that do not match the requested sort mode", () => {
+    const basePlan = {
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      columnGroups: ["Quarter"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      explanation: "Build a sorted sales pivot.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    };
+
+    expect(PivotTablePlanDataSchema.safeParse({
+      ...basePlan,
+      sort: { field: "Revenue", direction: "desc", sortOn: "group_field" }
+    }).success).toBe(false);
+
+    expect(PivotTablePlanDataSchema.safeParse({
+      ...basePlan,
+      sort: { field: "Region", direction: "desc", sortOn: "aggregated_value" }
+    }).success).toBe(false);
+  });
+
   it("accepts bounded numeric pivot filters and requires both bounds", () => {
     const parsed = PivotTablePlanDataSchema.parse({
       sourceSheet: "Sales",

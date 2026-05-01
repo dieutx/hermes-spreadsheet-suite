@@ -1394,6 +1394,35 @@ export const PivotTablePlanDataSchema = strictObject({
   affectedRanges: z.array(z.string().min(1).max(128)).max(12),
   overwriteRisk: OverwriteRiskSchema,
   confirmationLevel: ConfirmationLevelSchema
+}).superRefine((data, ctx) => {
+  if (!data.sort) {
+    return;
+  }
+
+  const sortField = data.sort.field.trim();
+  const groupedFields = new Set([
+    ...data.rowGroups,
+    ...(data.columnGroups ?? [])
+  ].map((field) => field.trim()));
+  const aggregatedFields = new Set(data.valueAggregations.map((aggregation) =>
+    aggregation.field.trim()
+  ));
+
+  if (data.sort.sortOn === "group_field" && !groupedFields.has(sortField)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "group_field sort must reference a rowGroups or columnGroups field.",
+      path: ["sort", "field"]
+    });
+  }
+
+  if (data.sort.sortOn === "aggregated_value" && !aggregatedFields.has(sortField)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "aggregated_value sort must reference a valueAggregations field.",
+      path: ["sort", "field"]
+    });
+  }
 });
 
 export const ChartPlanDataSchema = strictObject({
