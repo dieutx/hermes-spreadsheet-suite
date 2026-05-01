@@ -2246,6 +2246,164 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(targetRange.numberFormat).toEqual([["General"]]);
   });
 
+  it("restores Excel conditional-format snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const beforeConditionalFormats = {
+      rules: [{
+        ranges: ["B2:B20"],
+        rule: {
+          kind: "text_contains",
+          text: "review"
+        },
+        format: {
+          backgroundColor: "#fff2cc",
+          textColor: "#7f6000"
+        }
+      }]
+    };
+    const afterConditionalFormats = {
+      rules: [{
+        ranges: ["B2:B20"],
+        rule: {
+          kind: "text_contains",
+          text: "overdue"
+        },
+        format: {
+          backgroundColor: "#ffcccc",
+          textColor: "#990000",
+          bold: true
+        }
+      }]
+    };
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_conditional_format_001"],
+      executions: {
+        exec_conditional_format_001: {
+          baseExecutionId: "exec_conditional_format_001"
+        }
+      },
+      bases: {
+        exec_conditional_format_001: {
+          baseExecutionId: "exec_conditional_format_001",
+          kind: "conditional_format",
+          targetSheet: "Sales",
+          targetRange: "B2:B20",
+          before: beforeConditionalFormats,
+          after: afterConditionalFormats
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "conditional_format_update",
+          operation: "conditional_format_update",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    let rules = JSON.parse(JSON.stringify(afterConditionalFormats.rules));
+    const clearAll = vi.fn(() => {
+      rules = [];
+    });
+    const add = vi.fn(() => {
+      const snapshotRule = {
+        ranges: ["B2:B20"],
+        rule: {
+          kind: "text_contains"
+        },
+        format: {}
+      };
+      rules.push(snapshotRule);
+      const textRule = {};
+      const fill = {};
+      const font = {};
+      Object.defineProperty(textRule, "text", {
+        configurable: true,
+        get() {
+          return snapshotRule.rule.text;
+        },
+        set(value) {
+          snapshotRule.rule.text = value;
+        }
+      });
+      Object.defineProperty(fill, "color", {
+        configurable: true,
+        set(value) {
+          snapshotRule.format.backgroundColor = value;
+        }
+      });
+      Object.defineProperty(font, "color", {
+        configurable: true,
+        set(value) {
+          snapshotRule.format.textColor = value;
+        }
+      });
+      Object.defineProperty(font, "bold", {
+        configurable: true,
+        set(value) {
+          snapshotRule.format.bold = value;
+        }
+      });
+      return {
+        containsText: {
+          rule: textRule,
+          format: {
+            fill,
+            font
+          }
+        }
+      };
+    });
+    const targetRange = {
+      conditionalFormats: {
+        get items() {
+          return rules;
+        },
+        clearAll,
+        add
+      }
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem() {
+              return {
+                getRange() {
+                  return targetRange;
+                }
+              };
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_conditional_format_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(clearAll).toHaveBeenCalledTimes(1);
+    expect(add).toHaveBeenCalledWith("containsText");
+    expect(rules).toEqual(beforeConditionalFormats.rules);
+  });
+
   it("restores Excel data validation snapshots before committing undo", async () => {
     const workbookSessionId = "workbook-123";
     const workbookSessionKey = `excel_windows::${workbookSessionId}`;

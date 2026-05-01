@@ -1145,6 +1145,405 @@ function createDataValidationLocalExecutionSnapshot({
   };
 }
 
+function loadExcelConditionalFormatSnapshotTarget(target) {
+  const conditionalFormats = target?.conditionalFormats;
+  if (!conditionalFormats) {
+    return;
+  }
+
+  if (typeof conditionalFormats.load === "function") {
+    conditionalFormats.load("items/type");
+  }
+}
+
+function getExcelConditionalFormatSnapshotItems(conditionalFormats) {
+  if (Array.isArray(conditionalFormats?.items)) {
+    return conditionalFormats.items;
+  }
+
+  if (Array.isArray(conditionalFormats?.rules)) {
+    return conditionalFormats.rules;
+  }
+
+  if (Array.isArray(conditionalFormats?.__hermesSnapshotRules)) {
+    return conditionalFormats.__hermesSnapshotRules;
+  }
+
+  return null;
+}
+
+function readExcelConditionalFormatStyleSnapshot(format) {
+  const style = {};
+  const fill = format?.fill || {};
+  const font = format?.font || {};
+
+  if (typeof fill.color === "string" && fill.color.length > 0) {
+    style.backgroundColor = fill.color;
+  }
+
+  if (typeof font.color === "string" && font.color.length > 0) {
+    style.textColor = font.color;
+  }
+
+  if (typeof font.bold === "boolean") {
+    style.bold = font.bold;
+  }
+
+  if (typeof font.italic === "boolean") {
+    style.italic = font.italic;
+  }
+
+  if (typeof font.underline === "boolean") {
+    style.underline = font.underline;
+  } else if (typeof font.underline === "string" && font.underline.length > 0) {
+    style.underline = !/^none$/i.test(font.underline);
+  }
+
+  if (typeof font.strikethrough === "boolean") {
+    style.strikethrough = font.strikethrough;
+  }
+
+  return style;
+}
+
+function createExcelConditionalFormatRuleSnapshotFromPlan(plan, targetRange) {
+  if (!plan?.ruleType || !targetRange) {
+    return null;
+  }
+
+  const rule = {
+    kind: plan.ruleType
+  };
+  const copyField = (fieldName) => {
+    if (plan[fieldName] !== undefined) {
+      rule[fieldName] = cloneLocalExecutionSnapshotValue(plan[fieldName]);
+    }
+  };
+
+  switch (plan.ruleType) {
+    case "single_color":
+    case "number_compare":
+    case "date_compare":
+      copyField("comparator");
+      copyField("value");
+      copyField("value2");
+      break;
+    case "text_contains":
+      copyField("text");
+      break;
+    case "duplicate_values":
+      break;
+    case "custom_formula":
+      copyField("formula");
+      break;
+    case "top_n":
+      copyField("rank");
+      copyField("direction");
+      break;
+    case "average_compare":
+      copyField("direction");
+      break;
+    case "color_scale":
+      copyField("points");
+      break;
+    default:
+      return null;
+  }
+
+  return {
+    ranges: [normalizeA1(targetRange)],
+    rule,
+    format: cloneLocalExecutionSnapshotValue(plan.style || {})
+  };
+}
+
+function mapExcelConditionalFormatOperatorToComparator(operator) {
+  const normalized = typeof operator === "string" ? operator.toLowerCase() : "";
+  const map = {
+    between: "between",
+    notbetween: "not_between",
+    equalto: "equal_to",
+    notequalto: "not_equal_to",
+    greaterthan: "greater_than",
+    greaterthanorequal: "greater_than_or_equal_to",
+    greaterthanorequalto: "greater_than_or_equal_to",
+    lessthan: "less_than",
+    lessthanorequal: "less_than_or_equal_to",
+    lessthanorequalto: "less_than_or_equal_to"
+  };
+  return map[normalized] || null;
+}
+
+function mapExcelConditionalColorScalePointTypeToContract(pointType) {
+  const normalized = typeof pointType === "string" ? pointType.toLowerCase() : "";
+  if (normalized === "lowestvalue" || normalized === "min") {
+    return "min";
+  }
+  if (normalized === "highestvalue" || normalized === "max") {
+    return "max";
+  }
+  if (normalized === "number") {
+    return "number";
+  }
+  if (normalized === "percent") {
+    return "percent";
+  }
+  if (normalized === "percentile") {
+    return "percentile";
+  }
+  return null;
+}
+
+function readExcelConditionalColorScalePointSnapshot(point) {
+  const type = mapExcelConditionalColorScalePointTypeToContract(point?.type);
+  if (!type || typeof point?.color !== "string" || point.color.length === 0) {
+    return null;
+  }
+
+  const snapshot = {
+    type,
+    color: point.color
+  };
+  if (type !== "min" && type !== "max") {
+    const numericValue = Number(point.formula ?? point.value);
+    if (!Number.isFinite(numericValue)) {
+      return null;
+    }
+    snapshot.value = numericValue;
+  }
+  return snapshot;
+}
+
+function readExcelConditionalFormatConfigurationSnapshot(item, targetRange) {
+  const ranges = [normalizeA1(targetRange)];
+  const containsText = item?.containsText;
+  if (containsText?.rule && containsText?.format) {
+    return {
+      ranges,
+      rule: {
+        kind: "text_contains",
+        text: containsText.rule.text
+      },
+      format: readExcelConditionalFormatStyleSnapshot(containsText.format)
+    };
+  }
+
+  const cellValue = item?.cellValue;
+  if (cellValue?.rule && cellValue?.format) {
+    const comparator = mapExcelConditionalFormatOperatorToComparator(cellValue.rule.operator);
+    if (!comparator) {
+      return null;
+    }
+    return {
+      ranges,
+      rule: {
+        kind: "number_compare",
+        comparator,
+        value: cellValue.rule.formula1,
+        ...(cellValue.rule.formula2 !== undefined ? { value2: cellValue.rule.formula2 } : {})
+      },
+      format: readExcelConditionalFormatStyleSnapshot(cellValue.format)
+    };
+  }
+
+  const custom = item?.custom;
+  if (custom?.rule && custom?.format) {
+    return {
+      ranges,
+      rule: {
+        kind: "custom_formula",
+        formula: custom.rule.formula
+      },
+      format: readExcelConditionalFormatStyleSnapshot(custom.format)
+    };
+  }
+
+  const duplicateValues = item?.duplicateValues;
+  if (duplicateValues?.format) {
+    return {
+      ranges,
+      rule: {
+        kind: "duplicate_values"
+      },
+      format: readExcelConditionalFormatStyleSnapshot(duplicateValues.format)
+    };
+  }
+
+  const topBottom = item?.topBottom;
+  if (topBottom?.rule && topBottom?.format) {
+    const rawType = typeof topBottom.rule.type === "string" ? topBottom.rule.type.toLowerCase() : "";
+    return {
+      ranges,
+      rule: {
+        kind: "top_n",
+        rank: topBottom.rule.rank,
+        direction: rawType.includes("bottom") ? "bottom" : "top"
+      },
+      format: readExcelConditionalFormatStyleSnapshot(topBottom.format)
+    };
+  }
+
+  const aboveAverage = item?.aboveAverage;
+  if (aboveAverage?.rule && aboveAverage?.format) {
+    const rawCriterion = typeof aboveAverage.rule.criterion === "string"
+      ? aboveAverage.rule.criterion.toLowerCase()
+      : "";
+    return {
+      ranges,
+      rule: {
+        kind: "average_compare",
+        direction: rawCriterion.includes("below") ? "below" : "above"
+      },
+      format: readExcelConditionalFormatStyleSnapshot(aboveAverage.format)
+    };
+  }
+
+  const colorScale = item?.colorScale;
+  if (colorScale?.criteria) {
+    const criteria = colorScale.criteria;
+    const points = [
+      readExcelConditionalColorScalePointSnapshot(criteria.minimum),
+      criteria.midpoint ? readExcelConditionalColorScalePointSnapshot(criteria.midpoint) : null,
+      readExcelConditionalColorScalePointSnapshot(criteria.maximum)
+    ].filter(Boolean);
+    if (points.length < 2) {
+      return null;
+    }
+    return {
+      ranges,
+      rule: {
+        kind: "color_scale",
+        points
+      },
+      format: {}
+    };
+  }
+
+  return null;
+}
+
+function normalizeExcelConditionalFormatRuleSnapshot(ruleSnapshot, targetRange) {
+  if (!ruleSnapshot || typeof ruleSnapshot !== "object") {
+    return null;
+  }
+
+  const hermesSnapshot = ruleSnapshot.__hermesConditionalFormatSnapshot;
+  if (hermesSnapshot && typeof hermesSnapshot === "object") {
+    return normalizeExcelConditionalFormatRuleSnapshot(hermesSnapshot, targetRange);
+  }
+
+  if (ruleSnapshot.rule && typeof ruleSnapshot.rule.kind === "string") {
+    const ranges = Array.isArray(ruleSnapshot.ranges) && ruleSnapshot.ranges.length > 0
+      ? ruleSnapshot.ranges
+      : [targetRange];
+    const normalizedRanges = ranges
+      .map((rangeA1) => normalizeA1(rangeA1).trim())
+      .filter(Boolean);
+    if (normalizedRanges.length === 0) {
+      return null;
+    }
+
+    return {
+      ranges: normalizedRanges,
+      rule: cloneLocalExecutionSnapshotValue(ruleSnapshot.rule),
+      format: cloneLocalExecutionSnapshotValue(ruleSnapshot.format || {})
+    };
+  }
+
+  return readExcelConditionalFormatConfigurationSnapshot(ruleSnapshot, targetRange);
+}
+
+function normalizeExcelConditionalFormatSnapshotState(state) {
+  if (!state || typeof state !== "object" || !Array.isArray(state.rules)) {
+    throw new Error("The saved conditional-format snapshot is malformed.");
+  }
+
+  return {
+    rules: state.rules.map((ruleSnapshot) => {
+      const normalizedRule = normalizeExcelConditionalFormatRuleSnapshot(ruleSnapshot);
+      if (!normalizedRule) {
+        throw new Error("The saved conditional-format snapshot is malformed.");
+      }
+      return normalizedRule;
+    })
+  };
+}
+
+function readExcelConditionalFormatRulesStateForSnapshot(target, targetRange) {
+  const items = getExcelConditionalFormatSnapshotItems(target?.conditionalFormats);
+  if (!items) {
+    return null;
+  }
+
+  const rules = [];
+  for (const item of items) {
+    const ruleSnapshot = normalizeExcelConditionalFormatRuleSnapshot(item, targetRange);
+    if (!ruleSnapshot) {
+      return null;
+    }
+    rules.push(ruleSnapshot);
+  }
+
+  return {
+    rules
+  };
+}
+
+function tryReadExcelConditionalFormatRulesStateForSnapshot(target, targetRange) {
+  try {
+    return readExcelConditionalFormatRulesStateForSnapshot(target, targetRange);
+  } catch {
+    return null;
+  }
+}
+
+function createExcelConditionalFormatStateAfterPlan(beforeState, plan) {
+  if (!beforeState) {
+    return null;
+  }
+
+  const normalizedBefore = normalizeExcelConditionalFormatSnapshotState(beforeState);
+  const rules = (
+    plan.managementMode === "replace_all_on_target" ||
+    plan.managementMode === "clear_on_target"
+  )
+    ? []
+    : cloneLocalExecutionSnapshotValue(normalizedBefore.rules);
+
+  if (plan.managementMode !== "clear_on_target") {
+    const nextRule = createExcelConditionalFormatRuleSnapshotFromPlan(plan, plan.targetRange);
+    if (!nextRule) {
+      return null;
+    }
+    rules.push(nextRule);
+  }
+
+  return {
+    rules
+  };
+}
+
+function createConditionalFormatLocalExecutionSnapshot({
+  executionId,
+  targetSheet,
+  targetRange,
+  before,
+  after
+}) {
+  if (!executionId || !targetSheet || !targetRange || !before || !after) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: executionId,
+    kind: "conditional_format",
+    targetSheet,
+    targetRange,
+    before,
+    after
+  };
+}
+
 function normalizeExcelNamedRangeReference(reference) {
   const resolvedReference = typeof reference === "string" ? reference.trim() : "";
   return resolvedReference.length > 0 ? resolvedReference : undefined;
@@ -1552,6 +1951,10 @@ function isDataValidationLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "data_validation";
 }
 
+function isConditionalFormatLocalExecutionSnapshot(snapshot) {
+  return snapshot?.kind === "conditional_format";
+}
+
 function isNamedRangeLocalExecutionSnapshot(snapshot) {
   return snapshot?.kind === "named_range";
 }
@@ -1920,6 +2323,130 @@ async function validateDataValidationLocalExecutionSnapshotForMode(snapshot, mod
     await context.sync();
 
     assertDataValidationSnapshotShape(snapshot, target, validation);
+  });
+}
+
+function conditionalFormatSnapshotStatesEqual(left, right) {
+  return JSON.stringify(normalizeExcelConditionalFormatSnapshotState(left)) ===
+    JSON.stringify(normalizeExcelConditionalFormatSnapshotState(right));
+}
+
+function getConditionalFormatSnapshotTransitionForMode(snapshot, mode) {
+  if (
+    !snapshot ||
+    snapshot.kind !== "conditional_format" ||
+    typeof snapshot.targetSheet !== "string" ||
+    snapshot.targetSheet.trim().length === 0 ||
+    typeof snapshot.targetRange !== "string" ||
+    snapshot.targetRange.trim().length === 0
+  ) {
+    throw new Error("That history entry is no longer available in this spreadsheet session.");
+  }
+
+  return {
+    from: mode === "undo" ? snapshot.after : snapshot.before,
+    to: mode === "undo" ? snapshot.before : snapshot.after
+  };
+}
+
+function assertConditionalFormatSnapshotStateCanApply(target, targetRange, state) {
+  const normalizedState = normalizeExcelConditionalFormatSnapshotState(state);
+  const conditionalFormats = target?.conditionalFormats;
+  if (!conditionalFormats || typeof conditionalFormats.clearAll !== "function") {
+    throw new Error("Excel host cannot restore conditional-format snapshots.");
+  }
+
+  if (normalizedState.rules.length > 0 && typeof conditionalFormats.add !== "function") {
+    throw new Error("Excel host cannot restore conditional-format snapshots.");
+  }
+
+  for (const ruleSnapshot of normalizedState.rules) {
+    if (
+      ruleSnapshot.ranges.length !== 1 ||
+      normalizeA1(ruleSnapshot.ranges[0]) !== normalizeA1(targetRange)
+    ) {
+      throw new Error("Excel host cannot restore conditional-format snapshot ranges exactly.");
+    }
+  }
+
+  return normalizedState;
+}
+
+function buildExcelConditionalFormatPlanFromSnapshotRule(ruleSnapshot) {
+  const rule = ruleSnapshot?.rule;
+  if (!rule || typeof rule.kind !== "string") {
+    throw new Error("The saved conditional-format snapshot is malformed.");
+  }
+
+  const plan = {
+    managementMode: "add",
+    ruleType: rule.kind,
+    style: cloneLocalExecutionSnapshotValue(ruleSnapshot.format || {})
+  };
+
+  for (const [key, value] of Object.entries(rule)) {
+    if (key !== "kind" && value !== undefined) {
+      plan[key] = cloneLocalExecutionSnapshotValue(value);
+    }
+  }
+
+  return plan;
+}
+
+function applyExcelConditionalFormatSnapshotState(target, targetRange, state) {
+  const normalizedState = assertConditionalFormatSnapshotStateCanApply(target, targetRange, state);
+  target.conditionalFormats.clearAll();
+  for (const ruleSnapshot of normalizedState.rules) {
+    applyExcelConditionalFormat(
+      target,
+      buildExcelConditionalFormatPlanFromSnapshotRule(ruleSnapshot)
+    );
+  }
+}
+
+async function resolveConditionalFormatLocalExecutionSnapshot(context, snapshot, mode) {
+  const transition = getConditionalFormatSnapshotTransitionForMode(snapshot, mode);
+  const worksheets = context.workbook.worksheets;
+  const sheet = worksheets.getItem(snapshot.targetSheet);
+  const target = sheet.getRange(snapshot.targetRange);
+  loadExcelConditionalFormatSnapshotTarget(target);
+  await context.sync();
+
+  const current = readExcelConditionalFormatRulesStateForSnapshot(target, snapshot.targetRange);
+  if (!current) {
+    throw new Error("Excel host cannot inspect saved conditional-format snapshots.");
+  }
+
+  if (!conditionalFormatSnapshotStatesEqual(current, transition.from)) {
+    throw new Error("Conditional formatting changed since this history entry was captured.");
+  }
+
+  return {
+    target,
+    transition
+  };
+}
+
+async function restoreConditionalFormatLocalExecutionSnapshotForMode(snapshot, mode) {
+  return Excel.run(async (context) => {
+    const resolved = await resolveConditionalFormatLocalExecutionSnapshot(context, snapshot, mode);
+    applyExcelConditionalFormatSnapshotState(
+      resolved.target,
+      snapshot.targetRange,
+      resolved.transition.to
+    );
+    await context.sync();
+  });
+}
+
+async function validateConditionalFormatLocalExecutionSnapshotForMode(snapshot, mode) {
+  return Excel.run(async (context) => {
+    const resolved = await resolveConditionalFormatLocalExecutionSnapshot(context, snapshot, mode);
+    assertConditionalFormatSnapshotStateCanApply(
+      resolved.target,
+      snapshot.targetRange,
+      resolved.transition.to
+    );
   });
 }
 
@@ -2712,6 +3239,10 @@ async function restoreLocalExecutionSnapshotForMode(snapshot, mode) {
     return restoreDataValidationLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
+  if (isConditionalFormatLocalExecutionSnapshot(snapshot)) {
+    return restoreConditionalFormatLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
   if (isNamedRangeLocalExecutionSnapshot(snapshot)) {
     return restoreNamedRangeLocalExecutionSnapshotForMode(snapshot, mode);
   }
@@ -2792,6 +3323,10 @@ async function validateLocalExecutionSnapshotForMode(snapshot, mode) {
 
   if (isDataValidationLocalExecutionSnapshot(snapshot)) {
     return validateDataValidationLocalExecutionSnapshotForMode(snapshot, mode);
+  }
+
+  if (isConditionalFormatLocalExecutionSnapshot(snapshot)) {
+    return validateConditionalFormatLocalExecutionSnapshotForMode(snapshot, mode);
   }
 
   if (isNamedRangeLocalExecutionSnapshot(snapshot)) {
@@ -9802,14 +10337,29 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
     if (isConditionalFormatPlan(plan)) {
       const sheet = worksheets.getItem(plan.targetSheet);
       const target = sheet.getRange(plan.targetRange);
+      let beforeConditionalFormats = null;
+      if (executionId) {
+        loadExcelConditionalFormatSnapshotTarget(target);
+        await context.sync();
+        beforeConditionalFormats = tryReadExcelConditionalFormatRulesStateForSnapshot(target, plan.targetRange);
+      }
       applyExcelConditionalFormat(target, plan);
       await context.sync();
-      return {
+      const afterConditionalFormats = beforeConditionalFormats
+        ? createExcelConditionalFormatStateAfterPlan(beforeConditionalFormats, plan)
+        : null;
+      return attachLocalExecutionSnapshot({
         kind: "conditional_format_update",
         hostPlatform: platform,
         ...plan,
         summary: getConditionalFormatStatusSummary(plan)
-      };
+      }, createConditionalFormatLocalExecutionSnapshot({
+        executionId,
+        targetSheet: plan.targetSheet,
+        targetRange: plan.targetRange,
+        before: beforeConditionalFormats,
+        after: afterConditionalFormats
+      }));
     }
 
     if (isDataValidationPlan(plan)) {

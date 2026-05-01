@@ -314,6 +314,151 @@ describe("Excel wave 3 conditional-format plans", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel conditional formatting writes", async () => {
+    const clearAll = vi.fn();
+    const add = vi.fn(() => ({
+      containsText: {
+        rule: {},
+        format: {
+          fill: {},
+          font: {}
+        }
+      }
+    }));
+    const targetRange = {
+      conditionalFormats: {
+        items: [],
+        clearAll,
+        add
+      }
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        managementMode: "replace_all_on_target",
+        ruleType: "text_contains",
+        text: "overdue",
+        style: {
+          backgroundColor: "#ffcccc",
+          textColor: "#990000",
+          bold: true
+        },
+        explanation: "Highlight overdue rows.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["Sheet1!B2:B20"],
+        replacesExistingRules: true
+      },
+      requestId: "req_conditional_format_snapshot_excel_001",
+      runId: "run_conditional_format_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_conditional_format_snapshot_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "conditional_format_update",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_conditional_format_snapshot_excel_001",
+        kind: "conditional_format",
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        before: {
+          rules: []
+        },
+        after: {
+          rules: [{
+            ranges: ["B2:B20"],
+            rule: {
+              kind: "text_contains",
+              text: "overdue"
+            },
+            format: {
+              backgroundColor: "#ffcccc",
+              textColor: "#990000",
+              bold: true
+            }
+          }]
+        }
+      }
+    });
+  });
+
+  it("does not block Excel conditional formatting when undo snapshot inspection is unavailable", async () => {
+    const clearAll = vi.fn();
+    const add = vi.fn(() => ({
+      containsText: {
+        rule: {},
+        format: {
+          fill: {},
+          font: {}
+        }
+      }
+    }));
+    const targetRange = {
+      conditionalFormats: {
+        get items() {
+          throw new Error("PropertyNotLoaded");
+        },
+        clearAll,
+        add
+      }
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        managementMode: "replace_all_on_target",
+        ruleType: "text_contains",
+        text: "overdue",
+        style: {
+          backgroundColor: "#ffcccc"
+        },
+        explanation: "Highlight overdue rows.",
+        confidence: 0.94,
+        requiresConfirmation: true
+      },
+      requestId: "req_conditional_format_no_snapshot_excel_001",
+      runId: "run_conditional_format_no_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_conditional_format_no_snapshot_excel_001"
+    });
+
+    expect(result).toMatchObject({
+      kind: "conditional_format_update",
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20"
+    });
+    expect(result).not.toHaveProperty("__hermesLocalExecutionSnapshot");
+    expect(clearAll).toHaveBeenCalledTimes(1);
+    expect(add).toHaveBeenCalledWith("containsText");
+  });
+
   it("applies a color scale conditional formatting rule in Excel", async () => {
     let assignedCriteria: unknown = null;
     const clearAll = vi.fn();
