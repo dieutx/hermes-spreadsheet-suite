@@ -175,4 +175,16 @@ describe("capability fixture eval runner", () => {
     expect(result.source).toBe("fixtures/capability-eval");
     expect(JSON.stringify(result)).not.toContain(process.cwd());
   });
+
+  it("collapses outside fixture source paths to a basename", () => {
+    const pack: CapabilityFixturePack = {
+      version: 1,
+      fixtures: []
+    };
+
+    const result = evaluateCapabilityFixturePack(pack, { source: "/tmp/private/capability-fixtures.json" });
+
+    expect(result.source).toBe("capability-fixtures.json");
+    expect(JSON.stringify(result)).not.toContain("/tmp/private");
+  });
 });
