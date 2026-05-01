@@ -1742,6 +1742,30 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects chart plans with multi-cell target ranges", () => {
+    const parsed = ChartPlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:C20",
+      targetSheet: "Sales Chart",
+      targetRange: "A1:D8",
+      chartType: "line",
+      categoryField: "Month",
+      series: [
+        { field: "Revenue", label: "Revenue" }
+      ],
+      title: "Revenue",
+      explanation: "Chart monthly revenue.",
+      confidence: 0.93,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:C20", "Sales Chart!A1:D8"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.message).toBe("targetRange must be a single-cell A1 anchor.");
+  });
+
   it("accepts a table plan with native table options", () => {
     const parsed = TablePlanDataSchema.parse({
       targetSheet: "Sales",
