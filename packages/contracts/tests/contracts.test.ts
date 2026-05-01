@@ -415,6 +415,52 @@ describe("Hermes spreadsheet contracts", () => {
     }).success).toBe(false);
   });
 
+  it("rejects web import formulas that do not match selector metadata", () => {
+    const basePlan = {
+      sourceType: "web_table_import",
+      targetSheet: "Imports",
+      targetRange: "A1",
+      explanation: "Import public website data.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Imports!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      sourceUrl: "https://example.com/page"
+    } as const;
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      provider: "importhtml",
+      selectorType: "table",
+      selector: 1,
+      formula: '=IMPORTHTML("https://example.com/page","list",1)'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      provider: "importhtml",
+      selectorType: "table",
+      selector: 1,
+      formula: '=IMPORTHTML("https://example.com/page","table",2)'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      provider: "importxml",
+      selectorType: "xpath",
+      selector: "//table[1]",
+      formula: '=IMPORTXML("https://example.com/page","//table[2]")'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      provider: "importdata",
+      selectorType: "direct",
+      formula: '=IMPORTDATA("https://example.com/page","extra")'
+    }).success).toBe(false);
+  });
+
   it("rejects external data plans whose affectedRanges omit the target anchor", () => {
     const parsed = ExternalDataPlanDataSchema.safeParse({
       sourceType: "market_data",
