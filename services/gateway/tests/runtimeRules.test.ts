@@ -23,6 +23,7 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("formulaLanguage");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("requiresConfirmation");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("targetRange must match");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("do not use append_rows");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("supportsNoteWrites");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("host capability matrix");
   });

@@ -350,7 +350,7 @@ For type="table_update":
 For type="sheet_update":
 - data.targetSheet is required
 - data.targetRange is required
-- data.operation is required
+- data.operation is required and must be replace_range, set_formulas, set_notes, or mixed_update
 - data.explanation is required
 - data.confidence is required
 - data.requiresConfirmation must be true
@@ -358,6 +358,7 @@ For type="sheet_update":
 - data.shape.rows and data.shape.columns must match the proposed matrix dimensions
 - data.targetRange must match data.shape.rows x data.shape.columns
 - values, formulas, and notes are optional, but any provided matrix must be rectangular and match data.shape
+- do not use append_rows; append transferred ranges with range_transfer_plan or insert explicit rows before a sheet_update
 - overwriteRisk is optional
 
 For type="sheet_import_plan":
