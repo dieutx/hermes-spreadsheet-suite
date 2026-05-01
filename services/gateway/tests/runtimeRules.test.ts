@@ -38,6 +38,11 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("cell color, font color, and icon sort modes are unsupported");
   });
 
+  it("documents data validation replacement confirmation-level invariants", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain('data.replacesExistingValidation=true requires data.confirmationLevel="destructive"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain('validation plans that preserve existing validation require data.confirmationLevel="standard"');
+  });
+
   it("makes reviewer-safe unavailable map to a concrete error response", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("EXTRACTION_UNAVAILABLE");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('prefer type="error"');

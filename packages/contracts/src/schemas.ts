@@ -966,6 +966,7 @@ const dataValidationSharedFields = {
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
+  confirmationLevel: ConfirmationLevelSchema.default("standard"),
   affectedRanges: z.array(z.string().min(1).max(128)).max(10).optional(),
   replacesExistingValidation: z.boolean().optional()
 } satisfies z.ZodRawShape;
@@ -1050,6 +1051,17 @@ export const DataValidationPlanDataSchema = z.union([
     });
   }
 
+  const expectedConfirmationLevel = data.replacesExistingValidation ? "destructive" : "standard";
+  if (data.confirmationLevel !== expectedConfirmationLevel) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: data.replacesExistingValidation
+        ? "Validation plans that replace existing validation require destructive confirmation."
+        : "Validation plans that preserve existing validation require standard confirmation.",
+      path: ["confirmationLevel"]
+    });
+  }
+
   if (!("comparator" in data)) {
     return;
   }
@@ -1091,6 +1103,7 @@ export const DataValidationPlanDataSchema = z.union([
       });
     }
   }
+
 });
 
 const AnalysisSectionTypeSchema = z.enum([

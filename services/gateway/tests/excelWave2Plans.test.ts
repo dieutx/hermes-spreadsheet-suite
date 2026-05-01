@@ -174,7 +174,7 @@ describe("Excel wave 2 plan helpers", () => {
       }
     })).toBe("Prepared a validation plan for Sheet1!B2:B20.");
 
-    expect(taskpane.getStructuredPreview({
+    const validationPreview = taskpane.getStructuredPreview({
       type: "data_validation_plan",
       data: {
         targetSheet: "Sheet1",
@@ -189,13 +189,15 @@ describe("Excel wave 2 plan helpers", () => {
         requiresConfirmation: true,
         replacesExistingValidation: true
       }
-    })).toMatchObject({
+    });
+    expect(validationPreview).toMatchObject({
       kind: "data_validation_plan",
       targetSheet: "Sheet1",
       targetRange: "B2:B20",
       ruleType: "list",
       namedRangeName: "StatusOptions",
-      replacesExistingValidation: true
+      replacesExistingValidation: true,
+      confirmationLevel: "destructive"
     });
 
     const validationHtml = taskpane.renderStructuredPreview({
@@ -219,6 +221,24 @@ describe("Excel wave 2 plan helpers", () => {
 
     expect(validationHtml).toContain("source named range StatusOptions");
     expect(validationHtml).toContain("replaces existing validation");
+    expect(validationHtml).toContain("destructive");
+
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
+    expect(taskpane.buildWriteApprovalRequest({
+      requestId: "req_validation_preview",
+      runId: "run_validation_preview",
+      plan: validationPreview
+    })).toMatchObject({
+      requestId: "req_validation_preview",
+      runId: "run_validation_preview",
+      destructiveConfirmation: { confirmed: true },
+      plan: {
+        kind: "data_validation_plan",
+        confirmationLevel: "destructive"
+      }
+    });
+    expect(confirm).toHaveBeenCalledTimes(1);
 
     expect(taskpane.getStructuredPreview({
       type: "data_validation_plan",

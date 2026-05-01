@@ -1931,6 +1931,7 @@ function normalizeDataValidationPlanData(value: unknown): unknown {
     "explanation",
     "confidence",
     "requiresConfirmation",
+    "confirmationLevel",
     "affectedRanges",
     "replacesExistingValidation"
   ]);
@@ -1976,6 +1977,10 @@ function normalizeDataValidationPlanData(value: unknown): unknown {
 
   if (!hasOwn(normalized, "invalidDataBehavior")) {
     normalized.invalidDataBehavior = "reject";
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel = normalized.replacesExistingValidation ? "destructive" : "standard";
   }
 
   if (normalized.ruleType === "list" && !hasOwn(normalized, "showDropdown")) {
