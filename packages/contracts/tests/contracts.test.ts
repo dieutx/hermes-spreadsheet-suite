@@ -2301,6 +2301,24 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts static range format affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = RangeFormatUpdateDataSchema.parse({
+      targetSheet: "Sheet1",
+      targetRange: "$A$1:$J$10",
+      format: {
+        bold: true
+      },
+      explanation: "Apply bold formatting.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:J10"],
+      confirmationLevel: "standard",
+      overwriteRisk: "low"
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sheet1!A1:J10"]);
+  });
+
   it("accepts a replace-all single-color conditional format plan", () => {
     const parsed = ConditionalFormatPlanDataSchema.parse({
       targetSheet: "Sheet1",
