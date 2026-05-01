@@ -121,6 +121,12 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("composite_plan always requires confirmation");
   });
 
+  it("documents public-url requirements for external data web imports", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain('For type="external_data_plan"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("data.sourceUrl must be a public HTTP(S) URL");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("external-data formulas must not reference private or internal URLs");
+  });
+
   it("keeps explicit confirmation phrasing on supported plan types instead of chat acknowledgements", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('confirm create sheet X');
     expect(SPREADSHEET_RUNTIME_RULES).toContain("return that plan type as a proposal instead of chat");
