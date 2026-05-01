@@ -1893,6 +1893,46 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(html).not.toContain("Confirm External Data");
   });
 
+  it("fails closed when Google Sheets external data source URLs use private aliases", () => {
+    const sidebar = loadSidebarContext();
+    const sourceUrls = [
+      "http://[fc00::1]/data.csv",
+      "http://[fe80::1]/data.csv",
+      "http://[::ffff:127.0.0.1]/data.csv"
+    ];
+
+    sourceUrls.forEach((sourceUrl, index) => {
+      const response = {
+        type: "external_data_plan",
+        data: {
+          sourceType: "web_table_import",
+          provider: "importdata",
+          sourceUrl,
+          selectorType: "direct",
+          targetSheet: "Imports",
+          targetRange: "A1",
+          formula: `=IMPORTDATA("${sourceUrl}")`,
+          explanation: "Import a public CSV into the sheet.",
+          confidence: 0.86,
+          requiresConfirmation: true,
+          affectedRanges: ["Imports!A1"],
+          overwriteRisk: "low",
+          confirmationLevel: "standard"
+        }
+      };
+
+      expect(sidebar.isWritePlanResponse(response)).toBe(false);
+
+      const html = sidebar.renderStructuredPreview(response, {
+        runId: `run_external_data_preview_private_alias_${index}`,
+        requestId: `req_external_data_preview_private_alias_${index}`
+      });
+
+      expect(html).toContain("Choose a public HTTP(S) source URL for the web import first.");
+      expect(html).not.toContain("Confirm External Data");
+    });
+  });
+
   it("renders exact-safe Google Sheets table-like previews and rejects unsupported totals rows", () => {
     const sidebar = loadSidebarContext();
     const response = {
@@ -6218,6 +6258,67 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     })).toThrow("Google Sheets external data formulas must reference sourceUrl.");
 
     expect(targetRange.setFormula).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before applying external data formulas with private URL aliases", () => {
+    const sourceUrls = [
+      "http://[fc00::1]/data.csv",
+      "http://[fe80::1]/data.csv",
+      "http://[::ffff:127.0.0.1]/data.csv"
+    ];
+
+    sourceUrls.forEach((sourceUrl) => {
+      const targetRange = createRangeStub({
+        a1Notation: "A1",
+        row: 1,
+        column: 1,
+        numRows: 1,
+        numColumns: 1
+      });
+      targetRange.setFormula = vi.fn();
+      const sheet = {
+        getRange: vi.fn((rangeA1: string) => {
+          expect(rangeA1).toBe("A1");
+          return targetRange;
+        })
+      };
+      const spreadsheet = {
+        getId() {
+          return "sheet-123";
+        },
+        getSheetByName(name: string) {
+          if (name === "Imports") {
+            return sheet;
+          }
+          return null;
+        }
+      };
+
+      const code = loadCodeModule({ spreadsheet });
+
+      expect(() => code.applyWritePlan({
+        requestId: "req_external_data_apply_private_alias",
+        runId: "run_external_data_apply_private_alias",
+        approvalToken: "token",
+        plan: {
+          sourceType: "web_table_import",
+          provider: "importdata",
+          sourceUrl,
+          selectorType: "direct",
+          targetSheet: "Imports",
+          targetRange: "A1",
+          formula: `=IMPORTDATA("${sourceUrl}")`,
+          explanation: "Import a public CSV into the sheet.",
+          confidence: 0.86,
+          requiresConfirmation: true,
+          affectedRanges: ["Imports!A1"],
+          overwriteRisk: "low",
+          confirmationLevel: "standard"
+        }
+      })).toThrow("Google Sheets external data sourceUrl must be a public HTTP(S) URL.");
+
+      expect(targetRange.setFormula).not.toHaveBeenCalled();
+    });
   });
 
   it("applies Google Sheets table-like plans with banding and filters", () => {

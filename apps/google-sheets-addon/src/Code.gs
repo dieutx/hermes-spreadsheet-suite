@@ -1016,6 +1016,70 @@ function isBlockedExternalDataHostname_(hostname) {
       (ipv4Octets[0] === 192 && ipv4Octets[1] === 168)
     );
 
+  function getPrivateMappedIpv4Hostname_(value) {
+    const dottedMatch = value.match(/^(?:::ffff:|0:0:0:0:0:ffff:)(\d+\.\d+\.\d+\.\d+)$/i);
+    if (dottedMatch) {
+      return dottedMatch[1];
+    }
+
+    const match = value.match(/^(?:::ffff:|0:0:0:0:0:ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+    if (!match) {
+      return null;
+    }
+
+    const high = Number.parseInt(match[1], 16);
+    const low = Number.parseInt(match[2], 16);
+    if (!Number.isInteger(high) || !Number.isInteger(low)) {
+      return null;
+    }
+
+    return [
+      (high >> 8) & 255,
+      high & 255,
+      (low >> 8) & 255,
+      low & 255
+    ].join('.');
+  }
+
+  function isBlockedIpv6Hostname_(value) {
+    if (value.indexOf(':') === -1) {
+      return false;
+    }
+
+    const mappedIpv4Hostname = getPrivateMappedIpv4Hostname_(value);
+    if (mappedIpv4Hostname) {
+      return isBlockedExternalDataHostname_(mappedIpv4Hostname);
+    }
+
+    if (
+      value === '::' ||
+      value === '::1' ||
+      value === '0:0:0:0:0:0:0:0' ||
+      value === '0:0:0:0:0:0:0:1'
+    ) {
+      return true;
+    }
+
+    const parts = value.split(':');
+    let firstHextet = '';
+    for (let index = 0; index < parts.length; index += 1) {
+      if (parts[index]) {
+        firstHextet = parts[index];
+        break;
+      }
+    }
+    if (!firstHextet) {
+      return false;
+    }
+
+    const firstValue = Number.parseInt(firstHextet, 16);
+    if (!Number.isInteger(firstValue)) {
+      return false;
+    }
+
+    return (firstValue & 0xfe00) === 0xfc00 || (firstValue & 0xffc0) === 0xfe80;
+  }
+
   return normalized === 'localhost' ||
     normalized.endsWith('.localhost') ||
     normalized === 'localdomain' ||
@@ -1026,7 +1090,8 @@ function isBlockedExternalDataHostname_(hostname) {
     normalized.startsWith('internal.') ||
     normalized.endsWith('.internal') ||
     normalized.endsWith('.local') ||
-    isPrivateIpv4;
+    isPrivateIpv4 ||
+    isBlockedIpv6Hostname_(normalized);
 }
 
 function getPublicExternalDataUrlKey_(value) {
