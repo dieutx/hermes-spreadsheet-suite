@@ -25,7 +25,7 @@
 
 ## Fixed on current `main`
 - [x] Composite raw-step normalization no longer misclassifies valid nested plans as `sheet_structure_update`.
-- [x] Conditional-format normalization no longer drops valid style fields like `underline`, `strikethrough`, and `numberFormat`.
+- [x] Conditional-format normalization no longer drops valid style fields like `underline` and `strikethrough`; `numberFormat` is rejected because hosts do not support exact conditional number-format writeback.
 - [x] Local loopback gateway defaults no longer expose broad wildcard CORS/private-network access by default.
 - [x] `range_filter` completion now verifies approved filter semantics instead of only `targetSheet/targetRange`.
 - [x] `conditional_format_plan` completion now verifies approved rule/style semantics instead of only `targetSheet/targetRange/managementMode`.
