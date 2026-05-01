@@ -84,6 +84,7 @@ describe("Hermes spreadsheet request prompt", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
 
     expect(prompt).toContain("topN filters are supported when display values cleanly separate visible and hidden rows");
+    expect(prompt).toContain("Use positive whole-number topN values only");
     expect(prompt).toContain("Duplicate display values crossing the top-N cutoff are unsupported");
     expect(prompt).not.toContain("topN filters and repeated conditions on the same column are unsupported");
   });
