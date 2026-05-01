@@ -1548,6 +1548,10 @@ function applyPivotTablePlan_(spreadsheet, plan, executionId) {
     throw new Error('Google Sheets host cannot overwrite an existing pivot table with an exact undo snapshot.');
   }
 
+  if (executionId) {
+    assertPivotTableSnapshotAnchorBlank_(anchorRange);
+  }
+
   const headerMap = buildHeaderMap_(sourceRange);
   validatePivotTableFieldReferences_(headerMap, planState);
   validatePivotTableCapabilities_(planState);
@@ -4368,6 +4372,24 @@ function findPivotTableAtAnchor_(sheet, targetRange) {
   }
 
   return matches[0] || null;
+}
+
+function assertPivotTableSnapshotAnchorBlank_(anchorRange) {
+  if (
+    !anchorRange ||
+    typeof anchorRange.getValues !== 'function' ||
+    typeof anchorRange.getFormulas !== 'function'
+  ) {
+    throw new Error('Google Sheets host cannot inspect the pivot table target anchor for exact undo.');
+  }
+
+  const values = anchorRange.getValues();
+  const formulas = anchorRange.getFormulas();
+  const value = values && values[0] ? values[0][0] : '';
+  const formula = formulas && formulas[0] ? formulas[0][0] : '';
+  if (!isBlankCellValue_(value) || !isBlankCellValue_(formula)) {
+    throw new Error('Google Sheets host requires a blank pivot table target anchor for exact undo.');
+  }
 }
 
 function createPivotTableSnapshotState_(pivotTable, fallbackTargetRange) {

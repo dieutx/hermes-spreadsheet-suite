@@ -1321,6 +1321,66 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     expect(flush).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects pivot undo snapshots when the Google Sheets anchor is not blank", () => {
+    const anchorRange = createRangeStub({
+      a1Notation: "A1",
+      row: 1,
+      column: 1,
+      numRows: 1,
+      numColumns: 1,
+      values: [["Existing"]]
+    });
+    const sourceRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6,
+      displayValues: [
+        ["Region", "Rep", "Quarter", "Revenue", "Status", "Deals"]
+      ]
+    });
+    anchorRange.createPivotTable = vi.fn();
+
+    const targetSheet = {
+      getRange: vi.fn(() => anchorRange),
+      getPivotTables: vi.fn(() => [])
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "Sales") {
+          return { getRange: vi.fn(() => sourceRange) };
+        }
+        if (sheetName === "Sales Pivot") {
+          return targetSheet;
+        }
+        return null;
+      })
+    };
+    const { applyWritePlan } = loadCodeModule({ spreadsheet });
+
+    expect(() => applyWritePlan({
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        targetSheet: "Sales Pivot",
+        targetRange: "A1",
+        rowGroups: ["Region"],
+        columnGroups: [],
+        valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+        filters: [],
+        explanation: "Build a pivot table by region.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      },
+      executionId: "exec_pivot_snapshot_nonblank_sheets_001"
+    })).toThrow("Google Sheets host requires a blank pivot table target anchor for exact undo.");
+    expect(anchorRange.createPivotTable).not.toHaveBeenCalled();
+  });
+
   it("applies bounded numeric pivot filters through Code.gs", () => {
     const anchorRange = createRangeStub({
       a1Notation: "A1",
