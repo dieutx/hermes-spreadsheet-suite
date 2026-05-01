@@ -749,6 +749,10 @@ describe("Google Sheets wave 1 helper compilation", () => {
   });
 
   it("fails safely for grid-filter semantics that cannot be represented exactly", () => {
+    const createFilter = vi.fn(() => ({
+      setColumnFilterCriteria: vi.fn(),
+      removeColumnFilterCriteria: vi.fn()
+    }));
     const targetRange = {
       getNumColumns() {
         return 2;
@@ -773,10 +777,7 @@ describe("Google Sheets wave 1 helper compilation", () => {
           ["Pending", "10"]
         ];
       },
-      createFilter: vi.fn(() => ({
-        setColumnFilterCriteria: vi.fn(),
-        removeColumnFilterCriteria: vi.fn()
-      }))
+      createFilter
     };
     const sheet = {
       getFilter() {
@@ -808,6 +809,7 @@ describe("Google Sheets wave 1 helper compilation", () => {
         requiresConfirmation: true
       }
     })).toThrow("Google Sheets grid filters cannot represent topN exactly when duplicate display values cross the cutoff.");
+    expect(createFilter).not.toHaveBeenCalled();
 
     expect(() => applyWritePlan({
       plan: {

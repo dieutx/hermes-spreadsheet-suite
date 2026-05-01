@@ -9984,14 +9984,21 @@ function applyWritePlan(input) {
       seenColumns[condition.columnPosition] = true;
     });
 
+    const builtCriteria = resolvedConditions.map(function(condition) {
+      return {
+        columnPosition: condition.columnPosition,
+        criteria: buildFilterCriteria_(condition.condition, {
+          target: target,
+          columnPosition: condition.columnPosition,
+          hasHeader: plan.hasHeader
+        })
+      };
+    });
+
     const beforeFilter = readRangeFilterStateForSnapshot_(sheet, target);
     const filter = getOrCreateFilter_(sheet, target, plan.clearExistingFilters);
-    resolvedConditions.forEach(function(condition) {
-      filter.setColumnFilterCriteria(condition.columnPosition, buildFilterCriteria_(condition.condition, {
-        target: target,
-        columnPosition: condition.columnPosition,
-        hasHeader: plan.hasHeader
-      }));
+    builtCriteria.forEach(function(condition) {
+      filter.setColumnFilterCriteria(condition.columnPosition, condition.criteria);
     });
 
     SpreadsheetApp.flush();
