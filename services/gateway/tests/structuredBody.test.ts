@@ -1995,7 +1995,6 @@ describe("structured body normalization", () => {
         style: {
           underline: true,
           strikethrough: false,
-          numberFormat: "#,##0.00",
           textColor: "#111111"
         }
       }
@@ -2004,7 +2003,6 @@ describe("structured body normalization", () => {
     expect(parsed.data.style).toEqual({
       underline: true,
       strikethrough: false,
-      numberFormat: "#,##0.00",
       textColor: "#111111"
     });
   });

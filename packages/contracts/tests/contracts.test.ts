@@ -2749,6 +2749,27 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects conditional format styles with number formats", () => {
+    const parsed = ConditionalFormatPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      managementMode: "add",
+      ruleType: "number_compare",
+      comparator: "greater_than",
+      value: 10,
+      style: {
+        numberFormat: "$#,##0.00"
+      },
+      explanation: "Invalid conditional number format.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:B20"],
+      replacesExistingRules: false
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects clear_on_target plans that carry rule payload", () => {
     const parsed = ConditionalFormatPlanDataSchema.safeParse({
       targetSheet: "Sheet1",
