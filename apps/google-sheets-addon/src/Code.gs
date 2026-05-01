@@ -992,6 +992,258 @@ function isExternalDataPlan_(plan) {
   );
 }
 
+function isBlockedExternalDataHostname_(hostname) {
+  const normalized = String(hostname || '')
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.+$/g, '')
+    .toLowerCase();
+  const ipv4Parts = normalized.split('.');
+  const ipv4Octets = ipv4Parts.length === 4
+    ? ipv4Parts.map(function(part) {
+      return /^\d+$/.test(part) ? Number(part) : NaN;
+    })
+    : [];
+  const isPrivateIpv4 = ipv4Octets.length === 4 &&
+    ipv4Octets.every(function(octet) {
+      return Number.isInteger(octet) && octet >= 0 && octet <= 255;
+    }) &&
+    (
+      ipv4Octets[0] === 0 ||
+      ipv4Octets[0] === 10 ||
+      ipv4Octets[0] === 127 ||
+      (ipv4Octets[0] === 169 && ipv4Octets[1] === 254) ||
+      (ipv4Octets[0] === 172 && ipv4Octets[1] >= 16 && ipv4Octets[1] <= 31) ||
+      (ipv4Octets[0] === 192 && ipv4Octets[1] === 168)
+    );
+
+  function getPrivateMappedIpv4Hostname_(value) {
+    const dottedMatch = value.match(/^(?:::ffff:|0:0:0:0:0:ffff:)(\d+\.\d+\.\d+\.\d+)$/i);
+    if (dottedMatch) {
+      return dottedMatch[1];
+    }
+
+    const match = value.match(/^(?:::ffff:|0:0:0:0:0:ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+    if (!match) {
+      return null;
+    }
+
+    const high = Number.parseInt(match[1], 16);
+    const low = Number.parseInt(match[2], 16);
+    if (!Number.isInteger(high) || !Number.isInteger(low)) {
+      return null;
+    }
+
+    return [
+      (high >> 8) & 255,
+      high & 255,
+      (low >> 8) & 255,
+      low & 255
+    ].join('.');
+  }
+
+  function isBlockedIpv6Hostname_(value) {
+    if (value.indexOf(':') === -1) {
+      return false;
+    }
+
+    const mappedIpv4Hostname = getPrivateMappedIpv4Hostname_(value);
+    if (mappedIpv4Hostname) {
+      return isBlockedExternalDataHostname_(mappedIpv4Hostname);
+    }
+
+    if (
+      value === '::' ||
+      value === '::1' ||
+      value === '0:0:0:0:0:0:0:0' ||
+      value === '0:0:0:0:0:0:0:1'
+    ) {
+      return true;
+    }
+
+    const parts = value.split(':');
+    let firstHextet = '';
+    for (let index = 0; index < parts.length; index += 1) {
+      if (parts[index]) {
+        firstHextet = parts[index];
+        break;
+      }
+    }
+    if (!firstHextet) {
+      return false;
+    }
+
+    const firstValue = Number.parseInt(firstHextet, 16);
+    if (!Number.isInteger(firstValue)) {
+      return false;
+    }
+
+    return (firstValue & 0xfe00) === 0xfc00 || (firstValue & 0xffc0) === 0xfe80;
+  }
+
+  return normalized === 'localhost' ||
+    normalized.endsWith('.localhost') ||
+    normalized === 'localdomain' ||
+    normalized.endsWith('.localdomain') ||
+    normalized === '::1' ||
+    normalized === '0:0:0:0:0:0:0:1' ||
+    normalized === 'internal' ||
+    normalized.startsWith('internal.') ||
+    normalized.endsWith('.internal') ||
+    normalized.endsWith('.local') ||
+    isPrivateIpv4 ||
+    isBlockedIpv6Hostname_(normalized);
+}
+
+function getPublicExternalDataUrlKey_(value) {
+  const trimmed = String(value || '').trim();
+  try {
+    if (typeof URL === 'function') {
+      const url = new URL(trimmed);
+      if (
+        (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+        isBlockedExternalDataHostname_(url.hostname)
+      ) {
+        return null;
+      }
+
+      return url.href;
+    }
+  } catch (_error) {
+    // Fall through to the lightweight parser used when URL is unavailable.
+  }
+
+  const match = trimmed.match(/^(https?):\/\/([^/?#\s]+)([^\s]*)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const protocol = match[1].toLowerCase();
+  const authority = match[2].replace(/^[^@]*@/, '');
+  const hostname = authority.replace(/:\d+$/, '');
+  if (isBlockedExternalDataHostname_(hostname)) {
+    return null;
+  }
+
+  return protocol + '://' + authority.toLowerCase() + (match[3] || '');
+}
+
+function extractExternalDataHttpUrls_(value) {
+  return String(value || '').match(/https?:\/\/[^\s"'`<>)\]}]+/gi) || [];
+}
+
+function extractExternalDataFormulaSourceUrlKeys_(formula, functionName) {
+  const pattern = new RegExp("\\b" + functionName + "\\s*\\(\\s*([\"'])(.*?)\\1", "gi");
+  const keys = [];
+  let match = pattern.exec(String(formula || ''));
+  while (match) {
+    const key = getPublicExternalDataUrlKey_(match[2]);
+    if (key) {
+      keys.push(key);
+    }
+    match = pattern.exec(String(formula || ''));
+  }
+  return keys;
+}
+
+function getExternalDataProviderFunctionName_(provider) {
+  switch (provider) {
+    case 'importhtml':
+      return 'IMPORTHTML';
+    case 'importxml':
+      return 'IMPORTXML';
+    case 'importdata':
+      return 'IMPORTDATA';
+    default:
+      return '';
+  }
+}
+
+function assertExternalDataPlanSafe_(plan) {
+  const formula = String(plan && plan.formula ? plan.formula : '').trim();
+  if (!formula || formula.indexOf('=') !== 0) {
+    throw new Error('Google Sheets external data plans require an exact formula.');
+  }
+
+  if (plan.sourceType === 'market_data') {
+    if (plan.provider !== 'googlefinance') {
+      throw new Error('Google Sheets market data currently requires GOOGLEFINANCE.');
+    }
+    if (!plan.query || typeof plan.query.symbol !== 'string' || !plan.query.symbol.trim()) {
+      throw new Error('Google Sheets market data requires a symbol.');
+    }
+    if (!/GOOGLEFINANCE\s*\(/i.test(formula)) {
+      throw new Error('Google Sheets market data formulas must use GOOGLEFINANCE(...).');
+    }
+    return;
+  }
+
+  if (plan.sourceType !== 'web_table_import') {
+    throw new Error('Google Sheets host cannot apply that external data source exactly.');
+  }
+
+  const sourceUrlKey = getPublicExternalDataUrlKey_(plan.sourceUrl);
+  if (!sourceUrlKey) {
+    throw new Error('Google Sheets external data sourceUrl must be a public HTTP(S) URL.');
+  }
+
+  if (extractExternalDataHttpUrls_(formula).some(function(url) {
+    return !getPublicExternalDataUrlKey_(url);
+  })) {
+    throw new Error('Google Sheets external data formulas must use public HTTP(S) URLs.');
+  }
+
+  if (plan.provider === 'importhtml') {
+    if (plan.selectorType !== 'table' && plan.selectorType !== 'list') {
+      throw new Error('IMPORTHTML requires selectorType table or list.');
+    }
+    if (!Number.isInteger(plan.selector) || Number(plan.selector) < 1) {
+      throw new Error('IMPORTHTML requires a positive table or list index.');
+    }
+    if (!/IMPORTHTML\s*\(/i.test(formula)) {
+      throw new Error('Google Sheets web table imports using IMPORTHTML must contain IMPORTHTML(...).');
+    }
+  } else if (plan.provider === 'importxml') {
+    if (plan.selectorType !== 'xpath') {
+      throw new Error('IMPORTXML requires selectorType xpath.');
+    }
+    if (typeof plan.selector !== 'string' || !plan.selector.trim()) {
+      throw new Error('IMPORTXML requires an xpath selector.');
+    }
+    if (!/IMPORTXML\s*\(/i.test(formula)) {
+      throw new Error('Google Sheets XML imports must contain IMPORTXML(...).');
+    }
+  } else if (plan.provider === 'importdata') {
+    if (plan.selectorType !== 'direct') {
+      throw new Error('IMPORTDATA requires selectorType direct.');
+    }
+    if (plan.selector !== undefined) {
+      throw new Error('IMPORTDATA does not use a selector.');
+    }
+    if (!/IMPORTDATA\s*\(/i.test(formula)) {
+      throw new Error('Google Sheets direct imports must contain IMPORTDATA(...).');
+    }
+  } else {
+    throw new Error('Google Sheets host cannot apply that external data provider exactly.');
+  }
+
+  const functionName = getExternalDataProviderFunctionName_(plan.provider);
+  const providerSourceKeys = extractExternalDataFormulaSourceUrlKeys_(formula, functionName);
+  const allWebImportSourceKeys = ['IMPORTHTML', 'IMPORTXML', 'IMPORTDATA'].reduce(function(keys, name) {
+    return keys.concat(extractExternalDataFormulaSourceUrlKeys_(formula, name));
+  }, []);
+
+  if (
+    !providerSourceKeys.some(function(key) {
+      return key === sourceUrlKey;
+    }) ||
+    allWebImportSourceKeys.some(function(key) {
+      return key !== sourceUrlKey;
+    })
+  ) {
+    throw new Error('Google Sheets external data formulas must reference sourceUrl.');
+  }
+}
+
 function getSingleCellFormula_(range) {
   if (range && typeof range.getFormula === 'function') {
     return range.getFormula();
@@ -9775,6 +10027,8 @@ function applyWritePlan(input) {
     if (target.getNumRows() !== 1 || target.getNumColumns() !== 1) {
       throw new Error('Google Sheets host requires a single-cell target anchor for external data formulas.');
     }
+
+    assertExternalDataPlanSafe_(plan);
 
     const beforeValues = target.getValues();
     const beforeFormulas = target.getFormulas();
