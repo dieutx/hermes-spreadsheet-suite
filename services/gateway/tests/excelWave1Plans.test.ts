@@ -1127,6 +1127,105 @@ describe("Excel wave 1 plan helpers", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel merge cell writes", async () => {
+    let merged = false;
+    const targetRange = {
+      address: "Sheet1!B2:C3",
+      rowCount: 2,
+      columnCount: 2,
+      values: [
+        ["Region", ""],
+        ["West", "East"]
+      ],
+      formulas: [
+        ["", ""],
+        ["", ""]
+      ],
+      load: vi.fn(),
+      getMergedAreasOrNullObject: vi.fn(() => ({
+        isNullObject: !merged,
+        address: merged ? "Sheet1!B2:C3" : "",
+        load: vi.fn()
+      })),
+      merge: vi.fn(() => {
+        merged = true;
+        targetRange.values = [
+          ["Region", ""],
+          ["", ""]
+        ];
+        targetRange.formulas = [
+          ["", ""],
+          ["", ""]
+        ];
+      }),
+      unmerge: vi.fn(() => {
+        merged = false;
+      })
+    };
+    const worksheet = {
+      getRange: vi.fn((address: string) => {
+        expect(address).toBe("B2:C3");
+        return targetRange;
+      })
+    };
+    const worksheets = {
+      getItem: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return worksheet;
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "merge_cells",
+        targetSheet: "Sheet1",
+        targetRange: "B2:C3",
+        explanation: "Merge the regional header.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_merge_cells_snapshot_excel_001",
+      runId: "run_merge_cells_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_merge_cells_snapshot_excel_001"
+    });
+
+    expect(targetRange.merge).toHaveBeenCalledWith(false);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "merge_cells",
+      targetSheet: "Sheet1",
+      targetRange: "B2:C3",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_merge_cells_snapshot_excel_001",
+        kind: "range_merge",
+        targetSheet: "Sheet1",
+        targetRange: "B2:C3",
+        before: {
+          merged: false,
+          cells: [
+            [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+            [{ kind: "value", value: { type: "string", value: "West" } }, { kind: "value", value: { type: "string", value: "East" } }]
+          ]
+        },
+        after: {
+          merged: true,
+          cells: [
+            [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+            [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+          ]
+        }
+      }
+    });
+  });
+
   it("attaches local undo snapshots for Excel sheet create writes", async () => {
     const existingWorksheet = {
       name: "Sheet1",

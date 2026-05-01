@@ -3219,6 +3219,227 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(columnHidden.get("C:C")).toBe(false);
   });
 
+  it("restores Excel merge snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const before = {
+      merged: false,
+      cells: [
+        [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+        [{ kind: "value", value: { type: "string", value: "West" } }, { kind: "value", value: { type: "string", value: "East" } }]
+      ]
+    };
+    const after = {
+      merged: true,
+      cells: [
+        [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+        [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+      ]
+    };
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_merge_cells_001"],
+      executions: {
+        exec_merge_cells_001: {
+          baseExecutionId: "exec_merge_cells_001"
+        }
+      },
+      bases: {
+        exec_merge_cells_001: {
+          baseExecutionId: "exec_merge_cells_001",
+          kind: "range_merge",
+          targetSheet: "Sheet1",
+          targetRange: "B2:C3",
+          before,
+          after
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "sheet_structure_update",
+          operation: "merge_cells",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    let merged = true;
+    const cellValues = new Map<string, unknown>();
+    const targetRange = {
+      address: "Sheet1!B2:C3",
+      rowCount: 2,
+      columnCount: 2,
+      values: [["Region", ""], ["", ""]],
+      formulas: [["", ""], ["", ""]],
+      load: vi.fn(),
+      getMergedAreasOrNullObject: vi.fn(() => ({
+        isNullObject: !merged,
+        address: merged ? "Sheet1!B2:C3" : "",
+        load: vi.fn()
+      })),
+      merge: vi.fn(() => {
+        merged = true;
+      }),
+      unmerge: vi.fn(() => {
+        merged = false;
+      }),
+      getCell: vi.fn((rowIndex: number, columnIndex: number) => ({
+        set values(nextValues: unknown[][]) {
+          cellValues.set(`${rowIndex},${columnIndex}`, nextValues[0][0]);
+        },
+        set formulas(nextFormulas: string[][]) {
+          cellValues.set(`${rowIndex},${columnIndex}`, nextFormulas[0][0]);
+        }
+      }))
+    };
+    const worksheet = {
+      getRange(address: string) {
+        expect(address).toBe("B2:C3");
+        return targetRange;
+      }
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("Sheet1");
+              return worksheet;
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_merge_cells_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(targetRange.unmerge).toHaveBeenCalledTimes(1);
+    expect(targetRange.merge).not.toHaveBeenCalled();
+    expect(merged).toBe(false);
+    expect(cellValues.get("0,0")).toBe("Region");
+    expect(cellValues.get("1,0")).toBe("West");
+    expect(cellValues.get("1,1")).toBe("East");
+  });
+
+  it("fails Excel merge snapshot undo before calling the gateway when live state drifted", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const before = {
+      merged: false,
+      cells: [
+        [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+        [{ kind: "value", value: { type: "string", value: "West" } }, { kind: "value", value: { type: "string", value: "East" } }]
+      ]
+    };
+    const after = {
+      merged: true,
+      cells: [
+        [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+        [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+      ]
+    };
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_merge_cells_001"],
+      executions: {
+        exec_merge_cells_001: {
+          baseExecutionId: "exec_merge_cells_001"
+        }
+      },
+      bases: {
+        exec_merge_cells_001: {
+          baseExecutionId: "exec_merge_cells_001",
+          kind: "range_merge",
+          targetSheet: "Sheet1",
+          targetRange: "B2:C3",
+          before,
+          after
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "sheet_structure_update",
+          operation: "merge_cells",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    const targetRange = {
+      address: "Sheet1!B2:C3",
+      rowCount: 2,
+      columnCount: 2,
+      values: [["Region", ""], ["West", "East"]],
+      formulas: [["", ""], ["", ""]],
+      load: vi.fn(),
+      getMergedAreasOrNullObject: vi.fn(() => ({
+        isNullObject: true,
+        address: "",
+        load: vi.fn()
+      })),
+      merge: vi.fn(),
+      unmerge: vi.fn(),
+      getCell: vi.fn(() => ({
+        set values(_nextValues: unknown[][]) {},
+        set formulas(_nextFormulas: string[][]) {}
+      }))
+    };
+    const worksheet = {
+      getRange(address: string) {
+        expect(address).toBe("B2:C3");
+        return targetRange;
+      }
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("Sheet1");
+              return worksheet;
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await expect(taskpane.undoExecution("exec_merge_cells_001")).rejects.toThrow(
+      "Range merge state changed since this history entry was captured."
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(targetRange.unmerge).not.toHaveBeenCalled();
+  });
+
   it("restores Excel sheet tab color snapshots before committing undo", async () => {
     const workbookSessionId = "workbook-123";
     const workbookSessionKey = `excel_windows::${workbookSessionId}`;
