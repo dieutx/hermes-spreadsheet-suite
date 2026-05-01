@@ -2034,7 +2034,7 @@ describe("writeback confirmation flow", () => {
         { field: "Deals", aggregation: "count" }
       ],
       filters: [{ field: "Status", operator: "equal_to", value: "Closed Won" }],
-      sort: { field: "Revenue", direction: "desc", sortOn: "aggregated_value" },
+      sort: { field: "Region", direction: "asc", sortOn: "group_field" },
       explanation: "Build a sales pivot by region and rep.",
       confidence: 0.9,
       requiresConfirmation: true as const,
