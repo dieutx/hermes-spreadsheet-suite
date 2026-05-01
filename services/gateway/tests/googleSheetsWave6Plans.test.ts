@@ -4190,6 +4190,121 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("attaches local undo snapshots for Google Sheets freeze pane writes", () => {
+    let frozenRows = 1;
+    let frozenColumns = 0;
+    const sheet = {
+      getName: vi.fn(() => "Sheet1"),
+      getFrozenRows: vi.fn(() => frozenRows),
+      getFrozenColumns: vi.fn(() => frozenColumns),
+      setFrozenRows: vi.fn((nextRows: number) => {
+        frozenRows = nextRows;
+      }),
+      setFrozenColumns: vi.fn((nextColumns: number) => {
+        frozenColumns = nextColumns;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_freeze_pane_snapshot_sheets_001",
+      runId: "run_freeze_pane_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_freeze_pane_snapshot_sheets_001",
+      plan: {
+        operation: "freeze_panes",
+        targetSheet: "Sheet1",
+        frozenRows: 2,
+        frozenColumns: 3,
+        explanation: "Freeze the header rows and leading columns.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(frozenRows).toBe(2);
+    expect(frozenColumns).toBe(3);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "freeze_panes",
+      targetSheet: "Sheet1",
+      frozenRows: 2,
+      frozenColumns: 3,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_freeze_pane_snapshot_sheets_001",
+        kind: "workbook_structure",
+        operation: "sheet_freeze_panes",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          frozenRows: 1,
+          frozenColumns: 0
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          frozenRows: 2,
+          frozenColumns: 3
+        }
+      }
+    });
+  });
+
+  it("applies Google Sheets freeze pane snapshots on the server", () => {
+    let frozenRows = 2;
+    let frozenColumns = 3;
+    const sheet = {
+      getFrozenRows: vi.fn(() => frozenRows),
+      getFrozenColumns: vi.fn(() => frozenColumns),
+      setFrozenRows: vi.fn((nextRows: number) => {
+        frozenRows = nextRows;
+      }),
+      setFrozenColumns: vi.fn((nextColumns: number) => {
+        frozenColumns = nextColumns;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "sheet_freeze_panes",
+      from: {
+        exists: true,
+        name: "Sheet1",
+        frozenRows: 2,
+        frozenColumns: 3
+      },
+      to: {
+        exists: true,
+        name: "Sheet1",
+        frozenRows: 0,
+        frozenColumns: 1
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "sheet_freeze_panes"
+    });
+
+    expect(frozenRows).toBe(0);
+    expect(frozenColumns).toBe(1);
+    expect(sheet.setFrozenRows).toHaveBeenCalledWith(0);
+    expect(sheet.setFrozenColumns).toHaveBeenCalledWith(1);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("attaches local undo snapshots for Google Sheets sheet move writes", () => {
     const firstSheet = {
       getName: vi.fn(() => "Sheet1"),

@@ -4468,6 +4468,72 @@ function createWorkbookStructureTabColorLocalExecutionSnapshot_(input) {
   };
 }
 
+function getWorkbookStructureFreezePaneSnapshotState_(sheet) {
+  if (
+    !sheet ||
+    typeof sheet.getFrozenRows !== 'function' ||
+    typeof sheet.getFrozenColumns !== 'function'
+  ) {
+    throw new Error('Google Sheets host cannot read freeze pane state for exact undo.');
+  }
+
+  const frozenRows = sheet.getFrozenRows();
+  const frozenColumns = sheet.getFrozenColumns();
+  if (
+    !Number.isInteger(frozenRows) ||
+    frozenRows < 0 ||
+    !Number.isInteger(frozenColumns) ||
+    frozenColumns < 0
+  ) {
+    throw new Error('Google Sheets host cannot read freeze pane state for exact undo.');
+  }
+
+  return {
+    frozenRows: frozenRows,
+    frozenColumns: frozenColumns
+  };
+}
+
+function isSameWorkbookStructureFreezePaneState_(left, right) {
+  return Boolean(
+    left &&
+    right &&
+    left.frozenRows === right.frozenRows &&
+    left.frozenColumns === right.frozenColumns
+  );
+}
+
+function createWorkbookStructureFreezePaneLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.sheetName ||
+    !input.before ||
+    !input.after ||
+    isSameWorkbookStructureFreezePaneState_(input.before, input.after)
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'workbook_structure',
+    operation: 'sheet_freeze_panes',
+    before: {
+      exists: true,
+      name: input.sheetName,
+      frozenRows: input.before.frozenRows,
+      frozenColumns: input.before.frozenColumns
+    },
+    after: {
+      exists: true,
+      name: input.sheetName,
+      frozenRows: input.after.frozenRows,
+      frozenColumns: input.after.frozenColumns
+    }
+  };
+}
+
 function createWorkbookStructureCreateLocalExecutionSnapshot_(input) {
   if (
     !input ||
@@ -5547,6 +5613,21 @@ function assertWorkbookStructureTabColorSnapshotState_(state) {
   }
 }
 
+function assertWorkbookStructureFreezePaneSnapshotState_(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== 'string' ||
+    state.name.trim().length === 0 ||
+    !Number.isInteger(state.frozenRows) ||
+    state.frozenRows < 0 ||
+    !Number.isInteger(state.frozenColumns) ||
+    state.frozenColumns < 0
+  ) {
+    throw new Error('That workbook structure history entry is no longer available in this sheet session.');
+  }
+}
+
 function assertWorkbookStructureCreateSnapshotState_(state) {
   if (
     !state ||
@@ -5594,6 +5675,7 @@ function resolveWorkbookStructureSnapshotTransition_(input) {
       input.operation !== 'rename_sheet' &&
       input.operation !== 'sheet_visibility' &&
       input.operation !== 'sheet_tab_color' &&
+      input.operation !== 'sheet_freeze_panes' &&
       input.operation !== 'move_sheet' &&
       input.operation !== 'create_sheet' &&
       input.operation !== 'duplicate_sheet'
@@ -5731,6 +5813,29 @@ function resolveWorkbookStructureSnapshotTransition_(input) {
     const currentColor = getWorkbookStructureTabColorSnapshotState_(sheet);
     if (currentColor !== normalizeWorkbookStructureTabColor_(input.from.color)) {
       throw new Error('Sheet tab color changed since this history entry was captured.');
+    }
+
+    return {
+      spreadsheet: spreadsheet,
+      sheet: sheet,
+      from: input.from,
+      to: input.to
+    };
+  }
+
+  if (input.operation === 'sheet_freeze_panes') {
+    assertWorkbookStructureFreezePaneSnapshotState_(input.from);
+    assertWorkbookStructureFreezePaneSnapshotState_(input.to);
+
+    const spreadsheet = SpreadsheetApp.getActive();
+    const sheet = spreadsheet.getSheetByName(input.from.name);
+    if (!sheet) {
+      throw new Error('Target sheet not found: ' + input.from.name);
+    }
+
+    const currentFreezePaneState = getWorkbookStructureFreezePaneSnapshotState_(sheet);
+    if (!isSameWorkbookStructureFreezePaneState_(currentFreezePaneState, input.from)) {
+      throw new Error('Sheet freeze pane state changed since this history entry was captured.');
     }
 
     return {
@@ -5898,6 +6003,25 @@ function applyExecutionWorkbookStructureSnapshot_(input) {
     }
 
     transition.sheet.setTabColor(normalizeWorkbookStructureTabColor_(transition.to.color) || null);
+    SpreadsheetApp.flush();
+    return {
+      ok: true,
+      operation: input.operation,
+      from: transition.from.name,
+      to: transition.to.name
+    };
+  }
+
+  if (input.operation === 'sheet_freeze_panes') {
+    if (
+      typeof transition.sheet.setFrozenRows !== 'function' ||
+      typeof transition.sheet.setFrozenColumns !== 'function'
+    ) {
+      throw new Error('Google Sheets host cannot restore the saved freeze pane state.');
+    }
+
+    transition.sheet.setFrozenRows(transition.to.frozenRows);
+    transition.sheet.setFrozenColumns(transition.to.frozenColumns);
     SpreadsheetApp.flush();
     return {
       ok: true,
@@ -8642,6 +8766,11 @@ function applyWritePlan(input) {
     const beforeTabColor = plan.operation === 'set_sheet_tab_color' && input.executionId
       ? getWorkbookStructureTabColorSnapshotState_(sheet)
       : undefined;
+    const shouldSnapshotFreezePanes =
+      input.executionId && (plan.operation === 'freeze_panes' || plan.operation === 'unfreeze_panes');
+    const beforeFreezePanes = shouldSnapshotFreezePanes
+      ? getWorkbookStructureFreezePaneSnapshotState_(sheet)
+      : undefined;
     switch (plan.operation) {
       case 'insert_rows':
         sheet.insertRowsBefore(plan.startIndex + 1, plan.count);
@@ -8711,6 +8840,9 @@ function applyWritePlan(input) {
     const afterTabColor = beforeTabColor !== undefined
       ? getWorkbookStructureTabColorSnapshotState_(sheet)
       : undefined;
+    const afterFreezePanes = beforeFreezePanes !== undefined
+      ? getWorkbookStructureFreezePaneSnapshotState_(sheet)
+      : undefined;
     const result = {
       kind: 'sheet_structure_update',
       hostPlatform: 'google_sheets',
@@ -8751,12 +8883,24 @@ function applyWritePlan(input) {
         break;
     }
 
-    return attachLocalExecutionSnapshot_(result, createWorkbookStructureTabColorLocalExecutionSnapshot_({
-      executionId: input.executionId,
-      sheetName: typeof sheet.getName === 'function' ? sheet.getName() : plan.targetSheet,
-      beforeColor: beforeTabColor,
-      afterColor: afterTabColor
-    }));
+    const sheetName = typeof sheet.getName === 'function' ? sheet.getName() : plan.targetSheet;
+    const localSnapshot = plan.operation === 'set_sheet_tab_color'
+      ? createWorkbookStructureTabColorLocalExecutionSnapshot_({
+        executionId: input.executionId,
+        sheetName: sheetName,
+        beforeColor: beforeTabColor,
+        afterColor: afterTabColor
+      })
+      : shouldSnapshotFreezePanes
+        ? createWorkbookStructureFreezePaneLocalExecutionSnapshot_({
+          executionId: input.executionId,
+          sheetName: sheetName,
+          before: beforeFreezePanes,
+          after: afterFreezePanes
+        })
+        : null;
+
+    return attachLocalExecutionSnapshot_(result, localSnapshot);
   }
 
   const target = sheet.getRange(plan.targetRange);
