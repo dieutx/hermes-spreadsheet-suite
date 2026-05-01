@@ -3427,6 +3427,38 @@ describe("Hermes spreadsheet contracts", () => {
     }).success).toBe(false);
   });
 
+  it("rejects cleanup plans whose affectedRanges omit the target range", () => {
+    const parsed = DataCleanupPlanDataSchema.safeParse({
+      targetSheet: "Contacts",
+      targetRange: "A2:A50",
+      operation: "trim_whitespace",
+      explanation: "Trim whitespace before publishing.",
+      confidence: 0.87,
+      requiresConfirmation: true,
+      confirmationLevel: "standard",
+      affectedRanges: ["Contacts!C2:C50"],
+      overwriteRisk: "low"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts cleanup affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = DataCleanupPlanDataSchema.parse({
+      targetSheet: "Contacts",
+      targetRange: "$A$2:$A$50",
+      operation: "trim_whitespace",
+      explanation: "Trim whitespace before publishing.",
+      confidence: 0.87,
+      requiresConfirmation: true,
+      confirmationLevel: "standard",
+      affectedRanges: ["Contacts!A2:A50"],
+      overwriteRisk: "low"
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Contacts!A2:A50"]);
+  });
+
   it("rejects a data cleanup update with an unsupported cleanup operation", () => {
     const parsed = DataCleanupUpdateDataSchema.safeParse({
       operation: "data_cleanup_update",
