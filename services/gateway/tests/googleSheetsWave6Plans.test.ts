@@ -6439,6 +6439,11 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       String.raw`Gateway failed at \\runner\share\server.ts:42`
     )).toBe("Hermes gateway request failed with 500.");
 
+    expect(code.extractGatewayErrorMessage(
+      500,
+      String.raw`Gateway failed path=\\runner\share\server.ts:42`
+    )).toBe("Hermes gateway request failed with 500.");
+
     await expect(hooks.parseGatewayJsonResponse({
       ok: false,
       status: 500,
@@ -6474,6 +6479,18 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
         return String.raw`Gateway failed at \\runner\share\server.ts:42`;
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return String.raw`Gateway failed path=\\runner\share\server.ts:42`;
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
   });
 
   it("sanitizes JSON gateway failures before display in Google Sheets", async () => {
@@ -6502,6 +6519,17 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       "Hermes gateway request failed with 500."
     );
 
+    const labeledUncBodyText = JSON.stringify({
+      error: {
+        message: "Gateway failed while formatting diagnostics.",
+        userAction: String.raw`Inspect source=\\runner\share\debug.log before retrying.`
+      }
+    });
+
+    expect(code.extractGatewayErrorMessage(500, labeledUncBodyText)).toBe(
+      "Hermes gateway request failed with 500."
+    );
+
     await expect(hooks.parseGatewayJsonResponse({
       ok: false,
       status: 500,
@@ -6520,6 +6548,18 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       url: "https://gateway.test/api/requests",
       async json() {
         return JSON.parse(uncBodyText);
+      },
+      async text() {
+        return "";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        return JSON.parse(labeledUncBodyText);
       },
       async text() {
         return "";
