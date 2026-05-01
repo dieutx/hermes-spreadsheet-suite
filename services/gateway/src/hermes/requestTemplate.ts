@@ -860,7 +860,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- range_format_update: supported. Supported static formatting fields: numberFormat, backgroundColor, textColor, fontFamily, fontSize, bold, italic, underline, strikethrough, horizontalAlignment, verticalAlignment, wrapStrategy, border, columnWidth, and rowHeight. Use conditional_format_plan for rule-based highlighting.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats.",
         "- data_cleanup_plan: limited. normalize_case only supports upper, lower, title, and sentence. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
-        "- range_filter_plan: limited. Use combiner=and only. Repeated conditions on the same column are exact-safe only when exactly two custom criteria can be combined with AND.",
+        "- range_filter_plan: limited. Use combiner=and only. topN filters are supported through native Excel top item filters. Use positive whole-number topN values only. Repeated conditions on the same column are exact-safe only when exactly two custom criteria can be combined with AND.",
         "- data_validation_plan: limited. Checkbox values must stay on true and false. inputTitle, inputMessage, errorTitle, and errorMessage are supported for non-checkbox validation rules.",
         noteWriteLine
       ];
