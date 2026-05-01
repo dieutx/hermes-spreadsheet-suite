@@ -3166,7 +3166,45 @@ export const DocumentSummaryResponseSchema = createResponseSchema(
   DocumentSummaryDataSchema
 );
 
-export const HermesResponseSchema = z.discriminatedUnion("type", [
+export type HermesResponse =
+  | ChatResponse
+  | FormulaResponse
+  | CompositePlanResponse
+  | CompositeUpdateResponse
+  | WorkbookStructureUpdateResponse
+  | RangeFormatUpdateResponse
+  | ConditionalFormatPlanResponse
+  | ConditionalFormatUpdateResponse
+  | SheetStructureUpdateResponse
+  | RangeSortPlanResponse
+  | RangeFilterPlanResponse
+  | DataValidationPlanResponse
+  | AnalysisReportPlanResponse
+  | PivotTablePlanResponse
+  | ChartPlanResponse
+  | TablePlanResponse
+  | NamedRangeUpdateResponse
+  | RangeTransferPlanResponse
+  | DataCleanupPlanResponse
+  | AnalysisReportUpdateResponse
+  | PivotTableUpdateResponse
+  | ChartUpdateResponse
+  | TableUpdateResponse
+  | RangeTransferUpdateResponse
+  | DataCleanupUpdateResponse
+  | SheetUpdateResponse
+  | SheetImportPlanResponse
+  | ExternalDataPlanResponse
+  | ErrorResponse
+  | AttachmentAnalysisResponse
+  | ExtractedTableResponse
+  | DocumentSummaryResponse;
+
+export const HermesResponseSchema: z.ZodType<
+  HermesResponse,
+  z.ZodTypeDef,
+  unknown
+> = z.discriminatedUnion("type", [
   ChatResponseSchema,
   FormulaResponseSchema,
   CompositePlanResponseSchema,
@@ -3199,7 +3237,7 @@ export const HermesResponseSchema = z.discriminatedUnion("type", [
   AttachmentAnalysisResponseSchema,
   ExtractedTableResponseSchema,
   DocumentSummaryResponseSchema
-]);
+]) as z.ZodType<HermesResponse, z.ZodTypeDef, unknown>;
 
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
 export type Attachment = z.infer<typeof AttachmentSchema>;
@@ -3320,4 +3358,3 @@ export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 export type AttachmentAnalysisResponse = z.infer<typeof AttachmentAnalysisResponseSchema>;
 export type ExtractedTableResponse = z.infer<typeof ExtractedTableResponseSchema>;
 export type DocumentSummaryResponse = z.infer<typeof DocumentSummaryResponseSchema>;
-export type HermesResponse = z.infer<typeof HermesResponseSchema>;

@@ -2780,7 +2780,29 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.93,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "standard",
       replacesExistingRules: true
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects destructive confirmation on conditional format add plans", () => {
+    const parsed = ConditionalFormatPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      managementMode: "add",
+      ruleType: "text_contains",
+      text: "overdue",
+      style: {
+        backgroundColor: "#ffdddd"
+      },
+      explanation: "Highlight overdue items.",
+      confidence: 0.93,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "destructive",
+      replacesExistingRules: false
     });
 
     expect(parsed.success).toBe(false);
@@ -2795,6 +2817,7 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.9,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!C2:C20"],
+      confirmationLevel: "destructive",
       replacesExistingRules: true
     });
 
