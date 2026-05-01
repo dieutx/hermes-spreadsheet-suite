@@ -722,6 +722,16 @@ export const RangeSortPlanDataSchema = strictObject({
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
   affectedRanges: z.array(z.string().min(1).max(128)).max(10).optional()
+}).superRefine((data, ctx) => {
+  const affectedRanges = data.affectedRanges ?? [];
+  const targetRefs = new Set([`${data.targetSheet}!${data.targetRange}`, data.targetRange]);
+  if (affectedRanges.length > 0 && !affectedRanges.some((range) => targetRefs.has(range))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the target range.",
+      path: ["affectedRanges"]
+    });
+  }
 });
 
 export const RangeFilterConditionSchema = strictObject({
