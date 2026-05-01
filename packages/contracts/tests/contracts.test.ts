@@ -370,6 +370,28 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts external data affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = ExternalDataPlanDataSchema.parse({
+      sourceType: "market_data",
+      provider: "googlefinance",
+      targetSheet: "Market Data",
+      targetRange: "$B$2",
+      formula: '=GOOGLEFINANCE("CURRENCY:BTCUSD","price")',
+      query: {
+        symbol: "CURRENCY:BTCUSD",
+        attribute: "price"
+      },
+      explanation: "Insert a live BTC/USD price formula.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Market Data!B2"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Market Data!B2"]);
+  });
+
   it("rejects composite plans that fail to escalate destructive confirmation", () => {
     const parsed = CompositePlanDataSchema.safeParse({
       steps: [
