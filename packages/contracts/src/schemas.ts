@@ -87,6 +87,10 @@ function normalizeAffectedA1RangeRef(value: string): string | null {
   );
 }
 
+function normalizeCompositeAffectedRangeRef(value: string): string {
+  return normalizeAffectedA1RangeRef(value) ?? value.trim();
+}
+
 const StrictSingleCellA1StringSchema = z.string().min(1).max(128).refine(isSingleCellA1Range, {
   message: "must be a single-cell A1 range."
 });
@@ -2714,14 +2718,16 @@ export const CompositePlanDataSchema = strictObject({
     });
   }
 
-  const compositeAffectedRanges = new Set(data.affectedRanges);
+  const compositeAffectedRanges = new Set(
+    data.affectedRanges.map((range) => normalizeCompositeAffectedRangeRef(range))
+  );
   data.steps.forEach((step, index) => {
     if (!("affectedRanges" in step.plan) || !Array.isArray(step.plan.affectedRanges)) {
       return;
     }
 
     const missingRanges = step.plan.affectedRanges.filter(
-      (range) => !compositeAffectedRanges.has(range)
+      (range) => !compositeAffectedRanges.has(normalizeCompositeAffectedRangeRef(range))
     );
     if (missingRanges.length > 0) {
       ctx.addIssue({
