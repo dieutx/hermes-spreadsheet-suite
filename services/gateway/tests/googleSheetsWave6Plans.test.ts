@@ -4402,6 +4402,160 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     });
   });
 
+  it("attaches local undo snapshots for Google Sheets row visibility writes", () => {
+    const rowHidden = new Map([
+      [3, false],
+      [4, true],
+      [5, false]
+    ]);
+    const sheet = {
+      getName: vi.fn(() => "Sheet1"),
+      isRowHiddenByUser: vi.fn((rowIndex: number) => rowHidden.get(rowIndex)),
+      hideRows: vi.fn((startRow: number, rowCount: number) => {
+        for (let offset = 0; offset < rowCount; offset += 1) {
+          rowHidden.set(startRow + offset, true);
+        }
+      }),
+      showRows: vi.fn((startRow: number, rowCount: number) => {
+        for (let offset = 0; offset < rowCount; offset += 1) {
+          rowHidden.set(startRow + offset, false);
+        }
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_hide_rows_snapshot_sheets_001",
+      runId: "run_hide_rows_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_hide_rows_snapshot_sheets_001",
+      plan: {
+        operation: "hide_rows",
+        targetSheet: "Sheet1",
+        startIndex: 2,
+        count: 3,
+        explanation: "Hide subtotal rows.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(rowHidden.get(3)).toBe(true);
+    expect(rowHidden.get(4)).toBe(true);
+    expect(rowHidden.get(5)).toBe(true);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "hide_rows",
+      targetSheet: "Sheet1",
+      startIndex: 2,
+      count: 3,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_hide_rows_snapshot_sheets_001",
+        kind: "workbook_structure",
+        operation: "row_column_visibility",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          dimension: "rows",
+          startIndex: 2,
+          count: 3,
+          hiddenStates: [false, true, false]
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          dimension: "rows",
+          startIndex: 2,
+          count: 3,
+          hiddenStates: [true, true, true]
+        }
+      }
+    });
+  });
+
+  it("attaches local undo snapshots for Google Sheets column visibility writes", () => {
+    const columnHidden = new Map([
+      [2, true],
+      [3, false]
+    ]);
+    const sheet = {
+      getName: vi.fn(() => "Sheet1"),
+      isColumnHiddenByUser: vi.fn((columnIndex: number) => columnHidden.get(columnIndex)),
+      hideColumns: vi.fn((startColumn: number, columnCount: number) => {
+        for (let offset = 0; offset < columnCount; offset += 1) {
+          columnHidden.set(startColumn + offset, true);
+        }
+      }),
+      showColumns: vi.fn((startColumn: number, columnCount: number) => {
+        for (let offset = 0; offset < columnCount; offset += 1) {
+          columnHidden.set(startColumn + offset, false);
+        }
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_unhide_columns_snapshot_sheets_001",
+      runId: "run_unhide_columns_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_unhide_columns_snapshot_sheets_001",
+      plan: {
+        operation: "unhide_columns",
+        targetSheet: "Sheet1",
+        startIndex: 1,
+        count: 2,
+        explanation: "Unhide working columns.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(columnHidden.get(2)).toBe(false);
+    expect(columnHidden.get(3)).toBe(false);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "unhide_columns",
+      targetSheet: "Sheet1",
+      startIndex: 1,
+      count: 2,
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_unhide_columns_snapshot_sheets_001",
+        kind: "workbook_structure",
+        operation: "row_column_visibility",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          dimension: "columns",
+          startIndex: 1,
+          count: 2,
+          hiddenStates: [true, false]
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          dimension: "columns",
+          startIndex: 1,
+          count: 2,
+          hiddenStates: [false, false]
+        }
+      }
+    });
+  });
+
   it("applies Google Sheets freeze pane snapshots on the server", () => {
     let frozenRows = 2;
     let frozenColumns = 3;
@@ -4447,6 +4601,118 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(frozenColumns).toBe(1);
     expect(sheet.setFrozenRows).toHaveBeenCalledWith(0);
     expect(sheet.setFrozenColumns).toHaveBeenCalledWith(1);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("applies Google Sheets row visibility snapshots on the server", () => {
+    const rowHidden = new Map([
+      [3, true],
+      [4, true],
+      [5, true]
+    ]);
+    const sheet = {
+      isRowHiddenByUser: vi.fn((rowIndex: number) => rowHidden.get(rowIndex)),
+      hideRows: vi.fn((startRow: number, rowCount: number) => {
+        for (let offset = 0; offset < rowCount; offset += 1) {
+          rowHidden.set(startRow + offset, true);
+        }
+      }),
+      showRows: vi.fn((startRow: number, rowCount: number) => {
+        for (let offset = 0; offset < rowCount; offset += 1) {
+          rowHidden.set(startRow + offset, false);
+        }
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "row_column_visibility",
+      from: {
+        exists: true,
+        name: "Sheet1",
+        dimension: "rows",
+        startIndex: 2,
+        count: 3,
+        hiddenStates: [true, true, true]
+      },
+      to: {
+        exists: true,
+        name: "Sheet1",
+        dimension: "rows",
+        startIndex: 2,
+        count: 3,
+        hiddenStates: [false, true, false]
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "row_column_visibility"
+    });
+
+    expect(rowHidden.get(3)).toBe(false);
+    expect(rowHidden.get(4)).toBe(true);
+    expect(rowHidden.get(5)).toBe(false);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("applies Google Sheets column visibility snapshots on the server", () => {
+    const columnHidden = new Map([
+      [2, false],
+      [3, false]
+    ]);
+    const sheet = {
+      isColumnHiddenByUser: vi.fn((columnIndex: number) => columnHidden.get(columnIndex)),
+      hideColumns: vi.fn((startColumn: number, columnCount: number) => {
+        for (let offset = 0; offset < columnCount; offset += 1) {
+          columnHidden.set(startColumn + offset, true);
+        }
+      }),
+      showColumns: vi.fn((startColumn: number, columnCount: number) => {
+        for (let offset = 0; offset < columnCount; offset += 1) {
+          columnHidden.set(startColumn + offset, false);
+        }
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "row_column_visibility",
+      from: {
+        exists: true,
+        name: "Sheet1",
+        dimension: "columns",
+        startIndex: 1,
+        count: 2,
+        hiddenStates: [false, false]
+      },
+      to: {
+        exists: true,
+        name: "Sheet1",
+        dimension: "columns",
+        startIndex: 1,
+        count: 2,
+        hiddenStates: [true, false]
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "row_column_visibility"
+    });
+
+    expect(columnHidden.get(2)).toBe(true);
+    expect(columnHidden.get(3)).toBe(false);
     expect(code.flush).toHaveBeenCalled();
   });
 

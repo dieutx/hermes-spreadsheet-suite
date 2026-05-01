@@ -4534,6 +4534,117 @@ function createWorkbookStructureFreezePaneLocalExecutionSnapshot_(input) {
   };
 }
 
+function getWorkbookStructureDimensionVisibilityConfig_(input) {
+  const operation = typeof input === 'string' ? input : input && input.operation;
+  const dimension = typeof input === 'string' ? input : input && input.dimension;
+
+  if (
+    operation === 'hide_rows' ||
+    operation === 'unhide_rows' ||
+    dimension === 'rows'
+  ) {
+    return {
+      dimension: 'rows',
+      startOffset: 1,
+      readMethod: 'isRowHiddenByUser',
+      hideMethod: 'hideRows',
+      showMethod: 'showRows'
+    };
+  }
+
+  if (
+    operation === 'hide_columns' ||
+    operation === 'unhide_columns' ||
+    dimension === 'columns'
+  ) {
+    return {
+      dimension: 'columns',
+      startOffset: 1,
+      readMethod: 'isColumnHiddenByUser',
+      hideMethod: 'hideColumns',
+      showMethod: 'showColumns'
+    };
+  }
+
+  return null;
+}
+
+function getWorkbookStructureDimensionVisibilitySnapshotState_(sheet, input) {
+  const config = getWorkbookStructureDimensionVisibilityConfig_(input);
+  const startIndex = Number(input && input.startIndex);
+  const count = Number(input && input.count);
+  const sheetName = input && (input.sheetName || input.targetSheet || input.name);
+  if (
+    !sheet ||
+    !config ||
+    !sheetName ||
+    !Number.isInteger(startIndex) ||
+    startIndex < 0 ||
+    !Number.isInteger(count) ||
+    count < 1 ||
+    typeof sheet[config.readMethod] !== 'function'
+  ) {
+    throw new Error('Google Sheets host cannot read row or column visibility for exact undo.');
+  }
+
+  const hiddenStates = [];
+  for (let offset = 0; offset < count; offset += 1) {
+    const hidden = sheet[config.readMethod](startIndex + config.startOffset + offset);
+    if (typeof hidden !== 'boolean') {
+      throw new Error('Google Sheets host cannot read row or column visibility for exact undo.');
+    }
+    hiddenStates.push(hidden);
+  }
+
+  return {
+    exists: true,
+    name: sheetName,
+    dimension: config.dimension,
+    startIndex: startIndex,
+    count: count,
+    hiddenStates: hiddenStates
+  };
+}
+
+function isSameWorkbookStructureDimensionVisibilityState_(left, right) {
+  if (
+    !left ||
+    !right ||
+    left.dimension !== right.dimension ||
+    left.startIndex !== right.startIndex ||
+    left.count !== right.count ||
+    !Array.isArray(left.hiddenStates) ||
+    !Array.isArray(right.hiddenStates) ||
+    left.hiddenStates.length !== right.hiddenStates.length
+  ) {
+    return false;
+  }
+
+  return left.hiddenStates.every(function(value, index) {
+    return value === right.hiddenStates[index];
+  });
+}
+
+function createWorkbookStructureDimensionVisibilityLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.before ||
+    !input.after ||
+    isSameWorkbookStructureDimensionVisibilityState_(input.before, input.after)
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'workbook_structure',
+    operation: 'row_column_visibility',
+    before: input.before,
+    after: input.after
+  };
+}
+
 function createWorkbookStructureCreateLocalExecutionSnapshot_(input) {
   if (
     !input ||
@@ -5628,6 +5739,25 @@ function assertWorkbookStructureFreezePaneSnapshotState_(state) {
   }
 }
 
+function assertWorkbookStructureDimensionVisibilitySnapshotState_(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== 'string' ||
+    state.name.trim().length === 0 ||
+    (state.dimension !== 'rows' && state.dimension !== 'columns') ||
+    !Number.isInteger(state.startIndex) ||
+    state.startIndex < 0 ||
+    !Number.isInteger(state.count) ||
+    state.count < 1 ||
+    !Array.isArray(state.hiddenStates) ||
+    state.hiddenStates.length !== state.count ||
+    !state.hiddenStates.every(function(value) { return typeof value === 'boolean'; })
+  ) {
+    throw new Error('That workbook structure history entry is no longer available in this sheet session.');
+  }
+}
+
 function assertWorkbookStructureCreateSnapshotState_(state) {
   if (
     !state ||
@@ -5676,6 +5806,7 @@ function resolveWorkbookStructureSnapshotTransition_(input) {
       input.operation !== 'sheet_visibility' &&
       input.operation !== 'sheet_tab_color' &&
       input.operation !== 'sheet_freeze_panes' &&
+      input.operation !== 'row_column_visibility' &&
       input.operation !== 'move_sheet' &&
       input.operation !== 'create_sheet' &&
       input.operation !== 'duplicate_sheet'
@@ -5836,6 +5967,29 @@ function resolveWorkbookStructureSnapshotTransition_(input) {
     const currentFreezePaneState = getWorkbookStructureFreezePaneSnapshotState_(sheet);
     if (!isSameWorkbookStructureFreezePaneState_(currentFreezePaneState, input.from)) {
       throw new Error('Sheet freeze pane state changed since this history entry was captured.');
+    }
+
+    return {
+      spreadsheet: spreadsheet,
+      sheet: sheet,
+      from: input.from,
+      to: input.to
+    };
+  }
+
+  if (input.operation === 'row_column_visibility') {
+    assertWorkbookStructureDimensionVisibilitySnapshotState_(input.from);
+    assertWorkbookStructureDimensionVisibilitySnapshotState_(input.to);
+
+    const spreadsheet = SpreadsheetApp.getActive();
+    const sheet = spreadsheet.getSheetByName(input.from.name);
+    if (!sheet) {
+      throw new Error('Target sheet not found: ' + input.from.name);
+    }
+
+    const currentState = getWorkbookStructureDimensionVisibilitySnapshotState_(sheet, input.from);
+    if (!isSameWorkbookStructureDimensionVisibilityState_(currentState, input.from)) {
+      throw new Error('Row or column visibility changed since this history entry was captured.');
     }
 
     return {
@@ -6022,6 +6176,34 @@ function applyExecutionWorkbookStructureSnapshot_(input) {
 
     transition.sheet.setFrozenRows(transition.to.frozenRows);
     transition.sheet.setFrozenColumns(transition.to.frozenColumns);
+    SpreadsheetApp.flush();
+    return {
+      ok: true,
+      operation: input.operation,
+      from: transition.from.name,
+      to: transition.to.name
+    };
+  }
+
+  if (input.operation === 'row_column_visibility') {
+    const config = getWorkbookStructureDimensionVisibilityConfig_(transition.to);
+    if (
+      !config ||
+      typeof transition.sheet[config.hideMethod] !== 'function' ||
+      typeof transition.sheet[config.showMethod] !== 'function'
+    ) {
+      throw new Error('Google Sheets host cannot restore row or column visibility.');
+    }
+
+    transition.to.hiddenStates.forEach(function(hidden, index) {
+      const position = transition.to.startIndex + config.startOffset + index;
+      if (hidden) {
+        transition.sheet[config.hideMethod](position, 1);
+      } else {
+        transition.sheet[config.showMethod](position, 1);
+      }
+    });
+
     SpreadsheetApp.flush();
     return {
       ok: true,
@@ -8771,6 +8953,19 @@ function applyWritePlan(input) {
     const beforeFreezePanes = shouldSnapshotFreezePanes
       ? getWorkbookStructureFreezePaneSnapshotState_(sheet)
       : undefined;
+    const shouldSnapshotDimensionVisibility =
+      input.executionId &&
+      (
+        plan.operation === 'hide_rows' ||
+        plan.operation === 'unhide_rows' ||
+        plan.operation === 'hide_columns' ||
+        plan.operation === 'unhide_columns'
+      );
+    const beforeDimensionVisibility = shouldSnapshotDimensionVisibility
+      ? getWorkbookStructureDimensionVisibilitySnapshotState_(sheet, Object.assign({}, plan, {
+        sheetName: plan.targetSheet
+      }))
+      : undefined;
     const shouldSnapshotAutofit =
       input.executionId && (plan.operation === 'autofit_rows' || plan.operation === 'autofit_columns');
     const autofitTarget = shouldSnapshotAutofit ? sheet.getRange(plan.targetRange) : null;
@@ -8854,6 +9049,11 @@ function applyWritePlan(input) {
     const afterFreezePanes = beforeFreezePanes !== undefined
       ? getWorkbookStructureFreezePaneSnapshotState_(sheet)
       : undefined;
+    const afterDimensionVisibility = beforeDimensionVisibility !== undefined
+      ? getWorkbookStructureDimensionVisibilitySnapshotState_(sheet, Object.assign({}, plan, {
+        sheetName: plan.targetSheet
+      }))
+      : undefined;
     const afterAutofitFormat = beforeAutofitFormat
       ? readRangeFormatStateForSnapshot_(sheet, autofitTarget, autofitSnapshotFormat)
       : null;
@@ -8912,6 +9112,12 @@ function applyWritePlan(input) {
           before: beforeFreezePanes,
           after: afterFreezePanes
         })
+        : beforeDimensionVisibility
+          ? createWorkbookStructureDimensionVisibilityLocalExecutionSnapshot_({
+            executionId: input.executionId,
+            before: beforeDimensionVisibility,
+            after: afterDimensionVisibility
+          })
         : beforeAutofitFormat
           ? createRangeFormatLocalExecutionSnapshot_({
             executionId: input.executionId,
