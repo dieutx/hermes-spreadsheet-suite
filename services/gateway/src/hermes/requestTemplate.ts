@@ -845,7 +845,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- data_cleanup_plan: limited. normalize_case only supports upper, lower, title, and sentence. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
         "- range_filter_plan: limited. Do not combine multiple OR conditions in one exact step. topN filters are supported when display values cleanly separate visible and hidden rows. Use positive whole-number topN values only. Duplicate display values crossing the top-N cutoff are unsupported. Repeated conditions on the same column are unsupported.",
         "- named_range_update: limited. Only workbook-scoped named ranges are exact-safe.",
-        "- data_validation_plan: limited. inputMessage maps to Google Sheets validation help text. inputTitle, errorTitle, and errorMessage are unsupported on Google Sheets.",
+        "- data_validation_plan: limited. inputMessage maps to Google Sheets validation help text. inputTitle, errorTitle, and errorMessage are unsupported on Google Sheets. List validation cannot preserve allowBlank=true exactly. Single-value checkbox validation cannot preserve allowBlank=false exactly.",
         noteWriteLine
       ];
     case "excel_windows":
