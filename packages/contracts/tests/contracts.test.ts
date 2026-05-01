@@ -2554,6 +2554,25 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts data validation affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = DataValidationPlanDataSchema.parse({
+      targetSheet: "Sheet1",
+      targetRange: "$B$2:$B$20",
+      ruleType: "list",
+      values: ["Open", "Closed"],
+      showDropdown: true,
+      allowBlank: false,
+      invalidDataBehavior: "reject",
+      explanation: "Restrict the status column to approved options.",
+      confidence: 0.95,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:B20"],
+      replacesExistingValidation: true
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sheet1!B2:B20"]);
+  });
+
   it("accepts the other wave 2 validation rule families", () => {
     const cases = [
       {
