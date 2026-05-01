@@ -4406,6 +4406,68 @@ function createWorkbookStructureVisibilityLocalExecutionSnapshot_(input) {
   };
 }
 
+function normalizeWorkbookStructureTabColor_(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value).trim();
+}
+
+function getWorkbookStructureTabColorSnapshotState_(sheet) {
+  if (!sheet) {
+    throw new Error('Google Sheets host cannot read sheet tab color for exact undo.');
+  }
+
+  if (typeof sheet.getTabColorObject === 'function') {
+    try {
+      const colorObject = sheet.getTabColorObject();
+      const rgbColor = colorObject && typeof colorObject.asRgbColor === 'function'
+        ? colorObject.asRgbColor()
+        : null;
+      if (rgbColor && typeof rgbColor.asHexString === 'function') {
+        return normalizeWorkbookStructureTabColor_(rgbColor.asHexString());
+      }
+    } catch (_error) {
+      // Fall back to the string API below when color objects are unavailable.
+    }
+  }
+
+  if (typeof sheet.getTabColor === 'function') {
+    return normalizeWorkbookStructureTabColor_(sheet.getTabColor());
+  }
+
+  throw new Error('Google Sheets host cannot read sheet tab color for exact undo.');
+}
+
+function createWorkbookStructureTabColorLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.sheetName ||
+    input.beforeColor === undefined ||
+    input.afterColor === undefined ||
+    input.beforeColor === input.afterColor
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'workbook_structure',
+    operation: 'sheet_tab_color',
+    before: {
+      exists: true,
+      name: input.sheetName,
+      color: normalizeWorkbookStructureTabColor_(input.beforeColor)
+    },
+    after: {
+      exists: true,
+      name: input.sheetName,
+      color: normalizeWorkbookStructureTabColor_(input.afterColor)
+    }
+  };
+}
+
 function createWorkbookStructureCreateLocalExecutionSnapshot_(input) {
   if (
     !input ||
@@ -5473,6 +5535,18 @@ function assertWorkbookStructureMoveSnapshotState_(state) {
   }
 }
 
+function assertWorkbookStructureTabColorSnapshotState_(state) {
+  if (
+    !state ||
+    state.exists !== true ||
+    typeof state.name !== 'string' ||
+    state.name.trim().length === 0 ||
+    typeof state.color !== 'string'
+  ) {
+    throw new Error('That workbook structure history entry is no longer available in this sheet session.');
+  }
+}
+
 function assertWorkbookStructureCreateSnapshotState_(state) {
   if (
     !state ||
@@ -5519,6 +5593,7 @@ function resolveWorkbookStructureSnapshotTransition_(input) {
     (
       input.operation !== 'rename_sheet' &&
       input.operation !== 'sheet_visibility' &&
+      input.operation !== 'sheet_tab_color' &&
       input.operation !== 'move_sheet' &&
       input.operation !== 'create_sheet' &&
       input.operation !== 'duplicate_sheet'
@@ -5638,6 +5713,29 @@ function resolveWorkbookStructureSnapshotTransition_(input) {
       spreadsheet: spreadsheet,
       sheet: sheet,
       source: input.source,
+      from: input.from,
+      to: input.to
+    };
+  }
+
+  if (input.operation === 'sheet_tab_color') {
+    assertWorkbookStructureTabColorSnapshotState_(input.from);
+    assertWorkbookStructureTabColorSnapshotState_(input.to);
+
+    const spreadsheet = SpreadsheetApp.getActive();
+    const sheet = spreadsheet.getSheetByName(input.from.name);
+    if (!sheet) {
+      throw new Error('Target sheet not found: ' + input.from.name);
+    }
+
+    const currentColor = getWorkbookStructureTabColorSnapshotState_(sheet);
+    if (currentColor !== normalizeWorkbookStructureTabColor_(input.from.color)) {
+      throw new Error('Sheet tab color changed since this history entry was captured.');
+    }
+
+    return {
+      spreadsheet: spreadsheet,
+      sheet: sheet,
       from: input.from,
       to: input.to
     };
@@ -5785,6 +5883,21 @@ function applyExecutionWorkbookStructureSnapshot_(input) {
 
     transition.spreadsheet.setActiveSheet(transition.sheet);
     transition.spreadsheet.moveActiveSheet(transition.to.position + 1);
+    SpreadsheetApp.flush();
+    return {
+      ok: true,
+      operation: input.operation,
+      from: transition.from.name,
+      to: transition.to.name
+    };
+  }
+
+  if (input.operation === 'sheet_tab_color') {
+    if (typeof transition.sheet.setTabColor !== 'function') {
+      throw new Error('Google Sheets host cannot restore the saved sheet tab color.');
+    }
+
+    transition.sheet.setTabColor(normalizeWorkbookStructureTabColor_(transition.to.color) || null);
     SpreadsheetApp.flush();
     return {
       ok: true,
@@ -8526,6 +8639,9 @@ function applyWritePlan(input) {
   }
 
   if (isSheetStructurePlan_(plan)) {
+    const beforeTabColor = plan.operation === 'set_sheet_tab_color' && input.executionId
+      ? getWorkbookStructureTabColorSnapshotState_(sheet)
+      : undefined;
     switch (plan.operation) {
       case 'insert_rows':
         sheet.insertRowsBefore(plan.startIndex + 1, plan.count);
@@ -8592,6 +8708,9 @@ function applyWritePlan(input) {
     }
 
     SpreadsheetApp.flush();
+    const afterTabColor = beforeTabColor !== undefined
+      ? getWorkbookStructureTabColorSnapshotState_(sheet)
+      : undefined;
     const result = {
       kind: 'sheet_structure_update',
       hostPlatform: 'google_sheets',
@@ -8632,7 +8751,12 @@ function applyWritePlan(input) {
         break;
     }
 
-    return result;
+    return attachLocalExecutionSnapshot_(result, createWorkbookStructureTabColorLocalExecutionSnapshot_({
+      executionId: input.executionId,
+      sheetName: typeof sheet.getName === 'function' ? sheet.getName() : plan.targetSheet,
+      beforeColor: beforeTabColor,
+      afterColor: afterTabColor
+    }));
   }
 
   const target = sheet.getRange(plan.targetRange);

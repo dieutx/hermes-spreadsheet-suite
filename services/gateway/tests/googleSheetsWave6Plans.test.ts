@@ -4094,6 +4094,102 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("attaches local undo snapshots for Google Sheets sheet tab color writes", () => {
+    let tabColor = "#ffcccc";
+    const sheet = {
+      getName: vi.fn(() => "Sheet1"),
+      getTabColor: vi.fn(() => tabColor),
+      setTabColor: vi.fn((nextColor: string | null) => {
+        tabColor = nextColor || "";
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_tab_color_snapshot_sheets_001",
+      runId: "run_tab_color_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_tab_color_snapshot_sheets_001",
+      plan: {
+        operation: "set_sheet_tab_color",
+        targetSheet: "Sheet1",
+        color: "#00ff00",
+        explanation: "Color the working sheet tab.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(tabColor).toBe("#00ff00");
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "set_sheet_tab_color",
+      targetSheet: "Sheet1",
+      color: "#00ff00",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_tab_color_snapshot_sheets_001",
+        kind: "workbook_structure",
+        operation: "sheet_tab_color",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          color: "#ffcccc"
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          color: "#00ff00"
+        }
+      }
+    });
+  });
+
+  it("applies Google Sheets sheet tab color snapshots on the server", () => {
+    let tabColor = "#00ff00";
+    const sheet = {
+      getTabColor: vi.fn(() => tabColor),
+      setTabColor: vi.fn((nextColor: string | null) => {
+        tabColor = nextColor || "";
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "sheet_tab_color",
+      from: {
+        exists: true,
+        name: "Sheet1",
+        color: "#00ff00"
+      },
+      to: {
+        exists: true,
+        name: "Sheet1",
+        color: "#ffcccc"
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "sheet_tab_color"
+    });
+
+    expect(tabColor).toBe("#ffcccc");
+    expect(sheet.setTabColor).toHaveBeenCalledWith("#ffcccc");
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("attaches local undo snapshots for Google Sheets sheet move writes", () => {
     const firstSheet = {
       getName: vi.fn(() => "Sheet1"),
