@@ -2751,6 +2751,70 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects non-numeric conditional format number_compare values", () => {
+    const parsed = ConditionalFormatPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      managementMode: "add",
+      ruleType: "number_compare",
+      comparator: "between",
+      value: "ten",
+      value2: 20,
+      style: {
+        backgroundColor: "#ffdddd"
+      },
+      explanation: "Invalid text comparator value for a numeric rule.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "standard",
+      replacesExistingRules: false
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects malformed conditional format date_compare values", () => {
+    const malformedLiteral = ConditionalFormatPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "C2:C20",
+      managementMode: "add",
+      ruleType: "date_compare",
+      comparator: "less_than",
+      value: "tomorrow",
+      style: {
+        backgroundColor: "#fff2cc"
+      },
+      explanation: "Invalid relative date comparator value.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!C2:C20"],
+      confirmationLevel: "standard",
+      replacesExistingRules: false
+    });
+
+    const numericLiteral = ConditionalFormatPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "C2:C20",
+      managementMode: "add",
+      ruleType: "date_compare",
+      comparator: "less_than",
+      value: 45678,
+      style: {
+        backgroundColor: "#fff2cc"
+      },
+      explanation: "Invalid serial date comparator value.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!C2:C20"],
+      confirmationLevel: "standard",
+      replacesExistingRules: false
+    });
+
+    expect(malformedLiteral.success).toBe(false);
+    expect(numericLiteral.success).toBe(false);
+  });
+
   it("rejects clear_on_target plans that carry rule payload", () => {
     const parsed = ConditionalFormatPlanDataSchema.safeParse({
       targetSheet: "Sheet1",
