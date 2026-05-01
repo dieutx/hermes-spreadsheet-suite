@@ -1383,7 +1383,7 @@ export const ChartPlanDataSchema = strictObject({
     "pie",
     "scatter"
   ]),
-  categoryField: z.string().min(1).max(128).optional(),
+  categoryField: z.string().min(1).max(128),
   series: z.array(
     strictObject({
       field: z.string().min(1).max(128),
