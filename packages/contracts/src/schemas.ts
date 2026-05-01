@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  columnLettersToNumber,
   matrixShape,
   parseA1Range,
   validateRectangularMatrix,
@@ -1654,6 +1655,41 @@ const dataCleanupPlanSharedFields = {
 } satisfies z.ZodRawShape;
 
 const dataCleanupKeyColumnsSchema = z.array(z.string().min(1).max(16)).max(50).optional();
+function cleanupColumnRefToNumber(columnRef: string): number | null {
+  const trimmed = columnRef.trim();
+  if (/^[1-9][0-9]*$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+
+  return columnLettersToNumber(trimmed);
+}
+
+function validateCleanupColumnRefsWithinTarget(
+  targetRange: string,
+  refs: Array<{ value: string; path: Array<string | number> }>,
+  ctx: z.RefinementCtx
+): void {
+  const parsedTarget = parseA1Range(targetRange);
+  if (!parsedTarget) {
+    return;
+  }
+
+  for (const ref of refs) {
+    const column = cleanupColumnRefToNumber(ref.value);
+    if (
+      column === null ||
+      column < parsedTarget.column ||
+      column > parsedTarget.endColumn
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${ref.value} must reference a column inside targetRange.`,
+        path: ref.path
+      });
+    }
+  }
+}
+
 export const Wave4CleanupOperationSchema = z.enum([
   "trim_whitespace",
   "remove_blank_rows",
@@ -1725,6 +1761,53 @@ export const DataCleanupPlanDataSchema = z.discriminatedUnion("operation", [
         : "This cleanup operation requires standard confirmation.",
       path: ["confirmationLevel"]
     });
+  }
+
+  if (data.operation === "remove_blank_rows" || data.operation === "remove_duplicate_rows") {
+    validateCleanupColumnRefsWithinTarget(
+      data.targetRange,
+      (data.keyColumns ?? []).map((value, index) => ({
+        value,
+        path: ["keyColumns", index]
+      })),
+      ctx
+    );
+  }
+
+  if (data.operation === "split_column") {
+    validateCleanupColumnRefsWithinTarget(
+      data.targetRange,
+      [
+        { value: data.sourceColumn, path: ["sourceColumn"] },
+        { value: data.targetStartColumn, path: ["targetStartColumn"] }
+      ],
+      ctx
+    );
+  }
+
+  if (data.operation === "join_columns") {
+    validateCleanupColumnRefsWithinTarget(
+      data.targetRange,
+      [
+        ...data.sourceColumns.map((value, index) => ({
+          value,
+          path: ["sourceColumns", index]
+        })),
+        { value: data.targetColumn, path: ["targetColumn"] }
+      ],
+      ctx
+    );
+  }
+
+  if (data.operation === "fill_down") {
+    validateCleanupColumnRefsWithinTarget(
+      data.targetRange,
+      (data.columns ?? []).map((value, index) => ({
+        value,
+        path: ["columns", index]
+      })),
+      ctx
+    );
   }
 });
 

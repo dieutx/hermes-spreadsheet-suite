@@ -1308,7 +1308,7 @@ describe("structured body normalization", () => {
       type: "data_cleanup_plan",
       data: {
         sheet: "Sales",
-        range: "C2:C20",
+        range: "C2:D20",
         action: "split",
         column: "C",
         separator: ",",
@@ -1323,12 +1323,12 @@ describe("structured body normalization", () => {
       type: "data_cleanup_plan",
       data: {
         targetSheet: "Sales",
-        targetRange: "C2:C20",
+        targetRange: "C2:D20",
         operation: "split_column",
         sourceColumn: "C",
         delimiter: ",",
         targetStartColumn: "D",
-        affectedRanges: ["Sales!C2:C20"],
+        affectedRanges: ["Sales!C2:D20"],
         overwriteRisk: "high",
         confirmationLevel: "destructive"
       }
