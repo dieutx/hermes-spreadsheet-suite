@@ -807,6 +807,64 @@ describe("Excel wave 1 plan helpers", () => {
     });
   });
 
+  it("attaches local undo snapshots for Excel sheet tab color writes", async () => {
+    const worksheet = {
+      name: "Sheet1",
+      tabColor: "#ffcccc"
+    };
+    const worksheets = {
+      getItem: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return worksheet;
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets
+      }
+    });
+
+    const result = await taskpane.applyWritePlan({
+      plan: {
+        operation: "set_sheet_tab_color",
+        targetSheet: "Sheet1",
+        color: "#00ff00",
+        explanation: "Color the working sheet tab.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      },
+      requestId: "req_tab_color_snapshot_excel_001",
+      runId: "run_tab_color_snapshot_excel_001",
+      approvalToken: "token",
+      executionId: "exec_tab_color_snapshot_excel_001"
+    });
+
+    expect(worksheet.tabColor).toBe("#00ff00");
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "set_sheet_tab_color",
+      targetSheet: "Sheet1",
+      color: "#00ff00",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_tab_color_snapshot_excel_001",
+        kind: "workbook_structure",
+        operation: "sheet_tab_color",
+        before: {
+          exists: true,
+          name: "Sheet1",
+          color: "#ffcccc"
+        },
+        after: {
+          exists: true,
+          name: "Sheet1",
+          color: "#00ff00"
+        }
+      }
+    });
+  });
+
   it("attaches local undo snapshots for Excel sheet create writes", async () => {
     const existingWorksheet = {
       name: "Sheet1",

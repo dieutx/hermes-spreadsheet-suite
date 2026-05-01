@@ -2885,6 +2885,82 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(worksheet.visibility).toBe("visible");
   });
 
+  it("restores Excel sheet tab color snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_tab_color_001"],
+      executions: {
+        exec_tab_color_001: {
+          baseExecutionId: "exec_tab_color_001"
+        }
+      },
+      bases: {
+        exec_tab_color_001: {
+          baseExecutionId: "exec_tab_color_001",
+          kind: "workbook_structure",
+          operation: "sheet_tab_color",
+          before: {
+            exists: true,
+            name: "Sheet1",
+            color: "#ffcccc"
+          },
+          after: {
+            exists: true,
+            name: "Sheet1",
+            color: "#00ff00"
+          }
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "workbook_structure_update",
+          operation: "set_sheet_tab_color",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    const worksheet = {
+      name: "Sheet1",
+      tabColor: "#00ff00",
+      load: vi.fn()
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("Sheet1");
+              return worksheet;
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_tab_color_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(worksheet.tabColor).toBe("#ffcccc");
+  });
+
   it("restores Excel sheet create snapshots before committing undo", async () => {
     const workbookSessionId = "workbook-123";
     const workbookSessionKey = `excel_windows::${workbookSessionId}`;
