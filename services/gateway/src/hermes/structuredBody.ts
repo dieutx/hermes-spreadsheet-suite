@@ -941,6 +941,25 @@ function normalizeCompositePlanData(value: unknown): unknown {
   }
 
   const normalizedSteps = Array.isArray(normalized.steps) ? normalized.steps : [];
+  const aggregateAffectedRanges = Array.isArray(normalized.affectedRanges)
+    ? [...normalized.affectedRanges]
+    : [];
+  const seenAffectedRanges = new Set(aggregateAffectedRanges);
+  normalizedSteps.forEach((step) => {
+    if (!isObject(step) || !isObject(step.plan) || !Array.isArray(step.plan.affectedRanges)) {
+      return;
+    }
+
+    step.plan.affectedRanges.forEach((range) => {
+      if (typeof range !== "string" || seenAffectedRanges.has(range)) {
+        return;
+      }
+      seenAffectedRanges.add(range);
+      aggregateAffectedRanges.push(range);
+    });
+  });
+  normalized.affectedRanges = aggregateAffectedRanges;
+
   const hasDestructiveStep = normalizedSteps.some((step) =>
     isObject(step) &&
     isObject(step.plan) &&

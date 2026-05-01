@@ -2714,6 +2714,24 @@ export const CompositePlanDataSchema = strictObject({
     });
   }
 
+  const compositeAffectedRanges = new Set(data.affectedRanges);
+  data.steps.forEach((step, index) => {
+    if (!("affectedRanges" in step.plan) || !Array.isArray(step.plan.affectedRanges)) {
+      return;
+    }
+
+    const missingRanges = step.plan.affectedRanges.filter(
+      (range) => !compositeAffectedRanges.has(range)
+    );
+    if (missingRanges.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Composite affectedRanges must include every child affected range.",
+        path: ["steps", index, "plan", "affectedRanges"]
+      });
+    }
+  });
+
   const visiting = new Set<string>();
   const visited = new Set<string>();
 
