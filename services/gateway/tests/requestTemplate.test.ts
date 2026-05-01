@@ -98,6 +98,13 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("Single-value checkbox validation cannot preserve allowBlank=false exactly");
   });
 
+  it("advertises exact standardize-format cleanup patterns", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
+
+    expect(prompt).toContain("date_text supports YYYY-MM-DD, YYYY/MM/DD, or YYYY.MM.DD");
+    expect(prompt).toContain("number_text supports #,##0.00 or 0.00");
+  });
+
   it("treats missing note-write capability as unsupported", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
 
