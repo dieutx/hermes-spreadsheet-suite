@@ -6043,15 +6043,36 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       numRows: 50,
       numColumns: 6
     });
-    targetRange.applyRowBanding = vi.fn();
-    targetRange.createFilter = vi.fn();
+    const bandings: Array<Record<string, unknown>> = [];
+    const rowBanding = {
+      getRange: vi.fn(() => targetRange),
+      remove: vi.fn(() => {
+        bandings.splice(0, bandings.length);
+      })
+    };
+    targetRange.getBandings = vi.fn(() => [...bandings]);
+    targetRange.applyRowBanding = vi.fn(() => {
+      bandings.push(rowBanding);
+      return rowBanding;
+    });
+    let currentFilter: Record<string, unknown> | null = null;
+    const filter = {
+      getRange: vi.fn(() => targetRange),
+      getColumnFilterCriteria: vi.fn(() => null)
+    };
+    targetRange.createFilter = vi.fn(() => {
+      currentFilter = filter;
+      return filter;
+    });
     const sheet = {
       getRange: vi.fn((rangeA1: string) => {
         expect(rangeA1).toBe("A1:F50");
         return targetRange;
-      })
+      }),
+      getFilter: vi.fn(() => currentFilter)
     };
     const spreadsheet = {
+      getNamedRanges: vi.fn(() => []),
       setNamedRange: vi.fn(),
       getId() {
         return "sheet-123";
@@ -6098,11 +6119,255 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       hasHeaders: true,
       summary: "Formatted table-like range SalesTable on Sales!A1:F50."
     });
-    expect(result).not.toHaveProperty("__hermesLocalExecutionSnapshot");
+    expect(result).toMatchObject({
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_table_apply_google_001",
+        entries: [
+          {
+            baseExecutionId: "exec_table_apply_google_001",
+            kind: "named_range",
+            scope: "workbook",
+            before: {
+              exists: false,
+              name: "SalesTable"
+            },
+            after: {
+              exists: true,
+              name: "SalesTable",
+              targetSheet: "Sales",
+              targetRange: "A1:F50"
+            }
+          },
+          {
+            baseExecutionId: "exec_table_apply_google_001",
+            kind: "range_filter",
+            targetSheet: "Sales",
+            targetRange: "A1:F50",
+            beforeFilter: {
+              exists: false
+            },
+            afterFilter: {
+              exists: true,
+              targetRange: "A1:F50",
+              criteria: [null, null, null, null, null, null]
+            }
+          },
+          {
+            baseExecutionId: "exec_table_apply_google_001",
+            kind: "range_banding",
+            targetSheet: "Sales",
+            targetRange: "A1:F50",
+            beforeBanding: {
+              bandings: []
+            },
+            afterBanding: {
+              bandings: [
+                {
+                  axis: "rows",
+                  targetRange: "A1:F50"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    });
     expect(targetRange.applyRowBanding).toHaveBeenCalledTimes(1);
     expect(targetRange.createFilter).toHaveBeenCalledTimes(1);
     expect(spreadsheet.setNamedRange).toHaveBeenCalledWith("SalesTable", targetRange);
     expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("suppresses Google Sheets table-like local snapshots when banding already exists", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6
+    });
+    const bandings: Array<Record<string, unknown>> = [
+      {
+        getRange: vi.fn(() => targetRange),
+        remove: vi.fn()
+      }
+    ];
+    const appliedBanding = {
+      getRange: vi.fn(() => targetRange),
+      remove: vi.fn()
+    };
+    targetRange.getBandings = vi.fn(() => [...bandings]);
+    targetRange.applyRowBanding = vi.fn(() => {
+      bandings.push(appliedBanding);
+      return appliedBanding;
+    });
+    let currentFilter: Record<string, unknown> | null = null;
+    const filter = {
+      getRange: vi.fn(() => targetRange),
+      getColumnFilterCriteria: vi.fn(() => null)
+    };
+    targetRange.createFilter = vi.fn(() => {
+      currentFilter = filter;
+      return filter;
+    });
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("A1:F50");
+        return targetRange;
+      }),
+      getFilter: vi.fn(() => currentFilter)
+    };
+    const spreadsheet = {
+      getNamedRanges: vi.fn(() => []),
+      setNamedRange: vi.fn(),
+      getId() {
+        return "sheet-123";
+      },
+      getSheetByName(name: string) {
+        if (name === "Sales") {
+          return sheet;
+        }
+        return null;
+      }
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_table_apply_google_existing_banding_001",
+      runId: "run_table_apply_google_existing_banding_001",
+      approvalToken: "token",
+      executionId: "exec_table_apply_google_existing_banding_001",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name: "SalesTable",
+        hasHeaders: true,
+        showBandedRows: true,
+        showFilterButton: true,
+        explanation: "Format the sales range as a filterable table.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "table_update",
+      operation: "table_update",
+      hostPlatform: "google_sheets",
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      name: "SalesTable",
+      hasHeaders: true
+    });
+    expect(result.__hermesLocalExecutionSnapshot).toBeUndefined();
+    expect(targetRange.applyRowBanding).toHaveBeenCalledTimes(1);
+    expect(targetRange.createFilter).toHaveBeenCalledTimes(1);
+    expect(spreadsheet.setNamedRange).toHaveBeenCalledWith("SalesTable", targetRange);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("applies Google Sheets table banding snapshots on the server", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6
+    });
+    const bandings: Array<Record<string, unknown>> = [];
+    const createBanding = (axis: "rows" | "columns") => {
+      const banding = {
+        __hermesAxis: axis,
+        getRange: vi.fn(() => targetRange),
+        remove: vi.fn(() => {
+          const index = bandings.indexOf(banding);
+          if (index >= 0) {
+            bandings.splice(index, 1);
+          }
+        })
+      };
+      return banding;
+    };
+    const initialBanding = createBanding("rows");
+    bandings.push(initialBanding);
+    targetRange.getBandings = vi.fn(() => [...bandings]);
+    targetRange.applyRowBanding = vi.fn(() => {
+      const banding = createBanding("rows");
+      bandings.push(banding);
+      return banding;
+    });
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("A1:F50");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getId() {
+        return "sheet-123";
+      },
+      getSheetByName(name: string) {
+        if (name === "Sales") {
+          return sheet;
+        }
+        return null;
+      }
+    };
+    const code = loadCodeModule({ spreadsheet });
+    const rowBandingState = {
+      bandings: [
+        {
+          axis: "rows",
+          targetRange: "A1:F50"
+        }
+      ]
+    };
+    const emptyBandingState = {
+      bandings: []
+    };
+
+    expect(code.validateExecutionCellSnapshot({
+      kind: "range_banding",
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      from: rowBandingState,
+      to: emptyBandingState
+    })).toEqual({
+      ok: true,
+      targetSheet: "Sales",
+      targetRange: "A1:F50"
+    });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "range_banding",
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      from: rowBandingState,
+      to: emptyBandingState
+    })).toEqual({
+      ok: true,
+      targetSheet: "Sales",
+      targetRange: "A1:F50"
+    });
+    expect(initialBanding.remove).toHaveBeenCalledTimes(1);
+    expect(bandings).toHaveLength(0);
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "range_banding",
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      from: emptyBandingState,
+      to: rowBandingState
+    })).toEqual({
+      ok: true,
+      targetSheet: "Sales",
+      targetRange: "A1:F50"
+    });
+    expect(targetRange.applyRowBanding).toHaveBeenCalledTimes(1);
+    expect(bandings).toHaveLength(1);
   });
 
   it("leaves Google Sheets table-like optional formatting off when flags are omitted", () => {

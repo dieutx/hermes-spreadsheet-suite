@@ -1987,9 +1987,13 @@ function applyTablePlan_(spreadsheet, plan, executionId) {
   preflightGoogleSheetsTablePlanExecution_(spreadsheet, targetRange, plan);
 
   const tableSnapshots = [];
-  const canSnapshotTableMetadata = executionId &&
-    plan.showBandedRows !== true &&
-    plan.showBandedColumns !== true;
+  const shouldSnapshotBanding = Boolean(executionId) &&
+    (plan.showBandedRows === true || plan.showBandedColumns === true);
+  const beforeBanding = shouldSnapshotBanding
+    ? readRangeBandingStateForSnapshot_(targetRange, plan.targetRange)
+    : null;
+  const canSnapshotTableMetadata = Boolean(executionId) &&
+    (!shouldSnapshotBanding || Boolean(beforeBanding && beforeBanding.bandings.length === 0));
   const tableName = typeof plan.name === 'string' ? plan.name.trim() : '';
   const beforeNamedRange = canSnapshotTableMetadata && tableName
     ? readNamedRangeStateForSnapshot_(findNamedRange_(spreadsheet, tableName), tableName)
@@ -1997,6 +2001,7 @@ function applyTablePlan_(spreadsheet, plan, executionId) {
   const beforeFilter = canSnapshotTableMetadata && plan.showFilterButton === true
     ? readRangeFilterStateForSnapshot_(sheet, targetRange)
     : null;
+  const appliedBandings = [];
 
   if (typeof plan.name === 'string' && plan.name.trim()) {
     spreadsheet.setNamedRange(plan.name, targetRange);
@@ -2006,11 +2011,19 @@ function applyTablePlan_(spreadsheet, plan, executionId) {
     if (typeof targetRange.applyRowBanding !== 'function') {
       throw new Error('Google Sheets host does not support exact table-like row banding.');
     }
-    targetRange.applyRowBanding();
+    appliedBandings.push({
+      axis: 'rows',
+      targetRange: plan.targetRange,
+      banding: targetRange.applyRowBanding()
+    });
   }
 
   if (plan.showBandedColumns === true) {
-    targetRange.applyColumnBanding();
+    appliedBandings.push({
+      axis: 'columns',
+      targetRange: plan.targetRange,
+      banding: targetRange.applyColumnBanding()
+    });
   }
 
   if (plan.showFilterButton === true) {
@@ -2044,6 +2057,19 @@ function applyTablePlan_(spreadsheet, plan, executionId) {
     });
     if (filterSnapshot) {
       tableSnapshots.push(filterSnapshot);
+    }
+  }
+
+  if (beforeBanding && beforeBanding.bandings.length === 0 && appliedBandings.length > 0) {
+    const bandingSnapshot = createRangeBandingLocalExecutionSnapshot_({
+      executionId: executionId,
+      targetSheet: plan.targetSheet,
+      targetRange: plan.targetRange,
+      beforeBanding: beforeBanding,
+      afterBanding: createRangeBandingStateFromApplied_(appliedBandings)
+    });
+    if (bandingSnapshot) {
+      tableSnapshots.push(bandingSnapshot);
     }
   }
 
@@ -5105,6 +5131,136 @@ function createPivotTableLocalExecutionSnapshot_(input) {
   };
 }
 
+function normalizeRangeBandingAxis_(axis) {
+  return axis === 'columns' ? 'columns' : 'rows';
+}
+
+function normalizeRangeBandingSnapshotAxis_(axis) {
+  if (axis === 'rows' || axis === 'columns') {
+    return axis;
+  }
+
+  throw new Error('The saved banding snapshot is malformed.');
+}
+
+function hasBandingColor_(banding, objectGetterName, deprecatedGetterName) {
+  if (!banding || typeof banding !== 'object') {
+    return false;
+  }
+
+  try {
+    if (typeof banding[objectGetterName] === 'function' && banding[objectGetterName]()) {
+      return true;
+    }
+  } catch (_error) {
+    return false;
+  }
+
+  try {
+    return typeof banding[deprecatedGetterName] === 'function' && Boolean(banding[deprecatedGetterName]());
+  } catch (_error) {
+    return false;
+  }
+}
+
+function inferRangeBandingAxis_(banding) {
+  if (banding && typeof banding.__hermesAxis === 'string') {
+    return normalizeRangeBandingAxis_(banding.__hermesAxis);
+  }
+
+  const hasColumnBanding = hasBandingColor_(banding, 'getSecondColumnColorObject', 'getSecondColumnColor');
+  const hasRowBanding = hasBandingColor_(banding, 'getSecondRowColorObject', 'getSecondRowColor');
+  if (hasColumnBanding && !hasRowBanding) {
+    return 'columns';
+  }
+
+  return 'rows';
+}
+
+function readRangeBandingObjectState_(banding, fallbackTargetRange, fallbackAxis) {
+  if (!banding || typeof banding !== 'object') {
+    return null;
+  }
+
+  let targetRange = fallbackTargetRange;
+  if (typeof banding.getRange === 'function') {
+    const range = banding.getRange();
+    if (range && typeof range.getA1Notation === 'function') {
+      targetRange = range.getA1Notation();
+    }
+  }
+
+  if (!targetRange) {
+    return null;
+  }
+
+  return {
+    axis: normalizeRangeBandingAxis_(fallbackAxis || inferRangeBandingAxis_(banding)),
+    targetRange: normalizeA1_(targetRange)
+  };
+}
+
+function sortRangeBandingStates_(bandings) {
+  return bandings.slice().sort(function(left, right) {
+    const leftKey = left.axis + ':' + left.targetRange;
+    const rightKey = right.axis + ':' + right.targetRange;
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+  });
+}
+
+function readRangeBandingStateForSnapshot_(range, fallbackTargetRange) {
+  if (!range || typeof range.getBandings !== 'function') {
+    return null;
+  }
+
+  const bandings = range.getBandings();
+  if (!Array.isArray(bandings)) {
+    return null;
+  }
+
+  return {
+    bandings: sortRangeBandingStates_(bandings.map(function(banding) {
+      return readRangeBandingObjectState_(banding, fallbackTargetRange);
+    }).filter(function(state) {
+      return Boolean(state);
+    }))
+  };
+}
+
+function createRangeBandingStateFromApplied_(appliedBandings) {
+  return {
+    bandings: sortRangeBandingStates_((appliedBandings || []).map(function(entry) {
+      return readRangeBandingObjectState_(entry.banding, entry.targetRange, entry.axis);
+    }).filter(function(state) {
+      return Boolean(state);
+    }))
+  };
+}
+
+function createRangeBandingLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.targetSheet ||
+    !input.targetRange ||
+    !input.beforeBanding ||
+    !input.afterBanding ||
+    !Array.isArray(input.beforeBanding.bandings) ||
+    !Array.isArray(input.afterBanding.bandings)
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'range_banding',
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    beforeBanding: input.beforeBanding,
+    afterBanding: input.afterBanding
+  };
+}
+
 function createCompositeLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !Array.isArray(input.entries) || input.entries.length === 0) {
     return null;
@@ -5813,6 +5969,123 @@ function applyExecutionRangeFilterSnapshot_(input) {
     ok: true,
     targetSheet: input.targetSheet,
     targetRange: validated.filterState.targetRange
+  };
+}
+
+function normalizeRangeBandingSnapshotState_(state) {
+  if (!state || typeof state !== 'object' || !Array.isArray(state.bandings)) {
+    throw new Error('The saved banding snapshot is malformed.');
+  }
+
+  return {
+    bandings: sortRangeBandingStates_(state.bandings.map(function(banding) {
+      if (!banding || typeof banding !== 'object' || !banding.targetRange) {
+        throw new Error('The saved banding snapshot is malformed.');
+      }
+
+      return {
+        axis: normalizeRangeBandingSnapshotAxis_(banding.axis),
+        targetRange: normalizeA1_(banding.targetRange)
+      };
+    }))
+  };
+}
+
+function rangeBandingSnapshotStatesEqual_(left, right) {
+  return JSON.stringify(normalizeRangeBandingSnapshotState_(left)) ===
+    JSON.stringify(normalizeRangeBandingSnapshotState_(right));
+}
+
+function resolveExecutionRangeBandingSnapshot_(input) {
+  if (!input || typeof input !== 'object' || input.kind !== 'range_banding' || !input.targetSheet || !input.targetRange) {
+    throw new Error('Execution banding snapshot payload is required.');
+  }
+
+  const from = normalizeRangeBandingSnapshotState_(input.from);
+  const to = normalizeRangeBandingSnapshotState_(input.to);
+  const spreadsheet = SpreadsheetApp.getActive();
+  const sheet = spreadsheet.getSheetByName(input.targetSheet);
+  if (!sheet || typeof sheet.getRange !== 'function') {
+    throw new Error('Target sheet not found: ' + input.targetSheet);
+  }
+
+  const target = sheet.getRange(input.targetRange);
+  const current = readRangeBandingStateForSnapshot_(target, input.targetRange);
+  if (!current) {
+    throw new Error('Google Sheets host cannot inspect saved banding snapshots.');
+  }
+
+  return {
+    sheet: sheet,
+    target: target,
+    from: from,
+    to: to,
+    current: current
+  };
+}
+
+function removeRangeBandingsForSnapshot_(target) {
+  if (!target || typeof target.getBandings !== 'function') {
+    throw new Error('Google Sheets host cannot inspect saved banding snapshots.');
+  }
+
+  const bandings = target.getBandings();
+  if (!Array.isArray(bandings)) {
+    throw new Error('Google Sheets host cannot inspect saved banding snapshots.');
+  }
+
+  bandings.forEach(function(banding) {
+    if (!banding || typeof banding.remove !== 'function') {
+      throw new Error('Google Sheets host cannot remove the saved banding snapshot.');
+    }
+    banding.remove();
+  });
+}
+
+function applyRangeBandingSnapshotState_(sheet, state) {
+  state.bandings.forEach(function(banding) {
+    const target = sheet.getRange(banding.targetRange);
+    if (banding.axis === 'columns') {
+      if (!target || typeof target.applyColumnBanding !== 'function') {
+        throw new Error('Google Sheets host cannot restore the saved column banding snapshot.');
+      }
+      target.applyColumnBanding();
+      return;
+    }
+
+    if (!target || typeof target.applyRowBanding !== 'function') {
+      throw new Error('Google Sheets host cannot restore the saved row banding snapshot.');
+    }
+    target.applyRowBanding();
+  });
+}
+
+function validateExecutionRangeBandingSnapshot_(input) {
+  const validated = resolveExecutionRangeBandingSnapshot_(input);
+  if (!rangeBandingSnapshotStatesEqual_(validated.current, validated.from)) {
+    throw new Error('Google Sheets host cannot restore the saved banding snapshot because the current banding changed.');
+  }
+
+  return {
+    ok: true,
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange
+  };
+}
+
+function applyExecutionRangeBandingSnapshot_(input) {
+  const validated = resolveExecutionRangeBandingSnapshot_(input);
+  if (!rangeBandingSnapshotStatesEqual_(validated.current, validated.from)) {
+    throw new Error('Google Sheets host cannot restore the saved banding snapshot because the current banding changed.');
+  }
+
+  removeRangeBandingsForSnapshot_(validated.target);
+  applyRangeBandingSnapshotState_(validated.sheet, validated.to);
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange
   };
 }
 
@@ -6842,6 +7115,10 @@ function validateExecutionCellSnapshot(input) {
     return validateExecutionRangeFilterSnapshot_(input);
   }
 
+  if (input && input.kind === 'range_banding') {
+    return validateExecutionRangeBandingSnapshot_(input);
+  }
+
   if (input && input.kind === 'workbook_structure') {
     return validateExecutionWorkbookStructureSnapshot_(input);
   }
@@ -6930,6 +7207,10 @@ function applyExecutionCellSnapshot(input) {
     return applyExecutionRangeFilterSnapshot_(input);
   }
 
+  if (input && input.kind === 'range_banding') {
+    return applyExecutionRangeBandingSnapshot_(input);
+  }
+
   if (input && input.kind === 'workbook_structure') {
     return applyExecutionWorkbookStructureSnapshot_(input);
   }
@@ -6986,6 +7267,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'range_filter') {
     return validateExecutionRangeFilterSnapshot_(input);
+  }
+
+  if (input && input.kind === 'range_banding') {
+    return validateExecutionRangeBandingSnapshot_(input);
   }
 
   if (input && input.kind === 'workbook_structure') {
