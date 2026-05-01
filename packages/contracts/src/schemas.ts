@@ -1635,7 +1635,26 @@ export const NamedRangeUpdateDataSchema = z.union([
     targetRange: A1TargetRangeSchema,
     ...namedRangeUpdateSharedFields
   })
-]);
+]).superRefine((data, ctx) => {
+  if (!("targetSheet" in data) || !("targetRange" in data)) {
+    return;
+  }
+
+  const affectedRanges = data.affectedRanges ?? [];
+  const targetRef = normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange);
+  const normalizedAffectedRanges = new Set(
+    affectedRanges
+      .map((value) => normalizeAffectedA1RangeRef(value))
+      .filter((value): value is string => value !== null)
+  );
+  if (targetRef !== null && affectedRanges.length > 0 && !normalizedAffectedRanges.has(targetRef)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the qualified target range.",
+      path: ["affectedRanges"]
+    });
+  }
+});
 
 export const TransferPasteModeSchema = z.enum(["values", "formulas", "formats"]);
 
