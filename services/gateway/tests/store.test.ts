@@ -19,4 +19,30 @@ describe("AttachmentStore", () => {
     expect(attachment.fileName).not.toContain("secret");
     expect(store.get(attachment.id)?.metadata.fileName).toBe("uploaded-image.png");
   });
+
+  it("falls back when uploaded file names contain Windows paths", () => {
+    const store = new AttachmentStore();
+
+    const drivePathAttachment = store.save({
+      buffer: Buffer.from("png"),
+      mimeType: "image/png",
+      fileName: String.raw`C:\Users\runner\work\private-table.png`,
+      size: 3,
+      source: "upload",
+      previewUrl: "/api/uploads/att_2/content"
+    });
+    const uncPathAttachment = store.save({
+      buffer: Buffer.from("png"),
+      mimeType: "image/png",
+      fileName: String.raw`\\runner\share\private-table.png`,
+      size: 3,
+      source: "upload",
+      previewUrl: "/api/uploads/att_3/content"
+    });
+
+    expect(drivePathAttachment.fileName).toBe("uploaded-image.png");
+    expect(uncPathAttachment.fileName).toBe("uploaded-image.png");
+    expect(drivePathAttachment.fileName).not.toContain("private-table");
+    expect(uncPathAttachment.fileName).not.toContain("private-table");
+  });
 });
