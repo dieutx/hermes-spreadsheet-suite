@@ -10076,6 +10076,22 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const getDimensionRange = (isRowOperation) =>
         getExcelFullRowOrColumnRange(sheet, plan, isRowOperation);
       let beforeTabColor;
+      const shouldSnapshotAutofit = Boolean(
+        executionId &&
+        (plan.operation === "autofit_rows" || plan.operation === "autofit_columns")
+      );
+      const autofitTarget = shouldSnapshotAutofit ? sheet.getRange(plan.targetRange) : null;
+      if (autofitTarget && typeof autofitTarget.load === "function") {
+        autofitTarget.load(["rowCount", "columnCount"]);
+        await context.sync();
+      }
+      const autofitSnapshotTargets = autofitTarget
+        ? prepareExcelRangeFormatSnapshotTargets(
+            autofitTarget,
+            plan.operation === "autofit_rows" ? { rowHeight: true } : { columnWidth: true }
+          )
+        : null;
+      let beforeAutofitFormatCells = null;
 
       if (plan.operation === "set_sheet_tab_color") {
         if (typeof sheet.load === "function") {
@@ -10083,6 +10099,12 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           await context.sync();
         }
         beforeTabColor = normalizeWorkbookStructureTabColor(sheet.tabColor);
+      }
+
+      if (autofitSnapshotTargets) {
+        loadExcelRangeFormatSnapshotTargets(autofitSnapshotTargets);
+        await context.sync();
+        beforeAutofitFormatCells = readExcelRangeFormatCellsSnapshot(autofitSnapshotTargets);
       }
 
       switch (plan.operation) {
@@ -10143,10 +10165,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           sheet.freezePanes.unfreeze();
           break;
         case "autofit_rows":
-          sheet.getRange(plan.targetRange).format.autofitRows();
+          (autofitTarget || sheet.getRange(plan.targetRange)).format.autofitRows();
           break;
         case "autofit_columns":
-          sheet.getRange(plan.targetRange).format.autofitColumns();
+          (autofitTarget || sheet.getRange(plan.targetRange)).format.autofitColumns();
           break;
         case "set_sheet_tab_color":
           sheet.tabColor = normalizeWorkbookStructureTabColor(plan.color);
@@ -10156,6 +10178,12 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       }
 
       await context.sync();
+      let afterAutofitFormatCells = null;
+      if (autofitSnapshotTargets) {
+        loadExcelRangeFormatSnapshotTargets(autofitSnapshotTargets);
+        await context.sync();
+        afterAutofitFormatCells = readExcelRangeFormatCellsSnapshot(autofitSnapshotTargets);
+      }
       const afterTabColor = plan.operation === "set_sheet_tab_color"
         ? normalizeWorkbookStructureTabColor(sheet.tabColor)
         : undefined;
@@ -10199,17 +10227,26 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
           break;
       }
 
-      return attachLocalExecutionSnapshot(
-        result,
-        plan.operation === "set_sheet_tab_color"
-          ? createWorkbookStructureTabColorLocalExecutionSnapshot({
-              executionId,
-              sheetName: plan.targetSheet,
-              beforeColor: beforeTabColor,
-              afterColor: afterTabColor
-            })
-          : null
-      );
+      let localExecutionSnapshot = null;
+      if (plan.operation === "set_sheet_tab_color") {
+        localExecutionSnapshot = createWorkbookStructureTabColorLocalExecutionSnapshot({
+          executionId,
+          sheetName: plan.targetSheet,
+          beforeColor: beforeTabColor,
+          afterColor: afterTabColor
+        });
+      } else if (beforeAutofitFormatCells && afterAutofitFormatCells) {
+        localExecutionSnapshot = createRangeFormatLocalExecutionSnapshot({
+          executionId,
+          targetSheet: plan.targetSheet,
+          targetRange: plan.targetRange,
+          target: autofitTarget,
+          beforeFormatCells: beforeAutofitFormatCells,
+          afterFormatCells: afterAutofitFormatCells
+        });
+      }
+
+      return attachLocalExecutionSnapshot(result, localExecutionSnapshot);
     }
 
     function convertColumnLettersToNumber(value) {
