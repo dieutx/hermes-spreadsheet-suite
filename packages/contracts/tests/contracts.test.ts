@@ -2881,6 +2881,33 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.confirmationLevel).toBe("destructive");
   });
 
+  it("rejects range transfer plans whose affectedRanges omit the source or target range", () => {
+    const sharedPlan = {
+      sourceSheet: "Sheet1",
+      sourceRange: "B2:C10",
+      targetSheet: "Archive",
+      targetRange: "A1:B9",
+      operation: "copy" as const,
+      pasteMode: "values" as const,
+      transpose: false,
+      explanation: "Copy the staged rows into the archive sheet.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      confirmationLevel: "standard" as const,
+      overwriteRisk: "low" as const
+    };
+
+    expect(RangeTransferPlanDataSchema.safeParse({
+      ...sharedPlan,
+      affectedRanges: ["Archive!A1:B9"]
+    }).success).toBe(false);
+
+    expect(RangeTransferPlanDataSchema.safeParse({
+      ...sharedPlan,
+      affectedRanges: ["Sheet1!B2:C10"]
+    }).success).toBe(false);
+  });
+
   it("rejects range transfer plans whose targetRange is only an anchor", () => {
     const parsed = RangeTransferPlanDataSchema.safeParse({
       sourceSheet: "Sheet1",
