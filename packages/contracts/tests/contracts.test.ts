@@ -1960,7 +1960,7 @@ describe("Hermes spreadsheet contracts", () => {
         { field: "Deals", aggregation: "count" }
       ],
       filters: [{ field: "Status", operator: "equal_to", value: "Closed Won" }],
-      sort: { field: "Revenue", direction: "desc", sortOn: "aggregated_value" },
+      sort: { field: "Region", direction: "asc", sortOn: "group_field" },
       explanation: "Build a sales pivot by region and rep.",
       confidence: 0.9,
       requiresConfirmation: true,
@@ -2064,6 +2064,32 @@ describe("Hermes spreadsheet contracts", () => {
       ...basePlan,
       sort: { field: "Region", direction: "desc", sortOn: "aggregated_value" }
     }).success).toBe(false);
+  });
+
+  it("rejects pivot value sorting when row and column groups are both present", () => {
+    const parsed = PivotTablePlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      columnGroups: ["Quarter"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      sort: { field: "Revenue", direction: "desc", sortOn: "aggregated_value" },
+      explanation: "Build a sorted sales pivot.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.message).toBe(
+      "aggregated_value sort cannot be used when both rowGroups and columnGroups are present."
+    );
   });
 
   it("accepts bounded numeric pivot filters and requires both bounds", () => {

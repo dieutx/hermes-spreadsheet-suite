@@ -1752,6 +1752,18 @@ export const PivotTablePlanDataSchema = strictObject({
       path: ["sort", "field"]
     });
   }
+
+  if (
+    data.sort.sortOn === "aggregated_value" &&
+    data.rowGroups.length > 0 &&
+    (data.columnGroups ?? []).length > 0
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "aggregated_value sort cannot be used when both rowGroups and columnGroups are present.",
+      path: ["sort", "sortOn"]
+    });
+  }
 });
 
 export const ChartTypeSchema = z.enum([
