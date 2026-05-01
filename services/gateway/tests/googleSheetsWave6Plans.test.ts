@@ -530,8 +530,40 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       "Failed to contact Hermes."
     )).toBe("Failed to contact Hermes.");
 
+    expect(sidebar.sanitizeHostExecutionError(
+      new Error("Unhandled failure at path=/srv/hermes/apps/google-sheets-addon/src/Code.gs:42"),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
+    expect(sidebar.sanitizeHostExecutionError(
+      new Error(String.raw`Unhandled writeback failure at path=C:\Users\runner\work\Sidebar.js.html:42`),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
+    expect(sidebar.sanitizeHostExecutionError(
+      new Error(String.raw`Unhandled writeback failure at \\runner\share\Sidebar.js.html:42`),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
+    expect(sidebar.sanitizeHostExecutionError(
+      new Error(String.raw`Unhandled writeback failure at source=\\runner\share\Sidebar.js.html:42`),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
     expect(code.sanitizeHostExecutionError(
       new Error("Request failed at https://internal.example/api with HERMES_API_SERVER_KEY=secret_123")
+    )).toBe("Write-back failed.");
+
+    expect(code.sanitizeHostExecutionError(
+      new Error(String.raw`Unhandled writeback failure at path=C:\Users\runner\work\Code.gs:42`)
+    )).toBe("Write-back failed.");
+
+    expect(code.sanitizeHostExecutionError(
+      new Error(String.raw`Unhandled writeback failure at \\runner\share\Code.gs:42`)
+    )).toBe("Write-back failed.");
+
+    expect(code.sanitizeHostExecutionError(
+      new Error(String.raw`Unhandled writeback failure at source=\\runner\share\Code.gs:42`)
     )).toBe("Write-back failed.");
 
     expect(sidebar.sanitizeHostExecutionError(

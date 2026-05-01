@@ -4904,8 +4904,9 @@ function containsSensitiveHostDiagnostics(message) {
     /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)/i.test(text) ||
     /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(text) ||
     /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(text) ||
-    /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(text) ||
-    /(?:^|\s)[A-Za-z]:\\[^\s]+/.test(text) ||
+    /(?:^|[\s=:])\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(text) ||
+    /(?:^|[\s=:])[A-Za-z]:\\[^\s]+/.test(text) ||
+    /(?:^|[\s=:])\\\\[^\s]+/.test(text) ||
     /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(text) ||
     /\b(?:stack trace|traceback)\b/i.test(text)
   );
