@@ -85,6 +85,72 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.steps).toHaveLength(2);
   });
 
+  it("rejects composite plans whose affectedRanges omit a child affected range", () => {
+    const parsed = CompositePlanDataSchema.safeParse({
+      steps: [
+        {
+          stepId: "step_sort",
+          dependsOn: [],
+          continueOnError: false,
+          plan: {
+            targetSheet: "Sales",
+            targetRange: "A1:F50",
+            hasHeader: true,
+            keys: [{ columnRef: "Revenue", direction: "desc" }],
+            explanation: "Sort by revenue.",
+            confidence: 0.91,
+            requiresConfirmation: true,
+            affectedRanges: ["Sales!A1:F50"]
+          }
+        }
+      ],
+      explanation: "Sort the current table.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Summary!A1:F50"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      reversible: true,
+      dryRunRecommended: true,
+      dryRunRequired: false
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts composite affectedRanges with equivalent absolute child refs", () => {
+    const parsed = CompositePlanDataSchema.parse({
+      steps: [
+        {
+          stepId: "step_sort",
+          dependsOn: [],
+          continueOnError: false,
+          plan: {
+            targetSheet: "Sales",
+            targetRange: "$A$1:$F$50",
+            hasHeader: true,
+            keys: [{ columnRef: "Revenue", direction: "desc" }],
+            explanation: "Sort by revenue.",
+            confidence: 0.91,
+            requiresConfirmation: true,
+            affectedRanges: ["Sales!$A$1:$F$50"]
+          }
+        }
+      ],
+      explanation: "Sort the current table.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      reversible: true,
+      dryRunRecommended: true,
+      dryRunRequired: false
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sales!A1:F50"]);
+  });
+
   it("rejects nested composite plans", () => {
     const parsed = CompositePlanDataSchema.safeParse({
       steps: [
@@ -476,7 +542,7 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Pivot and chart workflow.",
       confidence: 0.92,
       requiresConfirmation: true,
-      affectedRanges: ["Sales Pivot!A1", "Sales Chart!A1"],
+      affectedRanges: ["Sales!A1:C20", "Sales Pivot!A1", "Sales Pivot!A1:B5", "Sales Chart!A1"],
       overwriteRisk: "low",
       confirmationLevel: "standard",
       reversible: true,

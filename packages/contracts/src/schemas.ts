@@ -87,6 +87,10 @@ function normalizeAffectedA1RangeRef(value: string): string | null {
   );
 }
 
+function normalizeCompositeAffectedRangeRef(value: string): string {
+  return normalizeAffectedA1RangeRef(value) ?? value.trim();
+}
+
 const StrictSingleCellA1StringSchema = z.string().min(1).max(128).refine(isSingleCellA1Range, {
   message: "must be a single-cell A1 range."
 });
@@ -2713,6 +2717,26 @@ export const CompositePlanDataSchema = strictObject({
       path: ["confirmationLevel"]
     });
   }
+
+  const compositeAffectedRanges = new Set(
+    data.affectedRanges.map((range) => normalizeCompositeAffectedRangeRef(range))
+  );
+  data.steps.forEach((step, index) => {
+    if (!("affectedRanges" in step.plan) || !Array.isArray(step.plan.affectedRanges)) {
+      return;
+    }
+
+    const missingRanges = step.plan.affectedRanges.filter(
+      (range) => !compositeAffectedRanges.has(normalizeCompositeAffectedRangeRef(range))
+    );
+    if (missingRanges.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Composite affectedRanges must include every child affected range.",
+        path: ["steps", index, "plan", "affectedRanges"]
+      });
+    }
+  });
 
   const visiting = new Set<string>();
   const visited = new Set<string>();

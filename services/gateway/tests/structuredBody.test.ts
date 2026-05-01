@@ -1514,6 +1514,45 @@ describe("structured body normalization", () => {
     });
   });
 
+  it("deduplicates composite affected ranges using equivalent absolute child refs", () => {
+    const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
+      type: "composite_plan",
+      data: {
+        steps: [
+          {
+            stepId: "step_sort",
+            dependsOn: [],
+            continueOnError: false,
+            plan: {
+              targetSheet: "Sales",
+              targetRange: "$A$1:$F$50",
+              hasHeader: true,
+              keys: [
+                { columnRef: "Revenue", direction: "desc" }
+              ],
+              explanation: "Sort by revenue.",
+              confidence: 0.91,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!$A$1:$F$50"]
+            }
+          }
+        ],
+        explanation: "Run the workflow.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard",
+        reversible: false,
+        dryRunRecommended: true,
+        dryRunRequired: false
+      }
+    }));
+
+    expect(parsed.data.affectedRanges).toEqual(["Sales!A1:F50"]);
+    expect(parsed.data.steps[0]?.plan.affectedRanges).toEqual(["Sales!$A$1:$F$50"]);
+  });
+
   it("preserves explicit reversible composite plans when every child step can be snapshot-backed", () => {
     const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
       type: "composite_plan",

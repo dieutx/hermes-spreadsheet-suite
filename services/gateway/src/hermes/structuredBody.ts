@@ -214,6 +214,43 @@ function columnNumberToLetters(value: number): string {
   return letters;
 }
 
+function normalizeStructuredA1Range(value: string): string | undefined {
+  const normalized = value.trim().replaceAll("$", "");
+  const match = normalized.match(/^([A-Z]+)([1-9][0-9]*)(?::([A-Z]+)([1-9][0-9]*))?$/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const startColumn = columnLettersToNumber(match[1]);
+  const startRow = Number.parseInt(match[2], 10);
+  const endColumn = match[3] ? columnLettersToNumber(match[3]) : startColumn;
+  const endRow = match[4] ? Number.parseInt(match[4], 10) : startRow;
+  if (
+    !startColumn ||
+    !endColumn ||
+    !Number.isInteger(startRow) ||
+    !Number.isInteger(endRow) ||
+    endColumn < startColumn ||
+    endRow < startRow
+  ) {
+    return undefined;
+  }
+
+  const start = `${columnNumberToLetters(startColumn)}${startRow}`;
+  const end = `${columnNumberToLetters(endColumn)}${endRow}`;
+  return start === end ? start : `${start}:${end}`;
+}
+
+function normalizeQualifiedAffectedRangeKey(value: string): string {
+  const rangeRef = parseQualifiedRangeRef(value);
+  if (!rangeRef?.sheet || !rangeRef.range) {
+    return value.trim();
+  }
+
+  const normalizedRange = normalizeStructuredA1Range(rangeRef.range);
+  return normalizedRange ? `${rangeRef.sheet.trim()}!${normalizedRange}` : value.trim();
+}
+
 function expandAnalysisReportAnchorRange(targetRange: unknown, sections: unknown): string | undefined {
   if (typeof targetRange !== "string" || !Array.isArray(sections) || sections.length === 0) {
     return undefined;
@@ -941,6 +978,33 @@ function normalizeCompositePlanData(value: unknown): unknown {
   }
 
   const normalizedSteps = Array.isArray(normalized.steps) ? normalized.steps : [];
+  const aggregateAffectedRanges = Array.isArray(normalized.affectedRanges)
+    ? [...normalized.affectedRanges]
+    : [];
+  const seenAffectedRanges = new Set(
+    aggregateAffectedRanges
+      .filter((range): range is string => typeof range === "string")
+      .map((range) => normalizeQualifiedAffectedRangeKey(range))
+  );
+  normalizedSteps.forEach((step) => {
+    if (!isObject(step) || !isObject(step.plan) || !Array.isArray(step.plan.affectedRanges)) {
+      return;
+    }
+
+    step.plan.affectedRanges.forEach((range) => {
+      if (typeof range !== "string") {
+        return;
+      }
+      const rangeKey = normalizeQualifiedAffectedRangeKey(range);
+      if (seenAffectedRanges.has(rangeKey)) {
+        return;
+      }
+      seenAffectedRanges.add(rangeKey);
+      aggregateAffectedRanges.push(range);
+    });
+  });
+  normalized.affectedRanges = aggregateAffectedRanges;
+
   const hasDestructiveStep = normalizedSteps.some((step) =>
     isObject(step) &&
     isObject(step.plan) &&
