@@ -126,6 +126,7 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('For type="external_data_plan"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain("data.sourceUrl must be a public HTTP(S) URL");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("external-data formulas must not reference private or internal URLs");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("literal GOOGLEFINANCE arguments that match data.query");
   });
 
   it("keeps explicit confirmation phrasing on supported plan types instead of chat acknowledgements", () => {
