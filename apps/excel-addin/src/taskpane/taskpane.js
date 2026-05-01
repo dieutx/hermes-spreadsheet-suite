@@ -854,6 +854,32 @@ function getExcelRangeFormatSnapshotBorderSides(format) {
   )];
 }
 
+function getExcelRangeTransferFormatSnapshotSpec() {
+  const borderLine = { style: "solid" };
+  return {
+    backgroundColor: true,
+    textColor: true,
+    fontFamily: true,
+    fontSize: true,
+    bold: true,
+    italic: true,
+    underline: true,
+    strikethrough: true,
+    horizontalAlignment: true,
+    verticalAlignment: true,
+    wrapStrategy: true,
+    numberFormat: true,
+    border: {
+      top: borderLine,
+      bottom: borderLine,
+      left: borderLine,
+      right: borderLine,
+      innerHorizontal: borderLine,
+      innerVertical: borderLine
+    }
+  };
+}
+
 function getExcelRangeFormatSnapshotLoadPaths(fields) {
   const paths = [];
 
@@ -9948,25 +9974,53 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       const canSnapshotTargetOnlyTransfer =
         (plan.operation === "copy" || plan.operation === "append") && plan.pasteMode !== "formats";
       const canSnapshotCellMoveTransfer = plan.operation === "move" && plan.pasteMode !== "formats";
+      const canSnapshotTargetOnlyFormatTransfer =
+        (plan.operation === "copy" || plan.operation === "append") && plan.pasteMode === "formats";
+      const canSnapshotFormatMoveTransfer = plan.operation === "move" && plan.pasteMode === "formats";
       const shouldSnapshotTargetCells = canSnapshotTargetOnlyTransfer || canSnapshotCellMoveTransfer;
+      const formatSnapshotSpec = canSnapshotTargetOnlyFormatTransfer || canSnapshotFormatMoveTransfer
+        ? getExcelRangeTransferFormatSnapshotSpec()
+        : null;
+      const targetFormatSnapshotTargets = formatSnapshotSpec &&
+        (canSnapshotTargetOnlyFormatTransfer || canSnapshotFormatMoveTransfer)
+        ? prepareExcelRangeFormatSnapshotTargets(resolvedTargetRange, formatSnapshotSpec)
+        : null;
+      const sourceFormatSnapshotTargets = formatSnapshotSpec && canSnapshotFormatMoveTransfer
+        ? prepareExcelRangeFormatSnapshotTargets(sourceRange, formatSnapshotSpec)
+        : null;
+      loadExcelRangeFormatSnapshotTargets(targetFormatSnapshotTargets);
+      loadExcelRangeFormatSnapshotTargets(sourceFormatSnapshotTargets);
+      if (targetFormatSnapshotTargets || sourceFormatSnapshotTargets) {
+        await context.sync();
+      }
       const beforeValues = shouldSnapshotTargetCells ? cloneMatrix(resolvedTargetRange.values) : null;
       const beforeFormulas = shouldSnapshotTargetCells ? cloneMatrix(resolvedTargetRange.formulas) : null;
       const beforeSourceValues = canSnapshotCellMoveTransfer ? cloneMatrix(sourceRange.values) : null;
       const beforeSourceFormulas = canSnapshotCellMoveTransfer ? cloneMatrix(sourceRange.formulas) : null;
+      const beforeTargetFormatCells = readExcelRangeFormatCellsSnapshot(targetFormatSnapshotTargets);
+      const beforeTargetBorders = readExcelRangeFormatBorderSnapshot(targetFormatSnapshotTargets);
+      const beforeSourceFormatCells = readExcelRangeFormatCellsSnapshot(sourceFormatSnapshotTargets);
+      const beforeSourceBorders = readExcelRangeFormatBorderSnapshot(sourceFormatSnapshotTargets);
       assertNonOverlappingTransfer(plan, resolvedTargetRange);
       writeTransferValues(resolvedTargetRange, sourceRange, plan);
       if (shouldSnapshotTargetCells) {
         resolvedTargetRange.load(["values", "formulas"]);
       }
+      loadExcelRangeFormatSnapshotTargets(targetFormatSnapshotTargets);
       await context.sync();
+      const afterTargetFormatCells = readExcelRangeFormatCellsSnapshot(targetFormatSnapshotTargets);
+      const afterTargetBorders = readExcelRangeFormatBorderSnapshot(targetFormatSnapshotTargets);
 
       if (plan.operation === "move") {
         clearTransferredSource(sourceRange, plan);
         if (canSnapshotCellMoveTransfer) {
           sourceRange.load(["values", "formulas"]);
         }
+        loadExcelRangeFormatSnapshotTargets(sourceFormatSnapshotTargets);
         await context.sync();
       }
+      const afterSourceFormatCells = readExcelRangeFormatCellsSnapshot(sourceFormatSnapshotTargets);
+      const afterSourceBorders = readExcelRangeFormatBorderSnapshot(sourceFormatSnapshotTargets);
 
       const result = {
         kind: "range_transfer_update",
@@ -9985,41 +10039,86 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         })
       };
 
-      return canSnapshotTargetOnlyTransfer
-        ? attachLocalExecutionSnapshot(result, createLocalExecutionSnapshot({
-            executionId,
-            targetSheet: plan.targetSheet,
-            targetRange: actualTargetRange,
-            beforeValues,
-            beforeFormulas,
-            afterValues: resolvedTargetRange.values,
-            afterFormulas: resolvedTargetRange.formulas
-          }))
-        : canSnapshotCellMoveTransfer
-          ? attachLocalExecutionSnapshot(result, createCompositeLocalExecutionSnapshot({
+      if (canSnapshotTargetOnlyTransfer) {
+        return attachLocalExecutionSnapshot(result, createLocalExecutionSnapshot({
+          executionId,
+          targetSheet: plan.targetSheet,
+          targetRange: actualTargetRange,
+          beforeValues,
+          beforeFormulas,
+          afterValues: resolvedTargetRange.values,
+          afterFormulas: resolvedTargetRange.formulas
+        }));
+      }
+
+      if (canSnapshotCellMoveTransfer) {
+        return attachLocalExecutionSnapshot(result, createCompositeLocalExecutionSnapshot({
+          executionId,
+          entries: [
+            createLocalExecutionSnapshot({
               executionId,
-              entries: [
-                createLocalExecutionSnapshot({
-                  executionId,
-                  targetSheet: plan.sourceSheet,
-                  targetRange: plan.sourceRange,
-                  beforeValues: beforeSourceValues,
-                  beforeFormulas: beforeSourceFormulas,
-                  afterValues: sourceRange.values,
-                  afterFormulas: sourceRange.formulas
-                }),
-                createLocalExecutionSnapshot({
-                  executionId,
-                  targetSheet: plan.targetSheet,
-                  targetRange: actualTargetRange,
-                  beforeValues,
-                  beforeFormulas,
-                  afterValues: resolvedTargetRange.values,
-                  afterFormulas: resolvedTargetRange.formulas
-                })
-              ].filter(Boolean)
-            }))
-        : result;
+              targetSheet: plan.sourceSheet,
+              targetRange: plan.sourceRange,
+              beforeValues: beforeSourceValues,
+              beforeFormulas: beforeSourceFormulas,
+              afterValues: sourceRange.values,
+              afterFormulas: sourceRange.formulas
+            }),
+            createLocalExecutionSnapshot({
+              executionId,
+              targetSheet: plan.targetSheet,
+              targetRange: actualTargetRange,
+              beforeValues,
+              beforeFormulas,
+              afterValues: resolvedTargetRange.values,
+              afterFormulas: resolvedTargetRange.formulas
+            })
+          ].filter(Boolean)
+        }));
+      }
+
+      if (canSnapshotTargetOnlyFormatTransfer) {
+        return attachLocalExecutionSnapshot(result, createRangeFormatLocalExecutionSnapshot({
+          executionId,
+          targetSheet: plan.targetSheet,
+          targetRange: actualTargetRange,
+          target: resolvedTargetRange,
+          beforeFormatCells: beforeTargetFormatCells,
+          afterFormatCells: afterTargetFormatCells,
+          beforeBorders: beforeTargetBorders,
+          afterBorders: afterTargetBorders
+        }));
+      }
+
+      if (canSnapshotFormatMoveTransfer) {
+        return attachLocalExecutionSnapshot(result, createCompositeLocalExecutionSnapshot({
+          executionId,
+          entries: [
+            createRangeFormatLocalExecutionSnapshot({
+              executionId,
+              targetSheet: plan.sourceSheet,
+              targetRange: plan.sourceRange,
+              target: sourceRange,
+              beforeFormatCells: beforeSourceFormatCells,
+              afterFormatCells: afterSourceFormatCells,
+              beforeBorders: beforeSourceBorders,
+              afterBorders: afterSourceBorders
+            }),
+            createRangeFormatLocalExecutionSnapshot({
+              executionId,
+              targetSheet: plan.targetSheet,
+              targetRange: actualTargetRange,
+              target: resolvedTargetRange,
+              beforeFormatCells: beforeTargetFormatCells,
+              afterFormatCells: afterTargetFormatCells,
+              beforeBorders: beforeTargetBorders,
+              afterBorders: afterTargetBorders
+            })
+          ].filter(Boolean)
+        }));
+      }
+
+      return result;
     }
 
     if (isDataCleanupPlan(plan)) {
