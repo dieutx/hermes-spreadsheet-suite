@@ -3085,7 +3085,8 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
           kind: "range_merge",
           targetSheet: "Sales",
           targetRange: "B2:C3",
-          state: before
+          from: after,
+          to: before
         }
       },
       {
@@ -3094,7 +3095,8 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
           kind: "range_merge",
           targetSheet: "Sales",
           targetRange: "B2:C3",
-          state: before
+          from: after,
+          to: before
         }
       }
     ]);
@@ -3103,12 +3105,26 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
 
   it("applies Google Sheets merge snapshots on the server", () => {
     let merged = true;
+    const values: unknown[][] = [
+      ["Region", ""],
+      ["", ""]
+    ];
+    const formulas = [
+      ["", ""],
+      ["", ""]
+    ];
     const cellValues = new Map<string, unknown>();
     const targetRange = {
       getNumRows: vi.fn(() => 2),
       getNumColumns: vi.fn(() => 2),
       getMergedRanges: vi.fn(() => merged ? [targetRange] : []),
       getA1Notation: vi.fn(() => "B2:C3"),
+      getValues: vi.fn(() => values.map((row) => [...row])),
+      getFormulas: vi.fn(() => formulas.map((row) => [...row])),
+      getNotes: vi.fn(() => [
+        ["", ""],
+        ["", ""]
+      ]),
       merge: vi.fn(() => {
         merged = true;
       }),
@@ -3142,7 +3158,14 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       kind: "range_merge",
       targetSheet: "Sales",
       targetRange: "B2:C3",
-      state: {
+      from: {
+        merged: true,
+        cells: [
+          [{ kind: "value", value: { type: "string", value: "Region" }, note: "" }, { kind: "value", value: { type: "string", value: "" }, note: "" }],
+          [{ kind: "value", value: { type: "string", value: "" }, note: "" }, { kind: "value", value: { type: "string", value: "" }, note: "" }]
+        ]
+      },
+      to: {
         merged: false,
         cells: [
           [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
@@ -3162,6 +3185,65 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(cellValues.get("2,1")).toBe("West");
     expect(cellValues.get("2,2")).toBe("East");
     expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("fails closed when Google Sheets merge snapshots no longer match the current merge state", () => {
+    const values: unknown[][] = [
+      ["Region", ""],
+      ["West", "East"]
+    ];
+    const formulas = [
+      ["", ""],
+      ["", ""]
+    ];
+    const targetRange = {
+      getNumRows: vi.fn(() => 2),
+      getNumColumns: vi.fn(() => 2),
+      getMergedRanges: vi.fn(() => []),
+      getA1Notation: vi.fn(() => "B2:C3"),
+      getValues: vi.fn(() => values.map((row) => [...row])),
+      getFormulas: vi.fn(() => formulas.map((row) => [...row])),
+      getNotes: vi.fn(() => [
+        ["", ""],
+        ["", ""]
+      ]),
+      breakApart: vi.fn(),
+      merge: vi.fn()
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:C3");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(() => code.validateExecutionCellSnapshot({
+      kind: "range_merge",
+      targetSheet: "Sales",
+      targetRange: "B2:C3",
+      from: {
+        merged: true,
+        cells: [
+          [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+          [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+        ]
+      },
+      to: {
+        merged: false,
+        cells: [
+          [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+          [{ kind: "value", value: { type: "string", value: "West" } }, { kind: "value", value: { type: "string", value: "East" } }]
+        ]
+      }
+    })).toThrow("Range merge state changed since this history entry was captured.");
+    expect(targetRange.breakApart).not.toHaveBeenCalled();
   });
 
   it("attaches local undo snapshots for Google Sheets autofit column writes", () => {

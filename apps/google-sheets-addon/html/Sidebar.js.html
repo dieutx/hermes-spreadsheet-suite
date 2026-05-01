@@ -368,7 +368,8 @@
         kind: "range_merge",
         targetSheet: entry.targetSheet,
         targetRange: entry.targetRange,
-        state: mode === "undo" ? entry.before : entry.after
+        from: mode === "undo" ? entry.after : entry.before,
+        to: mode === "undo" ? entry.before : entry.after
       };
     }
 

@@ -5157,7 +5157,8 @@ function resolveExecutionRangeMergeSnapshot_(input) {
     throw new Error('Execution snapshot payload is required.');
   }
 
-  const state = input.state;
+  const state = input.to || input.state;
+  const expectedCurrentState = input.from || null;
   const cells = state && Array.isArray(state.cells) ? state.cells : [];
   if (
     !input.targetSheet ||
@@ -5185,6 +5186,13 @@ function resolveExecutionRangeMergeSnapshot_(input) {
 
   if (typeof target.breakApart !== 'function' || (state.merged && typeof target.merge !== 'function')) {
     throw new Error('Google Sheets host cannot restore merge snapshots on this range.');
+  }
+
+  if (expectedCurrentState) {
+    const currentState = getRangeMergeSnapshotState_(target, input.targetRange);
+    if (!isSameRangeMergeSnapshotState_(currentState, expectedCurrentState)) {
+      throw new Error('Range merge state changed since this history entry was captured.');
+    }
   }
 
   return {
@@ -6931,6 +6939,17 @@ function applyExecutionCellSnapshot(input) {
 }
 
 function validateExecutionCellSnapshot(input) {
+  if (input && input.kind === 'range_merge') {
+    const validated = resolveExecutionRangeMergeSnapshot_(input);
+    return {
+      ok: true,
+      targetSheet: input.targetSheet,
+      targetRange: input.targetRange,
+      rowCount: validated.target.getNumRows(),
+      columnCount: validated.target.getNumColumns()
+    };
+  }
+
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
   }
