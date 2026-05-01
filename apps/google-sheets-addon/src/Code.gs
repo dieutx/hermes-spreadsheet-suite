@@ -7703,9 +7703,10 @@ function applyWritePlan(input) {
     }
 
     assertNonOverlappingTransfer_(plan, actualTargetRange);
-    const canSnapshotCopyTransfer = plan.operation === 'copy' && plan.pasteMode !== 'formats';
+    const canSnapshotTargetOnlyTransfer =
+      (plan.operation === 'copy' || plan.operation === 'append') && plan.pasteMode !== 'formats';
     const canSnapshotCellMoveTransfer = plan.operation === 'move' && plan.pasteMode !== 'formats';
-    const shouldSnapshotTargetCells = canSnapshotCopyTransfer || canSnapshotCellMoveTransfer;
+    const shouldSnapshotTargetCells = canSnapshotTargetOnlyTransfer || canSnapshotCellMoveTransfer;
     const beforeValues = shouldSnapshotTargetCells ? resolvedTargetRange.getValues() : null;
     const beforeFormulas = shouldSnapshotTargetCells ? resolvedTargetRange.getFormulas() : null;
     const beforeSourceValues = canSnapshotCellMoveTransfer ? sourceRange.getValues() : null;
@@ -7718,7 +7719,7 @@ function applyWritePlan(input) {
 
     SpreadsheetApp.flush();
     const result = buildRangeTransferResult_(plan, actualTargetRange);
-    return canSnapshotCopyTransfer
+    return canSnapshotTargetOnlyTransfer
       ? attachLocalExecutionSnapshot_(result, createLocalExecutionSnapshot_({
         executionId: input.executionId,
         targetSheet: plan.targetSheet,
