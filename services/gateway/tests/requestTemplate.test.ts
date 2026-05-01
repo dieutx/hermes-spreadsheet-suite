@@ -66,6 +66,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("between, or not_between");
     expect(prompt).toContain("Series labels may use explicit custom legend text when provided.");
     expect(prompt).toContain("Supported legend positions: bottom, left, right, top, hidden.");
+    expect(prompt).toContain("Pie charts support exactly one series.");
     expect(prompt).toContain("If you would naturally say none, emit hidden.");
     expect(prompt).toContain("range_transfer_plan: limited");
     expect(prompt).toContain("Supported pasteMode values: values, formulas, formats.");
