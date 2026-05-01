@@ -31,7 +31,8 @@ import {
   SheetStructureUpdateDataSchema,
   SheetUpdateDataSchema,
   TablePlanDataSchema,
-  UndoRequestSchema
+  UndoRequestSchema,
+  WorkbookStructureUpdateDataSchema
 } from "../src/index.ts";
 
 describe("Hermes spreadsheet contracts", () => {
@@ -1413,6 +1414,19 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.targetRange).toBe("B4:C7");
   });
 
+  it("rejects workbook sheet deletion without destructive confirmation", () => {
+    const parsed = WorkbookStructureUpdateDataSchema.safeParse({
+      operation: "delete_sheet",
+      sheetName: "Archive",
+      explanation: "Delete an obsolete sheet.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      overwriteRisk: "high"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a destructive sheet structure delete-row plan", () => {
     const parsed = SheetStructureUpdateDataSchema.parse({
       targetSheet: "Sheet1",
@@ -2505,6 +2519,7 @@ describe("Hermes spreadsheet contracts", () => {
         explanation: "Create a new sheet at the end of the workbook.",
         confidence: 0.94,
         requiresConfirmation: true,
+        confirmationLevel: "standard",
         overwriteRisk: "none"
       }
     } as any);

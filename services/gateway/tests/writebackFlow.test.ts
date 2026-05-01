@@ -395,7 +395,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create a report sheet.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         }
       ],
@@ -640,7 +641,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create the staging sheet.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         }
       ],
@@ -1195,6 +1197,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Create a sheet for the overflow regression.",
       confidence: 0.95,
       requiresConfirmation: true as const,
+      confirmationLevel: "standard" as const,
       overwriteRisk: "none" as const
     };
 
@@ -1254,6 +1257,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Create a sheet for the label bound regression.",
       confidence: 0.95,
       requiresConfirmation: true as const,
+      confirmationLevel: "standard" as const,
       overwriteRisk: "none" as const
     };
 
@@ -2421,7 +2425,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create Stage 1.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         },
         {
@@ -2434,7 +2439,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create Stage 2.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         }
       ],
@@ -2542,7 +2548,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create Stage 1.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         },
         {
@@ -2555,7 +2562,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create Stage 2.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         }
       ],
@@ -2664,7 +2672,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create Stage 1.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         },
         {
@@ -2677,7 +2686,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create Stage 2.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         }
       ],
@@ -2796,7 +2806,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create Stage 1.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         },
         {
@@ -2809,7 +2820,8 @@ describe("writeback confirmation flow", () => {
             position: "end" as const,
             explanation: "Create Stage 2.",
             confidence: 0.9,
-            requiresConfirmation: true
+            requiresConfirmation: true,
+            confirmationLevel: "standard" as const
           }
         }
       ],
@@ -4102,6 +4114,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Create a new sheet at the end of the workbook.",
       confidence: 0.95,
       requiresConfirmation: true,
+      confirmationLevel: "standard" as const,
       overwriteRisk: "none"
     };
 
@@ -4192,6 +4205,7 @@ describe("writeback confirmation flow", () => {
         explanation: "Create a new sheet at the end of the workbook.",
         confidence: 0.95,
         requiresConfirmation: true,
+        confirmationLevel: "standard" as const,
         overwriteRisk: "none"
       },
       result: {
@@ -4215,6 +4229,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Rename the sheet.",
       confidence: 0.95,
       requiresConfirmation: true,
+      confirmationLevel: "standard" as const,
       overwriteRisk: "none"
     };
 
@@ -4283,6 +4298,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Rename the sheet.",
       confidence: 0.95,
       requiresConfirmation: true as const,
+      confirmationLevel: "standard" as const,
       overwriteRisk: "none" as const
     };
 
@@ -4339,6 +4355,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Duplicate the template sheet.",
       confidence: 0.95,
       requiresConfirmation: true as const,
+      confirmationLevel: "standard" as const,
       overwriteRisk: "none" as const
     };
 
@@ -4401,6 +4418,7 @@ describe("writeback confirmation flow", () => {
         explanation: "Create a new sheet at the end of the workbook.",
         confidence: 0.95,
         requiresConfirmation: true,
+        confirmationLevel: "standard" as const,
         overwriteRisk: "none"
       },
       result: {
@@ -6402,6 +6420,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Create a sheet for imported data.",
       confidence: 0.9,
       requiresConfirmation: true as const,
+      confirmationLevel: "standard" as const,
       overwriteRisk: "none" as const
     };
 

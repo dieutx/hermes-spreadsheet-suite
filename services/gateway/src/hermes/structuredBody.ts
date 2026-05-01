@@ -1039,6 +1039,7 @@ function normalizeWorkbookStructureUpdateData(value: unknown): unknown {
     "explanation",
     "confidence",
     "requiresConfirmation",
+    "confirmationLevel",
     "overwriteRisk"
   ]);
 
@@ -1090,6 +1091,10 @@ function normalizeWorkbookStructureUpdateData(value: unknown): unknown {
 
   if (hasOwn(normalized, "overwriteRisk")) {
     normalized.overwriteRisk = normalizeOverwriteRiskValue(normalized.overwriteRisk);
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel = normalized.operation === "delete_sheet" ? "destructive" : "standard";
   }
 
   return normalized;

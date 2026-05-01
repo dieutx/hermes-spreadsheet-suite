@@ -490,6 +490,7 @@ const workbookStructureSharedFields = {
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
+  confirmationLevel: ConfirmationLevelSchema,
   overwriteRisk: OverwriteRiskSchema.optional()
 } satisfies z.ZodRawShape;
 
@@ -534,7 +535,18 @@ export const WorkbookStructureUpdateDataSchema = z.discriminatedUnion("operation
     sheetName: z.string().min(1).max(128),
     ...workbookStructureSharedFields
   })
-]);
+]).superRefine((data, ctx) => {
+  const isDestructive = data.operation === "delete_sheet";
+  if (data.confirmationLevel !== (isDestructive ? "destructive" : "standard")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: isDestructive
+        ? "delete_sheet requires destructive confirmation."
+        : "Workbook structure operations other than delete_sheet require standard confirmation.",
+      path: ["confirmationLevel"]
+    });
+  }
+});
 
 const sheetStructureSharedFields = {
   explanation: z.string().min(1).max(12000),
