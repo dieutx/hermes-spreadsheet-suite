@@ -2657,6 +2657,18 @@ export const ConditionalFormatColorScalePointSchema = strictObject({
     });
   }
 
+  if (
+    (data.type === "percent" || data.type === "percentile") &&
+    data.value !== undefined &&
+    (data.value < 0 || data.value > 100)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${data.type} color scale point value must be between 0 and 100.`,
+      path: ["value"]
+    });
+  }
+
   if (!requiresValue && data.value !== undefined) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

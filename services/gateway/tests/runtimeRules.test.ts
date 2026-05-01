@@ -95,6 +95,7 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("unsupported mappings must fail closed");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("number_compare values must be finite numbers");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("date_compare values must be valid YYYY-MM-DD literals");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("percent and percentile color_scale point values must be between 0 and 100");
   });
 
   it("documents wave-4 transfer and cleanup plan families with destructive confirmation rules", () => {
