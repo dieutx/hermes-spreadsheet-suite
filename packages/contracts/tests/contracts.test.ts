@@ -1806,6 +1806,11 @@ describe("Hermes spreadsheet contracts", () => {
       value: 5,
       value2: 10
     });
+    const topNWithFractionalValue = RangeFilterConditionSchema.safeParse({
+      columnRef: "Revenue",
+      operator: "topN",
+      value: 2.5
+    });
     const containsWithValue2 = RangeFilterConditionSchema.safeParse({
       columnRef: "Status",
       operator: "contains",
@@ -1827,6 +1832,7 @@ describe("Hermes spreadsheet contracts", () => {
     expect(topNWithoutValue.success).toBe(false);
     expect(containsWithoutValue.success).toBe(false);
     expect(topNWithValue2.success).toBe(false);
+    expect(topNWithFractionalValue.success).toBe(false);
     expect(containsWithValue2.success).toBe(false);
     expect(containsWithBoolean.success).toBe(false);
     expect(greaterThanWithNull.success).toBe(false);
