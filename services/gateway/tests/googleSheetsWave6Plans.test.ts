@@ -7074,6 +7074,26 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
         return String.raw`Gateway failed path=\\runner\share\server.ts:42`;
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    let htmlError: Error | undefined;
+    try {
+      await hooks.parseGatewayJsonResponse({
+        ok: false,
+        status: 502,
+        url: "http://127.0.0.1:8787/internal/debug",
+        async json() {
+          throw new Error("not json");
+        },
+        async text() {
+          return "<html><body>not gateway</body></html>";
+        }
+      });
+    } catch (error) {
+      htmlError = error as Error;
+    }
+    expect(htmlError?.message).toContain("the configured gateway, HTTP 502");
+    expect(htmlError?.message).not.toContain("127.0.0.1");
+    expect(htmlError?.message).not.toContain("/internal/debug");
   });
 
   it("sanitizes JSON gateway failures before display in Google Sheets", async () => {

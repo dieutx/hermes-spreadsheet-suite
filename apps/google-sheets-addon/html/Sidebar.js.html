@@ -928,6 +928,7 @@
     if (!response.ok) {
       let message = `Request failed with ${response.status}`;
       const responseUrl = response.url || `${buildGatewayUrl("") || "(unknown gateway)"}/(unknown)`;
+      const responseLocation = getSafeGatewayResponseLocation(responseUrl);
       try {
         const payload = await response.json();
         const rawMessage = payload && payload.error && payload.error.message
@@ -949,7 +950,7 @@
           rawMessage.trim().toLowerCase() === "the requested resource doesn't exist."
         ) {
           message = formatUserFacingErrorText(
-            `The Hermes request was sent to a service path that does not exist (${responseUrl}, HTTP ${response.status}).`,
+            `The Hermes request was sent to a service path that does not exist (${responseLocation}, HTTP ${response.status}).`,
             "Reload the sidebar and retry. If it keeps happening, reload the current deployment so Hermes uses the correct gateway path."
           );
         } else if (containsSensitiveGatewayErrorText(formattedMessage)) {
@@ -963,12 +964,12 @@
           const trimmed = text.trim();
           if (trimmed.toLowerCase() === "the requested resource doesn't exist.") {
             message = formatUserFacingErrorText(
-              `The Hermes request was sent to a service path that does not exist (${responseUrl}, HTTP ${response.status}).`,
+              `The Hermes request was sent to a service path that does not exist (${responseLocation}, HTTP ${response.status}).`,
               "Reload the sidebar and retry. If it keeps happening, reload the current deployment so Hermes uses the correct gateway path."
             );
           } else if (/^<!doctype html/i.test(trimmed) || /^<html/i.test(trimmed)) {
             message = formatUserFacingErrorText(
-              `The Hermes request was sent to a page that is not the Hermes gateway (${responseUrl}, HTTP ${response.status}).`,
+              `The Hermes request was sent to a page that is not the Hermes gateway (${responseLocation}, HTTP ${response.status}).`,
               "Reload the sidebar and retry. If it keeps happening, check the configured Hermes gateway."
             );
           } else if (containsSensitiveGatewayErrorText(trimmed)) {
@@ -989,6 +990,14 @@
         "Retry the request, then reload the sidebar if it keeps happening."
       );
     }
+  }
+
+  function getSafeGatewayResponseLocation(responseUrl) {
+    const location = String(responseUrl || "").trim();
+    if (!location || containsSensitiveGatewayErrorText(location)) {
+      return "the configured gateway";
+    }
+    return location;
   }
 
   function containsSensitiveGatewayErrorText(text) {
