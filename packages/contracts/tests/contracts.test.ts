@@ -296,6 +296,8 @@ describe("Hermes spreadsheet contracts", () => {
 
     for (const sourceUrl of [
       "http://localhost./data.csv",
+      "http://app.localhost/data.csv",
+      "http://localhost.localdomain/data.csv",
       "http://example.internal./data.csv",
       "http://[fc00::1]/data.csv",
       "http://[fe80::1]/data.csv",
