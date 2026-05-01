@@ -1773,6 +1773,48 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.error?.issues[0]?.message).toBe("targetRange must be a single-cell A1 anchor.");
   });
 
+  it("rejects pivot plans whose affectedRanges omit the source or target range", () => {
+    const parsed = PivotTablePlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      explanation: "Build a sales pivot by region.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Other Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts pivot affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = PivotTablePlanDataSchema.parse({
+      sourceSheet: "Sales",
+      sourceRange: "$A$1:$F$50",
+      targetSheet: "Sales Pivot",
+      targetRange: "$A$1",
+      rowGroups: ["Region"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      explanation: "Build a sales pivot by region.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sales!A1:F50", "Sales Pivot!A1"]);
+  });
+
   it("rejects pivot sort fields that do not match the requested sort mode", () => {
     const basePlan = {
       sourceSheet: "Sales",

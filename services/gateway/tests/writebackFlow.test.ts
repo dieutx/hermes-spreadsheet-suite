@@ -3142,6 +3142,7 @@ describe("writeback confirmation flow", () => {
           ...plan,
           targetSheet: "Wrong Pivot",
           targetRange: "B2",
+          affectedRanges: ["Sales!A1:F50", "Wrong Pivot!B2"],
           summary: "Created pivot table on the wrong target."
         }
       }
