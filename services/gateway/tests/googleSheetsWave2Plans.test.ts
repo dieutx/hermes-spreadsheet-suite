@@ -358,9 +358,42 @@ describe("Google Sheets wave 2 plans", () => {
 
     expect(validationHtml).toContain("source named range StatusOptions");
     expect(validationHtml).toContain("replaces existing validation");
+    expect(validationHtml).toContain("destructive");
     expect(validationHtml).toContain("dropdown hidden");
     expect(validationHtml).toContain("Will validate Sheet1!B2:B20.");
     expect(validationHtml).toContain("Confirm Validation");
+
+    const confirm = vi.fn(() => true);
+    (sidebar.window as any).confirm = confirm;
+    expect(sidebar.buildWriteApprovalRequest({
+      requestId: "req_validation_preview",
+      runId: "run_validation_preview",
+      plan: sidebar.getStructuredPreview({
+        type: "data_validation_plan",
+        data: {
+          targetSheet: "Sheet1",
+          targetRange: "B2:B20",
+          ruleType: "list",
+          namedRangeName: "StatusOptions",
+          showDropdown: false,
+          allowBlank: false,
+          invalidDataBehavior: "reject",
+          explanation: "Restrict values to the approved list.",
+          confidence: 0.94,
+          requiresConfirmation: true,
+          replacesExistingValidation: true
+        }
+      })
+    })).toMatchObject({
+      requestId: "req_validation_preview",
+      runId: "run_validation_preview",
+      destructiveConfirmation: { confirmed: true },
+      plan: {
+        kind: "data_validation_plan",
+        confirmationLevel: "destructive"
+      }
+    });
+    expect(confirm).toHaveBeenCalledTimes(1);
 
     const comparatorHtml = sidebar.renderStructuredPreview({
       type: "data_validation_plan",

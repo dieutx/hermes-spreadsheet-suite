@@ -192,6 +192,9 @@ For type="data_validation_plan":
 - data.explanation is required
 - data.confidence is required
 - data.requiresConfirmation must be true
+- data.confirmationLevel is required and must be standard or destructive
+- data.replacesExistingValidation=true requires data.confirmationLevel="destructive"
+- validation plans that preserve existing validation require data.confirmationLevel="standard"
 - list validation may use values, sourceRange, or namedRangeName, but not more than one source
 - optional inputTitle, inputMessage, errorTitle, and errorMessage customize validation prompts and invalid-entry alerts only when the current host supports them exactly
 - checkbox, whole_number, decimal, date, text_length, and custom_formula must follow the contract-specific validation fields

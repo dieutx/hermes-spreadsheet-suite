@@ -5184,6 +5184,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Restrict the status column to approved values.",
       confidence: 0.95,
       requiresConfirmation: true,
+      confirmationLevel: "destructive" as const,
       replacesExistingValidation: true,
       ruleType: "list",
       values: ["Open", "Closed"],
@@ -5203,7 +5204,8 @@ describe("writeback confirmation flow", () => {
       body: {
         requestId: "req_validation_typed",
         runId: "run_validation_typed",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -5246,6 +5248,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Restrict the status column to approved values.",
       confidence: 0.95,
       requiresConfirmation: true,
+      confirmationLevel: "destructive" as const,
       replacesExistingValidation: true,
       ruleType: "list",
       values: ["Open", "Closed"]
@@ -5267,7 +5270,8 @@ describe("writeback confirmation flow", () => {
         requestId: "req_validation_undo_ready",
         runId: "run_validation_undo_ready",
         workbookSessionKey: "excel_windows::workbook-123",
-        plan
+        plan,
+        destructiveConfirmation: { confirmed: true }
       }
     });
 
@@ -5320,6 +5324,7 @@ describe("writeback confirmation flow", () => {
         explanation: "Restrict the status column to approved values.",
         confidence: 0.95,
         requiresConfirmation: true,
+        confirmationLevel: "destructive" as const,
         replacesExistingValidation: true,
         ruleType: "list",
         values: ["Open", "Closed"]
@@ -5334,11 +5339,13 @@ describe("writeback confirmation flow", () => {
         explanation: "Restrict the status column to approved values.",
         confidence: 0.95,
         requiresConfirmation: true,
+        confirmationLevel: "destructive" as const,
         replacesExistingValidation: true,
         ruleType: "list",
         values: ["Pending", "Done"],
         summary: "Applied validation to the wrong range."
-      }
+      },
+      destructiveConfirmation: { confirmed: true }
     });
   });
 
@@ -5357,6 +5364,7 @@ describe("writeback confirmation flow", () => {
         explanation: "Restrict the status column to approved values.",
         confidence: 0.95,
         requiresConfirmation: true,
+        confirmationLevel: "destructive" as const,
         replacesExistingValidation: true,
         ruleType: "list",
         values: ["Open", "Closed"]
@@ -5371,11 +5379,13 @@ describe("writeback confirmation flow", () => {
         explanation: "Restrict the status column to approved values.",
         confidence: 0.95,
         requiresConfirmation: true,
+        confirmationLevel: "destructive" as const,
         replacesExistingValidation: true,
         ruleType: "list",
         values: ["Pending", "Done"],
         summary: "Applied the wrong validation rule on the approved range."
-      }
+      },
+      destructiveConfirmation: { confirmed: true }
     });
   });
 
@@ -5612,6 +5622,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Restrict the status column to approved values.",
       confidence: 0.95,
       requiresConfirmation: true,
+      confirmationLevel: "destructive" as const,
       replacesExistingValidation: true,
       ruleType: "list",
       values: ["Open", "Closed"]
@@ -5630,7 +5641,8 @@ describe("writeback confirmation flow", () => {
       runId: "run_validation_replay",
       plan: plan as any,
       traceBus,
-      config: testConfig
+      config: testConfig,
+      destructiveConfirmation: { confirmed: true }
     });
 
     completeWriteback({
@@ -5780,6 +5792,7 @@ describe("writeback confirmation flow", () => {
       explanation: "Restrict the status column to approved values.",
       confidence: 0.95,
       requiresConfirmation: true,
+      confirmationLevel: "destructive" as const,
       replacesExistingValidation: true,
       ruleType: "list",
       values: ["Open", "Closed"]
@@ -5798,7 +5811,8 @@ describe("writeback confirmation flow", () => {
       runId: "run_validation_kind_mismatch",
       plan: plan as any,
       traceBus,
-      config: testConfig
+      config: testConfig,
+      destructiveConfirmation: { confirmed: true }
     });
 
     expect(() => completeWriteback({

@@ -1000,6 +1000,33 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes validation replacements to destructive confirmation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "data_validation_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "list",
+        values: ["Open", "Closed"],
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        replacesExistingValidation: true,
+        explanation: "Replace validation with a controlled status list.",
+        confidence: 0.95,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "data_validation_plan",
+      data: {
+        replacesExistingValidation: true,
+        confirmationLevel: "destructive"
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes comparison aliases for validation conditional formatting and pivot filters", () => {
     const validation = normalizeHermesStructuredBodyInput({
       type: "data_validation_plan",

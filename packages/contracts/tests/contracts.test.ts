@@ -2674,6 +2674,7 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Restrict the status column to approved options.",
       confidence: 0.95,
       requiresConfirmation: true,
+      confirmationLevel: "destructive",
       replacesExistingValidation: true
     });
 
@@ -2696,6 +2697,25 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.95,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!C2:C20"],
+      confirmationLevel: "destructive",
+      replacesExistingValidation: true
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects validation replacements without destructive confirmation", () => {
+    const parsed = DataValidationPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      ruleType: "list",
+      namedRangeName: "StatusOptions",
+      allowBlank: false,
+      invalidDataBehavior: "reject",
+      explanation: "Replace existing validation with approved status options.",
+      confidence: 0.95,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:B20"],
       replacesExistingValidation: true
     });
 
@@ -2715,6 +2735,7 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.95,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "destructive",
       replacesExistingValidation: true
     });
 
