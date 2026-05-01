@@ -9946,17 +9946,24 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
         deriveTransferTargetBounds(plan, resolvedTargetRange)
       );
       const canSnapshotCopyTransfer = plan.operation === "copy" && plan.pasteMode !== "formats";
-      const beforeValues = canSnapshotCopyTransfer ? cloneMatrix(resolvedTargetRange.values) : null;
-      const beforeFormulas = canSnapshotCopyTransfer ? cloneMatrix(resolvedTargetRange.formulas) : null;
+      const canSnapshotValueMoveTransfer = plan.operation === "move" && plan.pasteMode === "values";
+      const shouldSnapshotTargetCells = canSnapshotCopyTransfer || canSnapshotValueMoveTransfer;
+      const beforeValues = shouldSnapshotTargetCells ? cloneMatrix(resolvedTargetRange.values) : null;
+      const beforeFormulas = shouldSnapshotTargetCells ? cloneMatrix(resolvedTargetRange.formulas) : null;
+      const beforeSourceValues = canSnapshotValueMoveTransfer ? cloneMatrix(sourceRange.values) : null;
+      const beforeSourceFormulas = canSnapshotValueMoveTransfer ? cloneMatrix(sourceRange.formulas) : null;
       assertNonOverlappingTransfer(plan, resolvedTargetRange);
       writeTransferValues(resolvedTargetRange, sourceRange, plan);
-      if (canSnapshotCopyTransfer) {
+      if (shouldSnapshotTargetCells) {
         resolvedTargetRange.load(["values", "formulas"]);
       }
       await context.sync();
 
       if (plan.operation === "move") {
         clearTransferredSource(sourceRange, plan);
+        if (canSnapshotValueMoveTransfer) {
+          sourceRange.load(["values", "formulas"]);
+        }
         await context.sync();
       }
 
@@ -9987,6 +9994,30 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
             afterValues: resolvedTargetRange.values,
             afterFormulas: resolvedTargetRange.formulas
           }))
+        : canSnapshotValueMoveTransfer
+          ? attachLocalExecutionSnapshot(result, createCompositeLocalExecutionSnapshot({
+              executionId,
+              entries: [
+                createLocalExecutionSnapshot({
+                  executionId,
+                  targetSheet: plan.sourceSheet,
+                  targetRange: plan.sourceRange,
+                  beforeValues: beforeSourceValues,
+                  beforeFormulas: beforeSourceFormulas,
+                  afterValues: sourceRange.values,
+                  afterFormulas: sourceRange.formulas
+                }),
+                createLocalExecutionSnapshot({
+                  executionId,
+                  targetSheet: plan.targetSheet,
+                  targetRange: actualTargetRange,
+                  beforeValues,
+                  beforeFormulas,
+                  afterValues: resolvedTargetRange.values,
+                  afterFormulas: resolvedTargetRange.formulas
+                })
+              ].filter(Boolean)
+            }))
         : result;
     }
 
