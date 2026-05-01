@@ -475,6 +475,51 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain('Prefer type="data_validation_plan"');
   });
 
+  it("keeps advisory sheet-operation how-to prompts on the chat path", () => {
+    const cases = [
+      {
+        userMessage: "Explain how to filter this table to show only open rows.",
+        writeType: "range_filter_plan"
+      },
+      {
+        userMessage: "How do I sort this range by Due Date?",
+        writeType: "range_sort_plan"
+      },
+      {
+        userMessage: "Explain how to add dropdown validation to this range.",
+        writeType: "data_validation_plan"
+      },
+      {
+        userMessage: "How do I rename a named range?",
+        writeType: "named_range_update"
+      },
+      {
+        userMessage: "How do I rename a sheet?",
+        writeType: "workbook_structure_update"
+      },
+      {
+        userMessage: "How do I freeze panes on this sheet?",
+        writeType: "sheet_structure_update"
+      },
+      {
+        userMessage: "How do I copy this range to another sheet?",
+        writeType: "range_transfer_plan"
+      },
+      {
+        userMessage: "How should I remove duplicate rows from this table?",
+        writeType: "data_cleanup_plan"
+      }
+    ];
+
+    for (const { userMessage, writeType } of cases) {
+      const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({ userMessage }));
+
+      expect(prompt).toContain('Prefer type="chat"');
+      expect(prompt).not.toContain(`Prefer type="${writeType}"`);
+      expect(prompt).not.toContain("This request explicitly asks for a spreadsheet change.");
+    }
+  });
+
   it("routes named-range prompts toward named_range_update", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "Rename the named range SalesData to SalesData2026."
