@@ -189,6 +189,64 @@ function parseQualifiedRangeRef(value: unknown): { sheet?: string; range?: strin
   };
 }
 
+function columnLettersToNumber(value: string): number | undefined {
+  if (!/^[A-Z]+$/i.test(value)) {
+    return undefined;
+  }
+
+  let column = 0;
+  for (const character of value.toUpperCase()) {
+    column = (column * 26) + (character.charCodeAt(0) - 64);
+  }
+  return column;
+}
+
+function columnNumberToLetters(value: number): string {
+  let remaining = value;
+  let letters = "";
+
+  while (remaining > 0) {
+    const remainder = (remaining - 1) % 26;
+    letters = String.fromCharCode(65 + remainder) + letters;
+    remaining = Math.floor((remaining - 1) / 26);
+  }
+
+  return letters;
+}
+
+function expandAnalysisReportAnchorRange(targetRange: unknown, sections: unknown): string | undefined {
+  if (typeof targetRange !== "string" || !Array.isArray(sections) || sections.length === 0) {
+    return undefined;
+  }
+
+  const normalized = targetRange.trim().replaceAll("$", "");
+  const match = normalized.match(/^([A-Z]+)([1-9][0-9]*)(?::([A-Z]+)([1-9][0-9]*))?$/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const startColumn = columnLettersToNumber(match[1]);
+  const startRow = Number.parseInt(match[2], 10);
+  const endColumn = match[3] ? columnLettersToNumber(match[3]) : startColumn;
+  const endRow = match[4] ? Number.parseInt(match[4], 10) : startRow;
+  if (
+    !startColumn ||
+    !endColumn ||
+    !Number.isInteger(startRow) ||
+    !Number.isInteger(endRow) ||
+    startColumn !== endColumn ||
+    startRow !== endRow
+  ) {
+    return undefined;
+  }
+
+  const resolvedEndColumn = startColumn + 3;
+  const resolvedEndRow = startRow + sections.length + 3;
+  const startCell = `${columnNumberToLetters(startColumn)}${startRow}`;
+  const endCell = `${columnNumberToLetters(resolvedEndColumn)}${resolvedEndRow}`;
+  return `${startCell}:${endCell}`;
+}
+
 function humanizeIdentifier(value: string): string {
   return value
     .trim()
@@ -2024,8 +2082,20 @@ function normalizeAnalysisReportPlanData(value: unknown): unknown {
     );
   }
 
+  const originalTargetRange = normalized.targetRange;
+  const expandedTargetRange = normalized.outputMode === "materialize_report"
+    ? expandAnalysisReportAnchorRange(normalized.targetRange, normalized.sections)
+    : undefined;
+  if (expandedTargetRange) {
+    normalized.targetRange = expandedTargetRange;
+  }
+
   if (hasOwn(value, "affectedRanges") && Array.isArray(value.affectedRanges)) {
-    normalized.affectedRanges = [...value.affectedRanges];
+    const originalTargetRef = buildQualifiedRangeRef(normalized.targetSheet, originalTargetRange);
+    const expandedTargetRef = buildQualifiedRangeRef(normalized.targetSheet, normalized.targetRange);
+    normalized.affectedRanges = value.affectedRanges.map((range) =>
+      range === originalTargetRef && expandedTargetRef ? expandedTargetRef : range
+    );
   }
 
   if (!hasOwn(normalized, "requiresConfirmation") && normalized.outputMode === "materialize_report") {

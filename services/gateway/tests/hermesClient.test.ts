@@ -263,7 +263,7 @@ describe("HermesAgentClient", () => {
           sourceRange: "A1:H10",
           outputMode: "materialize_report",
           targetSheet: "Summary",
-          targetRange: "A1:F12",
+          targetRange: "A1:D6",
           sections: ["ticket_counts_by_priority", "sla_risk_summary"],
           explanation: "Create a support summary report.",
           confidence: 0.86,

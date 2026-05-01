@@ -889,7 +889,7 @@ describe("structured body normalization", () => {
       data: {
         dataRange: "Support!A1:H50",
         output: "sheet",
-        outputRange: "Summary!A1:F12",
+        outputRange: "Summary!A1",
         reportSections: ["sla risk summary", "next actions"],
         explanation: "Create a materialized support analysis report.",
         confidence: 0.88
@@ -902,7 +902,7 @@ describe("structured body normalization", () => {
         sourceSheet: "Support",
         sourceRange: "A1:H50",
         targetSheet: "Summary",
-        targetRange: "A1:F12",
+        targetRange: "A1:D6",
         outputMode: "materialize_report",
         requiresConfirmation: true,
         sections: [
@@ -917,7 +917,7 @@ describe("structured body normalization", () => {
             sourceRanges: ["Support!A1:H50"]
           }
         ],
-        affectedRanges: ["Support!A1:H50", "Summary!A1:F12"],
+        affectedRanges: ["Support!A1:H50", "Summary!A1:D6"],
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }

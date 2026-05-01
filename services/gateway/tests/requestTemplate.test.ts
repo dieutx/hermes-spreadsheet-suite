@@ -769,7 +769,7 @@ describe("Hermes spreadsheet request prompt", () => {
 
     expect(prompt).toContain('Prefer type="pivot_table_plan"');
     expect(prompt).toContain("use context.currentRegion as the implicit table/range");
-    expect(prompt).toContain("use context.currentRegionArtifactTarget as the default targetRange");
+    expect(prompt).toContain("use context.currentRegionArtifactTarget as the default artifact anchor");
   });
 
   it("guides Hermes to infer a conservative default layout for under-specified pivot requests", () => {
@@ -849,7 +849,7 @@ describe("Hermes spreadsheet request prompt", () => {
 
     expect(prompt).toContain('Prefer type="chart_plan"');
     expect(prompt).toContain("use context.currentRegion as the implicit table/range");
-    expect(prompt).toContain("use context.currentRegionArtifactTarget as the default targetRange");
+    expect(prompt).toContain("use context.currentRegionArtifactTarget as the default artifact anchor");
   });
 
   it("keeps explicit chart requests ahead of broader analysis wording", () => {
