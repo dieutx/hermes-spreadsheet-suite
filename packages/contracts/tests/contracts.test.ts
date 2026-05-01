@@ -1717,6 +1717,39 @@ describe("Hermes spreadsheet contracts", () => {
     expect(missingUpperBound.success).toBe(false);
   });
 
+  it("requires pivot filter comparison values", () => {
+    const basePlan = {
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      explanation: "Build a sales pivot with a filter.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    };
+
+    expect(PivotTablePlanDataSchema.safeParse({
+      ...basePlan,
+      filters: [
+        { field: "Status", operator: "equal_to" }
+      ]
+    }).success).toBe(false);
+
+    expect(PivotTablePlanDataSchema.safeParse({
+      ...basePlan,
+      filters: [
+        { field: "Deals", operator: "greater_than" }
+      ]
+    }).success).toBe(false);
+  });
+
   it("accepts a chart plan with explicit category and series mapping", () => {
     const parsed = ChartPlanDataSchema.parse({
       sourceSheet: "Sales",
