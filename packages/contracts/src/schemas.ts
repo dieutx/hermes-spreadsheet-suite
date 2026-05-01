@@ -1025,6 +1025,112 @@ const MarketDataQuerySchema = strictObject({
 });
 
 const WebImportProviderSchema = z.enum(["importhtml", "importxml", "importdata"]);
+
+function isPrivateIpv4Hostname(hostname: string): boolean {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) {
+    return false;
+  }
+
+  const octets = parts.map((part) => (/^\d+$/.test(part) ? Number(part) : NaN));
+  if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false;
+  }
+
+  const [first, second] = octets;
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function getPrivateMappedIpv4Hostname(hostname: string): string | null {
+  const match = hostname.match(/^(?:::ffff:|0:0:0:0:0:ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+  if (!match) {
+    return null;
+  }
+
+  const high = Number.parseInt(match[1], 16);
+  const low = Number.parseInt(match[2], 16);
+  if (!Number.isInteger(high) || !Number.isInteger(low)) {
+    return null;
+  }
+
+  return [
+    (high >> 8) & 255,
+    high & 255,
+    (low >> 8) & 255,
+    low & 255
+  ].join(".");
+}
+
+function isBlockedIpv6Hostname(hostname: string): boolean {
+  if (!hostname.includes(":")) {
+    return false;
+  }
+
+  const mappedIpv4Hostname = getPrivateMappedIpv4Hostname(hostname);
+  if (mappedIpv4Hostname) {
+    return isPrivateIpv4Hostname(mappedIpv4Hostname);
+  }
+
+  if (
+    hostname === "::" ||
+    hostname === "::1" ||
+    hostname === "0:0:0:0:0:0:0:0" ||
+    hostname === "0:0:0:0:0:0:0:1"
+  ) {
+    return true;
+  }
+
+  const firstHextet = hostname.split(":").find((part) => part.length > 0);
+  if (!firstHextet) {
+    return false;
+  }
+
+  const firstValue = Number.parseInt(firstHextet, 16);
+  if (!Number.isInteger(firstValue)) {
+    return false;
+  }
+
+  return (firstValue & 0xfe00) === 0xfc00 || (firstValue & 0xffc0) === 0xfe80;
+}
+
+function isBlockedExternalDataHostname(hostname: string): boolean {
+  const normalized = hostname.replace(/^\[|\]$/g, "").replace(/\.+$/g, "").toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized === "::1" ||
+    normalized === "0:0:0:0:0:0:0:1" ||
+    normalized === "internal" ||
+    normalized.startsWith("internal.") ||
+    normalized.endsWith(".internal") ||
+    normalized.endsWith(".local") ||
+    isPrivateIpv4Hostname(normalized) ||
+    isBlockedIpv6Hostname(normalized)
+  );
+}
+
+function isPublicExternalDataUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      !isBlockedExternalDataHostname(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function extractHttpUrls(value: string): string[] {
+  return value.match(/https?:\/\/[^\s"'`<>)\]}]+/gi) ?? [];
+}
+
 const MarketDataPlanSchema = strictObject({
   ...ExternalDataPlanSharedFields,
   sourceType: z.literal("market_data"),
@@ -1045,6 +1151,27 @@ export const ExternalDataPlanDataSchema = z.union([
   MarketDataPlanSchema,
   WebTableImportPlanSchema
 ]).superRefine((data, ctx) => {
+  if (data.sourceType === "web_table_import") {
+    if (!isPublicExternalDataUrl(data.sourceUrl)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "external data sourceUrl must use a public HTTP(S) URL.",
+        path: ["sourceUrl"]
+      });
+    }
+
+    const unsafeFormulaUrl = extractHttpUrls(data.formula).find(
+      (url) => !isPublicExternalDataUrl(url)
+    );
+    if (unsafeFormulaUrl) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "external data formula must not reference private or internal URLs.",
+        path: ["formula"]
+      });
+    }
+  }
+
   if (data.sourceType === "market_data") {
     if (!/GOOGLEFINANCE\s*\(/i.test(data.formula)) {
       ctx.addIssue({
