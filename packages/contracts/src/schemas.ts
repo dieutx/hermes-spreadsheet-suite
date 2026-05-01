@@ -91,6 +91,36 @@ function normalizeCompositeAffectedRangeRef(value: string): string {
   return normalizeAffectedA1RangeRef(value) ?? value.trim();
 }
 
+const NamedRangeIdentifierSchema = z.string().min(1).max(250)
+  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, {
+    message: "name must start with a letter or underscore and contain only letters, numbers, and underscores."
+  })
+  .superRefine((value, ctx) => {
+    const normalized = value.trim();
+    const lower = normalized.toLowerCase();
+
+    if (lower.startsWith("true") || lower.startsWith("false")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "name cannot start with true or false."
+      });
+    }
+
+    if (lower === "r" || lower === "c") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "name cannot be R or C."
+      });
+    }
+
+    if (/^[A-Za-z]{1,3}[1-9][0-9]*$/.test(normalized) || /^r[1-9][0-9]*c[1-9][0-9]*$/i.test(normalized)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "name cannot be an A1 or R1C1 cell reference."
+      });
+    }
+  });
+
 const StrictSingleCellA1StringSchema = z.string().min(1).max(128).refine(isSingleCellA1Range, {
   message: "must be a single-cell A1 range."
 });
@@ -1704,7 +1734,7 @@ export const TableUpdateDataSchema = strictObject({
 });
 
 const namedRangeUpdateSharedFields = {
-  name: z.string().min(1).max(255),
+  name: NamedRangeIdentifierSchema,
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
@@ -1732,14 +1762,14 @@ export const NamedRangeUpdateDataSchema = z.union([
   strictObject({
     operation: z.literal("rename"),
     scope: z.literal("workbook"),
-    newName: z.string().min(1).max(255),
+    newName: NamedRangeIdentifierSchema,
     ...namedRangeUpdateSharedFields
   }),
   strictObject({
     operation: z.literal("rename"),
     scope: z.literal("sheet"),
     sheetName: z.string().min(1).max(128),
-    newName: z.string().min(1).max(255),
+    newName: NamedRangeIdentifierSchema,
     ...namedRangeUpdateSharedFields
   }),
   strictObject({

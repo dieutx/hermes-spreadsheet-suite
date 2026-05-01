@@ -616,6 +616,18 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(deletePrompt).toContain('Prefer type="named_range_update"');
   });
 
+  it("does not route invalid named-range identifiers toward named_range_update", () => {
+    const a1Prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Rename A1 to Revenue."
+    }));
+    const reservedPrompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Create trueBudget for B2:D20."
+    }));
+
+    expect(a1Prompt).not.toContain('Prefer type="named_range_update"');
+    expect(reservedPrompt).not.toContain('Prefer type="named_range_update"');
+  });
+
   it("routes natural named-range retarget prompts toward named_range_update", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "Retarget SalesData to B2:D20."
