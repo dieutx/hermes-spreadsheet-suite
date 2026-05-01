@@ -80,6 +80,14 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("must not reference private or internal URLs");
   });
 
+  it("advertises Google Sheets top-N filters with the exact-safe cutoff caveat", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
+
+    expect(prompt).toContain("topN filters are supported when display values cleanly separate visible and hidden rows");
+    expect(prompt).toContain("Duplicate display values crossing the top-N cutoff are unsupported");
+    expect(prompt).not.toContain("topN filters and repeated conditions on the same column are unsupported");
+  });
+
   it("treats missing note-write capability as unsupported", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
 

@@ -843,7 +843,7 @@ function buildHostCapabilityMatrixLines(request: HermesRequest): string[] {
         "- range_format_update: supported. Supported static formatting fields: numberFormat, backgroundColor, textColor, fontFamily, fontSize, bold, italic, underline, strikethrough, horizontalAlignment, verticalAlignment, wrapStrategy, border, columnWidth, and rowHeight. Use conditional_format_plan for rule-based highlighting.",
         "- range_transfer_plan: limited. Supported pasteMode values: values, formulas, formats. Do not plan overlapping move or append destinations on the same sheet.",
         "- data_cleanup_plan: limited. normalize_case only supports upper, lower, title, and sentence. standardize_format only supports exact year-first date text patterns and fixed-decimal number text patterns.",
-        "- range_filter_plan: limited. Do not combine multiple OR conditions in one exact step. topN filters and repeated conditions on the same column are unsupported.",
+        "- range_filter_plan: limited. Do not combine multiple OR conditions in one exact step. topN filters are supported when display values cleanly separate visible and hidden rows. Duplicate display values crossing the top-N cutoff are unsupported. Repeated conditions on the same column are unsupported.",
         "- named_range_update: limited. Only workbook-scoped named ranges are exact-safe.",
         "- data_validation_plan: limited. inputMessage maps to Google Sheets validation help text. inputTitle, errorTitle, and errorMessage are unsupported on Google Sheets.",
         noteWriteLine
