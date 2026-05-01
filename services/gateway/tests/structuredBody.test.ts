@@ -1135,7 +1135,8 @@ describe("structured body normalization", () => {
         hasHeader: true,
         conditions: [
           { field: "Status", operator: "equal_to", value: "Open" },
-          { column: "Revenue", operator: "greater_than_or_equal_to", value: 1000 }
+          { column: "Revenue", operator: "greater_than_or_equal_to", value: 1000 },
+          { column: "Units", operator: "top_n", value: "5" }
         ],
         explanation: "Filter to open high-value rows.",
         confidence: 0.9,
@@ -1150,7 +1151,8 @@ describe("structured body normalization", () => {
         clearExistingFilters: true,
         conditions: [
           { columnRef: "Status", operator: "equals", value: "Open" },
-          { columnRef: "Revenue", operator: "greaterThanOrEqual", value: 1000 }
+          { columnRef: "Revenue", operator: "greaterThanOrEqual", value: 1000 },
+          { columnRef: "Units", operator: "topN", value: 5 }
         ],
         affectedRanges: ["Sales!A1:F50"]
       }

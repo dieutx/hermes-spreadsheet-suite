@@ -1679,6 +1679,19 @@ function normalizeRangeFilterOperator(value: unknown): unknown {
   return operatorAliases[normalized] ?? value;
 }
 
+function normalizeTopNFilterValue(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return value;
+  }
+
+  return Number(trimmed);
+}
+
 function normalizeRangeFilterPlanData(value: unknown): unknown {
   if (!isObject(value)) {
     return value;
@@ -1701,6 +1714,9 @@ function normalizeRangeFilterPlanData(value: unknown): unknown {
         }
       }
       condition.operator = normalizeRangeFilterOperator(condition.operator);
+      if (condition.operator === "topN" && hasOwn(condition, "value")) {
+        condition.value = normalizeTopNFilterValue(condition.value);
+      }
       return condition;
     });
   }
