@@ -3124,6 +3124,101 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(rowHidden.get("5:5")).toBe(false);
   });
 
+  it("restores Excel column visibility snapshots before committing undo", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_unhide_columns_001"],
+      executions: {
+        exec_unhide_columns_001: {
+          baseExecutionId: "exec_unhide_columns_001"
+        }
+      },
+      bases: {
+        exec_unhide_columns_001: {
+          baseExecutionId: "exec_unhide_columns_001",
+          kind: "workbook_structure",
+          operation: "row_column_visibility",
+          before: {
+            exists: true,
+            name: "Sheet1",
+            dimension: "columns",
+            startIndex: 1,
+            count: 2,
+            hiddenStates: [true, false]
+          },
+          after: {
+            exists: true,
+            name: "Sheet1",
+            dimension: "columns",
+            startIndex: 1,
+            count: 2,
+            hiddenStates: [false, false]
+          }
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "sheet_structure_update",
+          operation: "unhide_columns",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+    const columnHidden = new Map([
+      ["B:B", false],
+      ["C:C", false]
+    ]);
+    const worksheet = {
+      getRange(address: string) {
+        return {
+          load: vi.fn(),
+          get columnHidden() {
+            return columnHidden.get(address);
+          },
+          set columnHidden(value: boolean | undefined) {
+            columnHidden.set(address, Boolean(value));
+          }
+        };
+      }
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem(sheetName: string) {
+              expect(sheetName).toBe("Sheet1");
+              return worksheet;
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await taskpane.undoExecution("exec_unhide_columns_001");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:8787/api/execution/undo");
+    expect(columnHidden.get("B:B")).toBe(true);
+    expect(columnHidden.get("C:C")).toBe(false);
+  });
+
   it("restores Excel sheet tab color snapshots before committing undo", async () => {
     const workbookSessionId = "workbook-123";
     const workbookSessionKey = `excel_windows::${workbookSessionId}`;
