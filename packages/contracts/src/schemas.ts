@@ -960,6 +960,16 @@ export const DataValidationPlanDataSchema = z.union([
     formula: z.string().min(1).max(16000)
   })
 ]).superRefine((data, ctx) => {
+  const affectedRanges = data.affectedRanges ?? [];
+  const targetRef = `${data.targetSheet}!${data.targetRange}`;
+  if (affectedRanges.length > 0 && !affectedRanges.includes(targetRef)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the qualified target range.",
+      path: ["affectedRanges"]
+    });
+  }
+
   if (!("comparator" in data)) {
     return;
   }
