@@ -2958,6 +2958,124 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(sidebar.fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("passes Google Sheets conditional format snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    const before = {
+      rules: [
+        {
+          ranges: ["B2:B20"],
+          rule: {
+            kind: "text_contains",
+            text: "old"
+          },
+          format: {
+            backgroundColor: "#eeeeee"
+          }
+        }
+      ]
+    };
+    const after = {
+      rules: [
+        {
+          ranges: ["B2:B20"],
+          rule: {
+            kind: "text_contains",
+            text: "overdue"
+          },
+          format: {
+            backgroundColor: "#ffcccc"
+          }
+        }
+      ]
+    };
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_conditional_format_001"],
+      executions: {
+        exec_conditional_format_001: {
+          baseExecutionId: "exec_conditional_format_001"
+        }
+      },
+      bases: {
+        exec_conditional_format_001: {
+          baseExecutionId: "exec_conditional_format_001",
+          kind: "conditional_format",
+          targetSheet: "Sheet1",
+          targetRange: "B2:B20",
+          before,
+          after
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "conditional_format_update",
+          operation: "conditional_format_update",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_conditional_format_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "conditional_format",
+          targetSheet: "Sheet1",
+          targetRange: "B2:B20",
+          from: after,
+          to: before
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "conditional_format",
+          targetSheet: "Sheet1",
+          targetRange: "B2:B20",
+          from: after,
+          to: before
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("applies Google Sheets range format snapshots on the server", () => {
     let backgrounds = [["#fff2cc"]];
     let fontWeights = [["bold"]];
