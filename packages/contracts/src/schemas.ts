@@ -960,6 +960,21 @@ export const DataValidationPlanDataSchema = z.union([
     formula: z.string().min(1).max(16000)
   })
 ]).superRefine((data, ctx) => {
+  const affectedRanges = data.affectedRanges ?? [];
+  const targetRef = normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange);
+  const normalizedAffectedRanges = new Set(
+    affectedRanges
+      .map((value) => normalizeAffectedA1RangeRef(value))
+      .filter((value): value is string => value !== null)
+  );
+  if (targetRef !== null && affectedRanges.length > 0 && !normalizedAffectedRanges.has(targetRef)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the qualified target range.",
+      path: ["affectedRanges"]
+    });
+  }
+
   if (!("comparator" in data)) {
     return;
   }
