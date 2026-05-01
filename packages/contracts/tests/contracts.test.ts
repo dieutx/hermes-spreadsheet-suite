@@ -1926,6 +1926,26 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects range filter OR combiners that hosts cannot execute exactly", () => {
+    const parsed = RangeFilterPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "A1:F25",
+      hasHeader: true,
+      conditions: [
+        { columnRef: "Status", operator: "equals", value: "Open" },
+        { columnRef: "Owner", operator: "equals", value: "Ari" }
+      ],
+      combiner: "or",
+      clearExistingFilters: true,
+      explanation: "Show rows that match either condition.",
+      confidence: 0.84,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:F25"]
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects malformed filter target ranges", () => {
     const parsed = RangeFilterPlanDataSchema.safeParse({
       targetSheet: "Sheet1",
