@@ -975,6 +975,18 @@ export const DataValidationPlanDataSchema = z.union([
     });
   }
 
+  if (
+    data.ruleType === "checkbox" &&
+    data.checkedValue === undefined &&
+    data.uncheckedValue !== undefined
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "checkbox uncheckedValue requires checkedValue.",
+      path: ["uncheckedValue"]
+    });
+  }
+
   if (!("comparator" in data)) {
     return;
   }

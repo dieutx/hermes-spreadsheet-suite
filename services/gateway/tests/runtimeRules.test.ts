@@ -57,6 +57,10 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("border");
   });
 
+  it("documents exact checkbox validation value pairs", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("uncheckedValue unless checkedValue is also present");
+  });
+
   it("documents conditional formatting as a distinct write-plan family with fail-closed semantics", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("conditional_format_plan");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("distinct from range_format_update");
