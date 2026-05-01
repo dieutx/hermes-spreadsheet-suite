@@ -3060,6 +3060,51 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects cleanup column references outside the target range", () => {
+    const sharedPlan = {
+      targetSheet: "Contacts",
+      targetRange: "B2:D50",
+      explanation: "Clean the selected contact table.",
+      confidence: 0.87,
+      requiresConfirmation: true,
+      affectedRanges: ["Contacts!B2:D50"],
+      overwriteRisk: "medium"
+    };
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...sharedPlan,
+      operation: "remove_duplicate_rows",
+      keyColumns: ["A"],
+      confirmationLevel: "destructive"
+    }).success).toBe(false);
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...sharedPlan,
+      operation: "split_column",
+      sourceColumn: "B",
+      delimiter: " ",
+      targetStartColumn: "E",
+      confirmationLevel: "destructive"
+    }).success).toBe(false);
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...sharedPlan,
+      operation: "join_columns",
+      sourceColumns: ["B", "E"],
+      delimiter: " ",
+      targetColumn: "D",
+      confirmationLevel: "destructive"
+    }).success).toBe(false);
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...sharedPlan,
+      operation: "fill_down",
+      columns: ["1"],
+      confirmationLevel: "standard",
+      overwriteRisk: "low"
+    }).success).toBe(false);
+  });
+
   it("rejects a data cleanup update with an unsupported cleanup operation", () => {
     const parsed = DataCleanupUpdateDataSchema.safeParse({
       operation: "data_cleanup_update",
