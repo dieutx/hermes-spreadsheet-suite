@@ -8771,6 +8771,17 @@ function applyWritePlan(input) {
     const beforeFreezePanes = shouldSnapshotFreezePanes
       ? getWorkbookStructureFreezePaneSnapshotState_(sheet)
       : undefined;
+    const shouldSnapshotAutofit =
+      input.executionId && (plan.operation === 'autofit_rows' || plan.operation === 'autofit_columns');
+    const autofitTarget = shouldSnapshotAutofit ? sheet.getRange(plan.targetRange) : null;
+    const autofitSnapshotFormat = plan.operation === 'autofit_rows'
+      ? { rowHeight: true }
+      : plan.operation === 'autofit_columns'
+        ? { columnWidth: true }
+        : null;
+    const beforeAutofitFormat = shouldSnapshotAutofit
+      ? readRangeFormatStateForSnapshot_(sheet, autofitTarget, autofitSnapshotFormat)
+      : null;
     switch (plan.operation) {
       case 'insert_rows':
         sheet.insertRowsBefore(plan.startIndex + 1, plan.count);
@@ -8820,12 +8831,12 @@ function applyWritePlan(input) {
         sheet.setFrozenColumns(plan.frozenColumns);
         break;
       case 'autofit_rows': {
-        const rowTarget = sheet.getRange(plan.targetRange);
+        const rowTarget = autofitTarget || sheet.getRange(plan.targetRange);
         sheet.autoResizeRows(rowTarget.getRow(), rowTarget.getNumRows());
         break;
       }
       case 'autofit_columns': {
-        const columnTarget = sheet.getRange(plan.targetRange);
+        const columnTarget = autofitTarget || sheet.getRange(plan.targetRange);
         sheet.autoResizeColumns(columnTarget.getColumn(), columnTarget.getNumColumns());
         break;
       }
@@ -8843,6 +8854,9 @@ function applyWritePlan(input) {
     const afterFreezePanes = beforeFreezePanes !== undefined
       ? getWorkbookStructureFreezePaneSnapshotState_(sheet)
       : undefined;
+    const afterAutofitFormat = beforeAutofitFormat
+      ? readRangeFormatStateForSnapshot_(sheet, autofitTarget, autofitSnapshotFormat)
+      : null;
     const result = {
       kind: 'sheet_structure_update',
       hostPlatform: 'google_sheets',
@@ -8898,6 +8912,15 @@ function applyWritePlan(input) {
           before: beforeFreezePanes,
           after: afterFreezePanes
         })
+        : beforeAutofitFormat
+          ? createRangeFormatLocalExecutionSnapshot_({
+            executionId: input.executionId,
+            targetSheet: plan.targetSheet,
+            targetRange: plan.targetRange,
+            target: autofitTarget,
+            beforeFormat: beforeAutofitFormat,
+            afterFormat: afterAutofitFormat
+          })
         : null;
 
     return attachLocalExecutionSnapshot_(result, localSnapshot);
