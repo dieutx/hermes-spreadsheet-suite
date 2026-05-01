@@ -1372,7 +1372,7 @@ export const ChartPlanDataSchema = strictObject({
   sourceSheet: z.string().min(1).max(128),
   sourceRange: A1TargetRangeSchema,
   targetSheet: z.string().min(1).max(128),
-  targetRange: A1TargetRangeSchema,
+  targetRange: SingleCellA1TargetSchema,
   chartType: z.enum([
     "bar",
     "column",
