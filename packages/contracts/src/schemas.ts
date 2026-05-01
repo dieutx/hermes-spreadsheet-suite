@@ -726,10 +726,10 @@ export const RangeFilterConditionSchema = strictObject({
   }
 
   if (data.operator === "topN") {
-    if (!hasValue || typeof data.value !== "number" || !Number.isFinite(data.value) || data.value <= 0) {
+    if (!hasValue || typeof data.value !== "number" || !Number.isInteger(data.value) || data.value <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "topN requires a positive numeric value.",
+        message: "topN requires a positive whole-number value.",
         path: ["value"]
       });
     }
