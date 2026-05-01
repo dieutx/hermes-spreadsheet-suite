@@ -54,6 +54,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("requiresConfirmation must be true");
     expect(prompt).toContain("targetRange must match");
     expect(prompt).toContain("supportsNoteWrites");
+    expect(prompt).toContain("percent and percentile color_scale point values must be between 0 and 100");
   });
 
   it("includes a host capability matrix for Google Sheets planning", () => {

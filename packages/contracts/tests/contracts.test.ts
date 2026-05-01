@@ -2862,6 +2862,39 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.points).toHaveLength(3);
   });
 
+  it("rejects out-of-range color scale percent values", () => {
+    const invalidPointSets = [
+      [
+        { type: "min", color: "#f8696b" },
+        { type: "percent", value: -1, color: "#ffeb84" },
+        { type: "max", color: "#63be7b" }
+      ],
+      [
+        { type: "min", color: "#f8696b" },
+        { type: "percentile", value: 101, color: "#ffeb84" },
+        { type: "max", color: "#63be7b" }
+      ]
+    ];
+
+    for (const points of invalidPointSets) {
+      const parsed = ConditionalFormatPlanDataSchema.safeParse({
+        targetSheet: "Summary",
+        targetRange: "A2:D20",
+        managementMode: "add",
+        ruleType: "color_scale",
+        points,
+        explanation: "Apply an invalid color scale.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Summary!A2:D20"],
+        confirmationLevel: "standard",
+        replacesExistingRules: false
+      });
+
+      expect(parsed.success).toBe(false);
+    }
+  });
+
   it("rejects malformed conditional format target ranges", () => {
     const plan = ConditionalFormatPlanDataSchema.safeParse({
       targetSheet: "Sheet1",

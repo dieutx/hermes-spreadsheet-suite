@@ -142,6 +142,7 @@ For type="conditional_format_plan":
 - replace_all_on_target removes existing target rules before applying the new rule
 - conditional formatting is distinct from range_format_update
 - use conditional_format_plan for highlight, duplicate-marking, threshold-coloring, date-based rules, color scales, and clear conditional formatting requests
+- percent and percentile color_scale point values must be between 0 and 100
 - honor host-exact semantics for supported conditional-format mappings
 - if the requested conditional-format behavior cannot be represented exactly on the current host, return type="error" with data.code="UNSUPPORTED_OPERATION"
 - unsupported mappings must fail closed
