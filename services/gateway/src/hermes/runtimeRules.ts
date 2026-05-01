@@ -416,6 +416,7 @@ For type="external_data_plan":
   - provider must be importhtml, importxml, or importdata
   - data.sourceUrl is required
   - data.sourceUrl must be a public HTTP(S) URL
+  - web import formulas must use literal arguments matching data.sourceUrl, data.selectorType, and data.selector
   - external-data formulas must not reference private or internal URLs
   - localhost, loopback, private IP, .local, and internal hosts are unsupported and must fail closed
   - importhtml requires selectorType table or list and a positive numeric selector
