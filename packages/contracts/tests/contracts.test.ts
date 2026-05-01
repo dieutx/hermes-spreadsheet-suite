@@ -1537,6 +1537,36 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects range sort plans whose affectedRanges omit the target range", () => {
+    const parsed = RangeSortPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "A1:F25",
+      hasHeader: true,
+      keys: [{ columnRef: "Status", direction: "asc" }],
+      explanation: "Sort by status.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!H1:H25"]
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts range sort affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = RangeSortPlanDataSchema.parse({
+      targetSheet: "Sheet1",
+      targetRange: "$A$1:$F$25",
+      hasHeader: true,
+      keys: [{ columnRef: "Status", direction: "asc" }],
+      explanation: "Sort by status.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:F25"]
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sheet1!A1:F25"]);
+  });
+
   it("accepts a chat-only analysis report plan", () => {
     const parsed = AnalysisReportPlanDataSchema.parse({
       sourceSheet: "Sales",
