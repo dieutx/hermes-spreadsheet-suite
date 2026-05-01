@@ -8428,6 +8428,7 @@ async function parseJson(response) {
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
     const responseUrl = response.url || `${gatewayBaseUrl}/(unknown)`;
+    const responseLocation = getSafeGatewayResponseLocation(responseUrl);
     try {
       const payload = await response.json();
       const payloadMessage = payload?.error?.message || payload?.error || payload?.message || message;
@@ -8439,7 +8440,7 @@ async function parseJson(response) {
         payloadMessage.trim().toLowerCase() === "the requested resource doesn't exist."
       ) {
         message = formatUserFacingErrorText(
-          `The Hermes request was sent to a service path that does not exist (${responseUrl}, HTTP ${response.status}).`,
+          `The Hermes request was sent to a service path that does not exist (${responseLocation}, HTTP ${response.status}).`,
           "Close Excel, reload the Hermes add-in, and retry. If it keeps happening, reinstall the live manifest so Hermes uses the correct gateway path."
         );
       } else if (containsSensitiveGatewayErrorText(formattedPayloadMessage)) {
@@ -8454,12 +8455,12 @@ async function parseJson(response) {
         const trimmed = text.trim();
         if (trimmed.toLowerCase() === "the requested resource doesn't exist.") {
           message = formatUserFacingErrorText(
-            `The Hermes request was sent to a service path that does not exist (${responseUrl}, HTTP ${response.status}).`,
+            `The Hermes request was sent to a service path that does not exist (${responseLocation}, HTTP ${response.status}).`,
             "Close Excel, reload the Hermes add-in, and retry. If it keeps happening, reinstall the live manifest so Hermes uses the correct gateway path."
           );
         } else if (/^<!doctype html/i.test(trimmed) || /^<html/i.test(trimmed)) {
           message = formatUserFacingErrorText(
-            `The Hermes request was sent to a page that is not the Hermes gateway (${responseUrl}, HTTP ${response.status}).`,
+            `The Hermes request was sent to a page that is not the Hermes gateway (${responseLocation}, HTTP ${response.status}).`,
             "Close Excel, reopen the add-in, and retry. If it keeps happening, clear the add-in cache and reload Hermes."
           );
         } else if (containsSensitiveGatewayErrorText(trimmed)) {
@@ -8480,6 +8481,14 @@ async function parseJson(response) {
       "Retry the request, then reload the client if it keeps happening."
     );
   }
+}
+
+function getSafeGatewayResponseLocation(responseUrl) {
+  const location = String(responseUrl || "").trim();
+  if (!location || containsSensitiveGatewayErrorText(location)) {
+    return "the configured gateway";
+  }
+  return location;
 }
 
 function containsSensitiveGatewayErrorText(text) {
