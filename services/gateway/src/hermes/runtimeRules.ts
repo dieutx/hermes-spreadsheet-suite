@@ -209,6 +209,7 @@ For type="analysis_report_plan":
 - data.explanation is required
 - data.confidence is required
 - data.affectedRanges is required
+- analysis_report_plan affectedRanges must include the qualified source range; materialize_report must also include the full materialized target range
 - data.overwriteRisk is required
 - data.confirmationLevel is required
 - chat_only requires data.requiresConfirmation=false

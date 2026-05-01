@@ -1127,6 +1127,29 @@ const AnalysisReportPlanDataBaseSchema = z.discriminatedUnion("outputMode", [
 ]);
 
 export const AnalysisReportPlanDataSchema = AnalysisReportPlanDataBaseSchema.superRefine((data, ctx) => {
+  const requiredAffectedRanges = [
+    normalizeQualifiedA1RangeRef(data.sourceSheet, data.sourceRange),
+    data.outputMode === "materialize_report"
+      ? normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange)
+      : null
+  ].filter((value): value is string => value !== null);
+  const affectedRanges = new Set(
+    data.affectedRanges
+      .map((value) => normalizeAffectedA1RangeRef(value))
+      .filter((value): value is string => value !== null)
+  );
+  const missingAffectedRanges = requiredAffectedRanges.filter((value) => !affectedRanges.has(value));
+
+  if (missingAffectedRanges.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: data.outputMode === "materialize_report"
+        ? "affectedRanges must include the qualified source and target ranges."
+        : "affectedRanges must include the qualified source range.",
+      path: ["affectedRanges"]
+    });
+  }
+
   if (data.outputMode !== "materialize_report") {
     return;
   }
