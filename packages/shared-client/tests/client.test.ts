@@ -849,6 +849,21 @@ describe("shared client render helpers", () => {
       unsupportedReason: "Dry-run preview isn't available for this plan in this spreadsheet app.",
       summary: "Dry-run preview isn't available for this plan in this spreadsheet app."
     });
+
+    const uncDryRunResult = {
+      ...dryRunResult,
+      planDigest: "digest_unc_sensitive",
+      unsupportedReason: String.raw`Dry-run failed while reading \\runner\share\dry-run.ts:42`
+    };
+
+    expect(formatDryRunSummary(uncDryRunResult)).toBe(
+      "Dry-run preview isn't available for this plan in this spreadsheet app."
+    );
+    expect(buildDryRunPreview(uncDryRunResult)).toMatchObject({
+      kind: "dry_run_result",
+      unsupportedReason: "Dry-run preview isn't available for this plan in this spreadsheet app.",
+      summary: "Dry-run preview isn't available for this plan in this spreadsheet app."
+    });
   });
 
   it("sanitizes internal dry-run URLs and Hermes runtime identifiers before rendering them", () => {
