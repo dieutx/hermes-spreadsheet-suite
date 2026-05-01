@@ -873,6 +873,7 @@ export const RangeFilterPlanDataSchema = strictObject({
   explanation: z.string().min(1).max(12000),
   confidence: z.number().min(0).max(1),
   requiresConfirmation: z.literal(true),
+  confirmationLevel: ConfirmationLevelSchema,
   affectedRanges: z.array(z.string().min(1).max(128)).max(10).optional()
 }).superRefine((data, ctx) => {
   const affectedRanges = data.affectedRanges ?? [];
@@ -888,6 +889,16 @@ export const RangeFilterPlanDataSchema = strictObject({
       code: z.ZodIssueCode.custom,
       message: "affectedRanges must include the qualified target range.",
       path: ["affectedRanges"]
+    });
+  }
+
+  if (data.confirmationLevel !== (data.clearExistingFilters ? "destructive" : "standard")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: data.clearExistingFilters
+        ? "Filter plans that clear existing filters require destructive confirmation."
+        : "Filter plans that preserve existing filters require standard confirmation.",
+      path: ["confirmationLevel"]
     });
   }
 });

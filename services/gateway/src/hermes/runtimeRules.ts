@@ -184,6 +184,9 @@ For type="range_filter_plan":
 - data.explanation is required
 - data.confidence is required
 - data.requiresConfirmation must be true
+- data.confirmationLevel is required and must be standard or destructive
+- data.clearExistingFilters=true requires data.confirmationLevel="destructive"
+- data.clearExistingFilters=false requires data.confirmationLevel="standard"
 - data.affectedRanges is optional
 
 For type="data_validation_plan":

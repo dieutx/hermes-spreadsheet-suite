@@ -68,6 +68,7 @@ describe("Hermes spreadsheet contracts", () => {
             explanation: "Filter open rows.",
             confidence: 0.88,
             requiresConfirmation: true,
+            confirmationLevel: "destructive",
             affectedRanges: ["Sales!A1:F50"]
           }
         }
@@ -77,7 +78,7 @@ describe("Hermes spreadsheet contracts", () => {
       requiresConfirmation: true,
       affectedRanges: ["Sales!A1:F50"],
       overwriteRisk: "low",
-      confirmationLevel: "standard",
+      confirmationLevel: "destructive",
       reversible: true,
       dryRunRecommended: true,
       dryRunRequired: false
@@ -252,6 +253,7 @@ describe("Hermes spreadsheet contracts", () => {
             explanation: "Filter rows.",
             confidence: 0.86,
             requiresConfirmation: true,
+            confirmationLevel: "destructive",
             affectedRanges: ["Sales!A1:F10"]
           }
         }
@@ -261,7 +263,7 @@ describe("Hermes spreadsheet contracts", () => {
       requiresConfirmation: true,
       affectedRanges: ["Sales!A1:F10"],
       overwriteRisk: "low",
-      confirmationLevel: "standard",
+      confirmationLevel: "destructive",
       reversible: true,
       dryRunRecommended: false,
       dryRunRequired: false
@@ -2270,7 +2272,25 @@ describe("Hermes spreadsheet contracts", () => {
       clearExistingFilters: true,
       explanation: "Invalid filter plan.",
       confidence: 0.8,
-      requiresConfirmation: true
+      requiresConfirmation: true,
+      confirmationLevel: "destructive"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects filter clears without destructive confirmation", () => {
+    const parsed = RangeFilterPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "A1:F25",
+      hasHeader: true,
+      conditions: [{ columnRef: "Status", operator: "equals", value: "Open" }],
+      combiner: "and",
+      clearExistingFilters: true,
+      explanation: "Replace the existing filter state with open rows.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!A1:F25"]
     });
 
     expect(parsed.success).toBe(false);
@@ -2287,6 +2307,7 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Filter open rows.",
       confidence: 0.9,
       requiresConfirmation: true,
+      confirmationLevel: "destructive",
       affectedRanges: ["Sheet1!A1:F25"]
     });
 
@@ -2304,6 +2325,7 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Filter open rows.",
       confidence: 0.9,
       requiresConfirmation: true,
+      confirmationLevel: "destructive",
       affectedRanges: ["Sheet1!H1:H25"]
     });
 
@@ -2321,6 +2343,7 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Filter open rows.",
       confidence: 0.9,
       requiresConfirmation: true,
+      confirmationLevel: "destructive",
       affectedRanges: ["Sheet1!A1:F25"]
     });
 
