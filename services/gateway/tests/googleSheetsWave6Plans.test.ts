@@ -1069,6 +1069,8 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       skillsUsed: [
         "SelectionExplainerSkill",
         "/srv/hermes/private-tool.ts",
+        "C:\\Users\\runner\\work\\private-tool.ts",
+        "\\\\server\\share\\private-tool.ts",
         "HERMES_API_SERVER_KEY=secret"
       ],
       downstreamProvider: {
@@ -1088,6 +1090,8 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(metaLine).toContain("skills SelectionExplainerSkill");
     expect(metaLine).not.toContain("HERMES_API_SERVER_KEY");
     expect(metaLine).not.toContain("/srv/hermes");
+    expect(metaLine).not.toContain("C:\\Users");
+    expect(metaLine).not.toContain("\\\\server");
     expect(metaLine).not.toContain("internal.example");
     expect(metaLine).not.toContain("provider https://internal");
 
