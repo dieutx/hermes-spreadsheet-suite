@@ -56,6 +56,24 @@ describe("shared client trace helpers", () => {
     expect(proof).not.toContain("unsafe");
   });
 
+  it("sanitizes Windows proof label values", () => {
+    const response = responseWithIds({
+      requestId: "req_safe_001",
+      hermesRunId: "run_safe_001"
+    });
+    response.serviceLabel = String.raw`C:\Users\runner\work\private-tool.ts`;
+    response.environmentLabel = String.raw`env=\\runner\share\secret.env`;
+
+    const proof = formatProofLine(response);
+
+    expect(proof).toContain("service unavailable");
+    expect(proof).toContain("environment unavailable");
+    expect(proof).not.toContain("C:\\Users");
+    expect(proof).not.toContain("\\\\runner");
+    expect(proof).not.toContain("secret.env");
+    expect(proof).not.toContain("env=");
+  });
+
   it("keeps safe proof identifiers visible", () => {
     const proof = formatProofLine(responseWithIds({
       requestId: "req_safe_001",
