@@ -2914,6 +2914,338 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     });
   });
 
+  it("attaches local undo snapshots for Google Sheets merge cell writes", () => {
+    let merged = false;
+    let values: unknown[][] = [
+      ["Region", ""],
+      ["West", "East"]
+    ];
+    let formulas = [
+      ["", ""],
+      ["", ""]
+    ];
+    const targetRange = {
+      getA1Notation: vi.fn(() => "B2:C3"),
+      getNumRows: vi.fn(() => 2),
+      getNumColumns: vi.fn(() => 2),
+      getValues: vi.fn(() => values.map((row) => [...row])),
+      getFormulas: vi.fn(() => formulas.map((row) => [...row])),
+      getMergedRanges: vi.fn(() => merged ? [targetRange] : []),
+      merge: vi.fn(() => {
+        merged = true;
+        values = [
+          ["Region", ""],
+          ["", ""]
+        ];
+        formulas = [
+          ["", ""],
+          ["", ""]
+        ];
+      }),
+      breakApart: vi.fn(() => {
+        merged = false;
+      })
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:C3");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    const result = code.applyWritePlan({
+      requestId: "req_merge_cells_snapshot_sheets_001",
+      runId: "run_merge_cells_snapshot_sheets_001",
+      approvalToken: "token",
+      executionId: "exec_merge_cells_snapshot_sheets_001",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "B2:C3",
+        operation: "merge_cells",
+        explanation: "Merge the regional header.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(targetRange.merge).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      kind: "sheet_structure_update",
+      operation: "merge_cells",
+      targetSheet: "Sales",
+      targetRange: "B2:C3",
+      __hermesLocalExecutionSnapshot: {
+        baseExecutionId: "exec_merge_cells_snapshot_sheets_001",
+        kind: "range_merge",
+        targetSheet: "Sales",
+        targetRange: "B2:C3",
+        before: {
+          merged: false,
+          cells: [
+            [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+            [{ kind: "value", value: { type: "string", value: "West" } }, { kind: "value", value: { type: "string", value: "East" } }]
+          ]
+        },
+        after: {
+          merged: true,
+          cells: [
+            [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+            [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+          ]
+        }
+      }
+    });
+  });
+
+  it("passes Google Sheets merge snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    const before = {
+      merged: false,
+      cells: [[{ kind: "value", value: { type: "string", value: "Region" } }]]
+    };
+    const after = {
+      merged: true,
+      cells: [[{ kind: "value", value: { type: "string", value: "Region" } }]]
+    };
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_merge_cells_001"],
+      executions: {
+        exec_merge_cells_001: {
+          baseExecutionId: "exec_merge_cells_001"
+        }
+      },
+      bases: {
+        exec_merge_cells_001: {
+          baseExecutionId: "exec_merge_cells_001",
+          kind: "range_merge",
+          targetSheet: "Sales",
+          targetRange: "B2:C3",
+          before,
+          after
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "sheet_structure_update",
+          operation: "merge_cells",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_merge_cells_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "range_merge",
+          targetSheet: "Sales",
+          targetRange: "B2:C3",
+          from: after,
+          to: before
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "range_merge",
+          targetSheet: "Sales",
+          targetRange: "B2:C3",
+          from: after,
+          to: before
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies Google Sheets merge snapshots on the server", () => {
+    let merged = true;
+    const values: unknown[][] = [
+      ["Region", ""],
+      ["", ""]
+    ];
+    const formulas = [
+      ["", ""],
+      ["", ""]
+    ];
+    const cellValues = new Map<string, unknown>();
+    const targetRange = {
+      getNumRows: vi.fn(() => 2),
+      getNumColumns: vi.fn(() => 2),
+      getMergedRanges: vi.fn(() => merged ? [targetRange] : []),
+      getA1Notation: vi.fn(() => "B2:C3"),
+      getValues: vi.fn(() => values.map((row) => [...row])),
+      getFormulas: vi.fn(() => formulas.map((row) => [...row])),
+      getNotes: vi.fn(() => [
+        ["", ""],
+        ["", ""]
+      ]),
+      merge: vi.fn(() => {
+        merged = true;
+      }),
+      breakApart: vi.fn(() => {
+        merged = false;
+      }),
+      getCell: vi.fn((row: number, column: number) => ({
+        setValue: vi.fn((value: unknown) => {
+          cellValues.set(`${row},${column}`, value);
+        }),
+        setFormula: vi.fn((formula: string) => {
+          cellValues.set(`${row},${column}`, formula);
+        })
+      }))
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:C3");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "range_merge",
+      targetSheet: "Sales",
+      targetRange: "B2:C3",
+      from: {
+        merged: true,
+        cells: [
+          [{ kind: "value", value: { type: "string", value: "Region" }, note: "" }, { kind: "value", value: { type: "string", value: "" }, note: "" }],
+          [{ kind: "value", value: { type: "string", value: "" }, note: "" }, { kind: "value", value: { type: "string", value: "" }, note: "" }]
+        ]
+      },
+      to: {
+        merged: false,
+        cells: [
+          [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+          [{ kind: "value", value: { type: "string", value: "West" } }, { kind: "value", value: { type: "string", value: "East" } }]
+        ]
+      }
+    })).toMatchObject({
+      ok: true,
+      targetSheet: "Sales",
+      targetRange: "B2:C3"
+    });
+
+    expect(targetRange.breakApart).toHaveBeenCalledTimes(1);
+    expect(targetRange.merge).not.toHaveBeenCalled();
+    expect(merged).toBe(false);
+    expect(cellValues.get("1,1")).toBe("Region");
+    expect(cellValues.get("2,1")).toBe("West");
+    expect(cellValues.get("2,2")).toBe("East");
+    expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("fails closed when Google Sheets merge snapshots no longer match the current merge state", () => {
+    const values: unknown[][] = [
+      ["Region", ""],
+      ["West", "East"]
+    ];
+    const formulas = [
+      ["", ""],
+      ["", ""]
+    ];
+    const targetRange = {
+      getNumRows: vi.fn(() => 2),
+      getNumColumns: vi.fn(() => 2),
+      getMergedRanges: vi.fn(() => []),
+      getA1Notation: vi.fn(() => "B2:C3"),
+      getValues: vi.fn(() => values.map((row) => [...row])),
+      getFormulas: vi.fn(() => formulas.map((row) => [...row])),
+      getNotes: vi.fn(() => [
+        ["", ""],
+        ["", ""]
+      ]),
+      breakApart: vi.fn(),
+      merge: vi.fn()
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:C3");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(() => code.validateExecutionCellSnapshot({
+      kind: "range_merge",
+      targetSheet: "Sales",
+      targetRange: "B2:C3",
+      from: {
+        merged: true,
+        cells: [
+          [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+          [{ kind: "value", value: { type: "string", value: "" } }, { kind: "value", value: { type: "string", value: "" } }]
+        ]
+      },
+      to: {
+        merged: false,
+        cells: [
+          [{ kind: "value", value: { type: "string", value: "Region" } }, { kind: "value", value: { type: "string", value: "" } }],
+          [{ kind: "value", value: { type: "string", value: "West" } }, { kind: "value", value: { type: "string", value: "East" } }]
+        ]
+      }
+    })).toThrow("Range merge state changed since this history entry was captured.");
+    expect(targetRange.breakApart).not.toHaveBeenCalled();
+  });
+
   it("attaches local undo snapshots for Google Sheets autofit column writes", () => {
     const columnWidths = new Map<number, number>([
       [4, 64],

@@ -3432,6 +3432,74 @@ function createLocalExecutionSnapshot_(input) {
   };
 }
 
+function getRangeMergeSnapshotMergedRanges_(target, targetRange) {
+  if (!target || typeof target.getMergedRanges !== 'function') {
+    throw new Error('Google Sheets host cannot capture merge undo snapshots on this range.');
+  }
+
+  const normalizedTargetRange = normalizeA1_(
+    targetRange || (typeof target.getA1Notation === 'function' ? target.getA1Notation() : '')
+  );
+  if (!normalizedTargetRange) {
+    throw new Error('Google Sheets host cannot capture merge undo snapshots on this range.');
+  }
+
+  const mergedRanges = target.getMergedRanges() || [];
+  const normalizedMergedRanges = mergedRanges.map(function(range) {
+    return normalizeA1_(range && typeof range.getA1Notation === 'function' ? range.getA1Notation() : '');
+  }).filter(function(rangeA1) {
+    return rangeA1.length > 0;
+  });
+
+  if (
+    normalizedMergedRanges.length > 1 ||
+    (normalizedMergedRanges.length === 1 && normalizedMergedRanges[0] !== normalizedTargetRange)
+  ) {
+    throw new Error('Google Sheets host cannot capture partial merge undo snapshots exactly.');
+  }
+
+  return normalizedMergedRanges;
+}
+
+function getRangeMergeSnapshotState_(target, targetRange) {
+  const mergedRanges = getRangeMergeSnapshotMergedRanges_(target, targetRange);
+  return {
+    merged: mergedRanges.length === 1,
+    cells: buildExecutionSnapshotCellMatrix_(
+      target.getValues(),
+      target.getFormulas(),
+      typeof target.getNotes === 'function' ? target.getNotes() : null
+    )
+  };
+}
+
+function isSameRangeMergeSnapshotState_(left, right) {
+  return JSON.stringify(left || null) === JSON.stringify(right || null);
+}
+
+function createRangeMergeLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.targetSheet ||
+    !input.targetRange ||
+    !input.before ||
+    !input.after ||
+    isSameRangeMergeSnapshotState_(input.before, input.after)
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'range_merge',
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    before: input.before,
+    after: input.after
+  };
+}
+
 function readRangeFormatMatrixSnapshot_(range, getterName) {
   if (!range || typeof range[getterName] !== 'function') {
     return null;
@@ -5084,6 +5152,56 @@ function resolveExecutionCellSnapshot_(input) {
   };
 }
 
+function resolveExecutionRangeMergeSnapshot_(input) {
+  if (!input || typeof input !== 'object' || input.kind !== 'range_merge') {
+    throw new Error('Execution snapshot payload is required.');
+  }
+
+  const state = input.to || input.state;
+  const expectedCurrentState = input.from || null;
+  const cells = state && Array.isArray(state.cells) ? state.cells : [];
+  if (
+    !input.targetSheet ||
+    !input.targetRange ||
+    !state ||
+    typeof state.merged !== 'boolean' ||
+    cells.length === 0
+  ) {
+    throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+  }
+
+  const spreadsheet = SpreadsheetApp.getActive();
+  const sheet = spreadsheet.getSheetByName(input.targetSheet);
+  if (!sheet) {
+    throw new Error('Target sheet not found: ' + input.targetSheet);
+  }
+
+  const target = sheet.getRange(input.targetRange);
+  if (
+    target.getNumRows() !== cells.length ||
+    target.getNumColumns() !== ((cells[0] && cells[0].length) || 0)
+  ) {
+    throw new Error('The saved undo snapshot no longer matches the current range shape.');
+  }
+
+  if (typeof target.breakApart !== 'function' || (state.merged && typeof target.merge !== 'function')) {
+    throw new Error('Google Sheets host cannot restore merge snapshots on this range.');
+  }
+
+  if (expectedCurrentState) {
+    const currentState = getRangeMergeSnapshotState_(target, input.targetRange);
+    if (!isSameRangeMergeSnapshotState_(currentState, expectedCurrentState)) {
+      throw new Error('Range merge state changed since this history entry was captured.');
+    }
+  }
+
+  return {
+    target: target,
+    cells: cells,
+    state: state
+  };
+}
+
 function inferRangeFormatSnapshotShape_(format) {
   const matrix = Object.keys(format || {})
     .map(function(key) {
@@ -6675,6 +6793,17 @@ function applyExecutionConditionalFormatSnapshot_(input) {
 }
 
 function validateExecutionCellSnapshot(input) {
+  if (input && input.kind === 'range_merge') {
+    const validated = resolveExecutionRangeMergeSnapshot_(input);
+    return {
+      ok: true,
+      targetSheet: input.targetSheet,
+      targetRange: input.targetRange,
+      rowCount: validated.target.getNumRows(),
+      columnCount: validated.target.getNumColumns()
+    };
+  }
+
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
   }
@@ -6717,7 +6846,52 @@ function validateExecutionCellSnapshot(input) {
   };
 }
 
+function applyExecutionSnapshotCellsToRange_(target, cells) {
+  for (let rowIndex = 0; rowIndex < cells.length; rowIndex += 1) {
+    for (let columnIndex = 0; columnIndex < (cells[rowIndex] || []).length; columnIndex += 1) {
+      const cell = target.getCell(rowIndex + 1, columnIndex + 1);
+      const snapshotCell = cells[rowIndex][columnIndex];
+      if (snapshotCell && snapshotCell.kind === 'formula' && typeof snapshotCell.formula === 'string') {
+        cell.setFormula(snapshotCell.formula);
+      } else {
+        cell.setValue(deserializeExecutionSnapshotScalar_(snapshotCell && snapshotCell.value));
+      }
+
+      if (snapshotCellHasNote_(snapshotCell)) {
+        if (typeof cell.setNote !== 'function') {
+          throw new Error('Google Sheets host cannot restore notes for this undo snapshot.');
+        }
+
+        cell.setNote(normalizeExecutionSnapshotNote_(snapshotCell.note));
+      }
+    }
+  }
+}
+
+function applyExecutionRangeMergeSnapshot_(input) {
+  const validated = resolveExecutionRangeMergeSnapshot_(input);
+  const target = validated.target;
+
+  target.breakApart();
+  applyExecutionSnapshotCellsToRange_(target, validated.cells);
+
+  if (validated.state.merged) {
+    target.merge();
+  }
+
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange
+  };
+}
+
 function applyExecutionCellSnapshot(input) {
+  if (input && input.kind === 'range_merge') {
+    return applyExecutionRangeMergeSnapshot_(input);
+  }
+
   if (input && input.kind === 'range_format') {
     return applyExecutionRangeFormatSnapshot_(input);
   }
@@ -6754,25 +6928,7 @@ function applyExecutionCellSnapshot(input) {
   const target = validated.target;
   const cells = validated.cells;
 
-  for (let rowIndex = 0; rowIndex < cells.length; rowIndex += 1) {
-    for (let columnIndex = 0; columnIndex < (cells[rowIndex] || []).length; columnIndex += 1) {
-      const cell = target.getCell(rowIndex + 1, columnIndex + 1);
-      const snapshotCell = cells[rowIndex][columnIndex];
-      if (snapshotCell && snapshotCell.kind === 'formula' && typeof snapshotCell.formula === 'string') {
-        cell.setFormula(snapshotCell.formula);
-      } else {
-        cell.setValue(deserializeExecutionSnapshotScalar_(snapshotCell && snapshotCell.value));
-      }
-
-      if (snapshotCellHasNote_(snapshotCell)) {
-        if (typeof cell.setNote !== 'function') {
-          throw new Error('Google Sheets host cannot restore notes for this undo snapshot.');
-        }
-
-        cell.setNote(normalizeExecutionSnapshotNote_(snapshotCell.note));
-      }
-    }
-  }
+  applyExecutionSnapshotCellsToRange_(target, cells);
 
   SpreadsheetApp.flush();
   return {
@@ -6783,6 +6939,17 @@ function applyExecutionCellSnapshot(input) {
 }
 
 function validateExecutionCellSnapshot(input) {
+  if (input && input.kind === 'range_merge') {
+    const validated = resolveExecutionRangeMergeSnapshot_(input);
+    return {
+      ok: true,
+      targetSheet: input.targetSheet,
+      targetRange: input.targetRange,
+      rowCount: validated.target.getNumRows(),
+      columnCount: validated.target.getNumColumns()
+    };
+  }
+
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
   }
@@ -8966,6 +9133,12 @@ function applyWritePlan(input) {
         sheetName: plan.targetSheet
       }))
       : undefined;
+    const shouldSnapshotMergeState =
+      input.executionId && (plan.operation === 'merge_cells' || plan.operation === 'unmerge_cells');
+    const mergeTarget = shouldSnapshotMergeState ? sheet.getRange(plan.targetRange) : null;
+    const beforeMergeState = shouldSnapshotMergeState
+      ? getRangeMergeSnapshotState_(mergeTarget, plan.targetRange)
+      : null;
     const shouldSnapshotAutofit =
       input.executionId && (plan.operation === 'autofit_rows' || plan.operation === 'autofit_columns');
     const autofitTarget = shouldSnapshotAutofit ? sheet.getRange(plan.targetRange) : null;
@@ -9015,10 +9188,10 @@ function applyWritePlan(input) {
         getColumnSliceRange_(sheet, plan.startIndex, plan.count).shiftColumnGroupDepth(-1);
         break;
       case 'merge_cells':
-        sheet.getRange(plan.targetRange).merge();
+        (mergeTarget || sheet.getRange(plan.targetRange)).merge();
         break;
       case 'unmerge_cells':
-        sheet.getRange(plan.targetRange).breakApart();
+        (mergeTarget || sheet.getRange(plan.targetRange)).breakApart();
         break;
       case 'freeze_panes':
       case 'unfreeze_panes':
@@ -9054,6 +9227,9 @@ function applyWritePlan(input) {
         sheetName: plan.targetSheet
       }))
       : undefined;
+    const afterMergeState = beforeMergeState
+      ? getRangeMergeSnapshotState_(mergeTarget, plan.targetRange)
+      : null;
     const afterAutofitFormat = beforeAutofitFormat
       ? readRangeFormatStateForSnapshot_(sheet, autofitTarget, autofitSnapshotFormat)
       : null;
@@ -9117,6 +9293,14 @@ function applyWritePlan(input) {
             executionId: input.executionId,
             before: beforeDimensionVisibility,
             after: afterDimensionVisibility
+          })
+        : beforeMergeState
+          ? createRangeMergeLocalExecutionSnapshot_({
+            executionId: input.executionId,
+            targetSheet: plan.targetSheet,
+            targetRange: plan.targetRange,
+            before: beforeMergeState,
+            after: afterMergeState
           })
         : beforeAutofitFormat
           ? createRangeFormatLocalExecutionSnapshot_({

@@ -255,6 +255,10 @@
     return snapshot && snapshot.kind === "range_filter";
   }
 
+  function isRangeMergeLocalExecutionSnapshot(snapshot) {
+    return snapshot && snapshot.kind === "range_merge";
+  }
+
   function isWorkbookStructureLocalExecutionSnapshot(snapshot) {
     return snapshot && snapshot.kind === "workbook_structure";
   }
@@ -356,6 +360,16 @@
         targetSheet: entry.targetSheet,
         targetRange: entry.targetRange,
         filter: mode === "undo" ? entry.beforeFilter : entry.afterFilter
+      };
+    }
+
+    if (isRangeMergeLocalExecutionSnapshot(entry)) {
+      return {
+        kind: "range_merge",
+        targetSheet: entry.targetSheet,
+        targetRange: entry.targetRange,
+        from: mode === "undo" ? entry.after : entry.before,
+        to: mode === "undo" ? entry.before : entry.after
       };
     }
 
