@@ -1932,10 +1932,40 @@ export const ChartPlanDataSchema = ChartPlanBaseDataSchema.superRefine((data, ct
   }
 });
 
+const TableIdentifierNameSchema = z.string().min(1).max(250)
+  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, {
+    message: "name must start with a letter or underscore and contain only letters, numbers, and underscores."
+  })
+  .superRefine((value, ctx) => {
+    const normalized = value.trim();
+    const lower = normalized.toLowerCase();
+
+    if (lower.startsWith("true") || lower.startsWith("false")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "name cannot start with true or false."
+      });
+    }
+
+    if (lower === "r" || lower === "c") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "name cannot be R or C."
+      });
+    }
+
+    if (/^[A-Za-z]{1,3}[1-9][0-9]*$/.test(normalized) || /^r[1-9][0-9]*c[1-9][0-9]*$/i.test(normalized)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "name cannot be an A1 or R1C1 cell reference."
+      });
+    }
+  });
+
 export const TablePlanDataSchema = strictObject({
   targetSheet: z.string().min(1).max(128),
   targetRange: A1TargetRangeSchema,
-  name: z.string().min(1).max(255).regex(/^[A-Za-z_][A-Za-z0-9_]*$/).optional(),
+  name: TableIdentifierNameSchema.optional(),
   hasHeaders: z.boolean(),
   styleName: z.string().min(1).max(128).optional(),
   showBandedRows: z.boolean().optional(),
@@ -1992,7 +2022,7 @@ export const TableUpdateDataSchema = strictObject({
   operation: z.literal("table_update"),
   targetSheet: z.string().min(1).max(128),
   targetRange: A1TargetRangeSchema,
-  name: z.string().min(1).max(255).regex(/^[A-Za-z_][A-Za-z0-9_]*$/).optional(),
+  name: TableIdentifierNameSchema.optional(),
   hasHeaders: z.boolean(),
   styleName: z.string().min(1).max(128).optional(),
   showBandedRows: z.boolean().optional(),

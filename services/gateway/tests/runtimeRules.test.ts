@@ -139,6 +139,12 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('categoryField and all data.series fields must be unique');
   });
 
+  it("documents table name identifier constraints", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain('For type="table_plan"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("data.name must start with a letter or underscore");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("not be an A1/R1C1 cell reference");
+  });
+
   it("documents current-region grounding so current-table requests do not force a reselection round-trip", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("context.currentRegion");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("context.currentRegionArtifactTarget");
