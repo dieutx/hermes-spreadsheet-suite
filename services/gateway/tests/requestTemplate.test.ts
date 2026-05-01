@@ -76,6 +76,8 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("external_data_plan: limited");
     expect(prompt).toContain("market_data/googlefinance");
     expect(prompt).toContain("web_table_import/importhtml, importxml, or importdata");
+    expect(prompt).toContain("public HTTP(S) URL");
+    expect(prompt).toContain("must not reference private or internal URLs");
   });
 
   it("treats missing note-write capability as unsupported", () => {
@@ -942,6 +944,8 @@ describe("Hermes spreadsheet request prompt", () => {
 
     expect(prompt).toContain('Prefer type="external_data_plan"');
     expect(prompt).toContain("public website-table imports into Google Sheets");
+    expect(prompt).toContain("public HTTP(S) URL");
+    expect(prompt).toContain("must not reference private or internal URLs");
   });
 
   it("keeps advisory external-data how-to prompts on the chat path", () => {
