@@ -1562,7 +1562,7 @@ export const PivotTablePlanDataSchema = strictObject({
   }
 });
 
-export const ChartPlanDataSchema = strictObject({
+const ChartPlanBaseDataSchema = strictObject({
   sourceSheet: z.string().min(1).max(128),
   sourceRange: A1TargetRangeSchema,
   targetSheet: z.string().min(1).max(128),
@@ -1594,6 +1594,27 @@ export const ChartPlanDataSchema = strictObject({
   affectedRanges: z.array(z.string().min(1).max(128)).max(12),
   overwriteRisk: OverwriteRiskSchema,
   confirmationLevel: ConfirmationLevelSchema
+});
+
+export const ChartPlanDataSchema = ChartPlanBaseDataSchema.superRefine((data, ctx) => {
+  const requiredAffectedRanges = [
+    normalizeQualifiedA1RangeRef(data.sourceSheet, data.sourceRange),
+    normalizeQualifiedA1RangeRef(data.targetSheet, data.targetRange)
+  ].filter((value): value is string => value !== null);
+  const affectedRanges = new Set(
+    data.affectedRanges
+      .map((value) => normalizeAffectedA1RangeRef(value))
+      .filter((value): value is string => value !== null)
+  );
+  const missingAffectedRanges = requiredAffectedRanges.filter((value) => !affectedRanges.has(value));
+
+  if (missingAffectedRanges.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the qualified source and target ranges.",
+      path: ["affectedRanges"]
+    });
+  }
 });
 
 export const TablePlanDataSchema = strictObject({
@@ -1646,9 +1667,9 @@ export const ChartUpdateDataSchema = strictObject({
   operation: z.literal("chart_update"),
   targetSheet: z.string().min(1).max(128),
   targetRange: A1TargetRangeSchema,
-  chartType: ChartPlanDataSchema.shape.chartType,
-  horizontalAxisTitle: ChartPlanDataSchema.shape.horizontalAxisTitle,
-  verticalAxisTitle: ChartPlanDataSchema.shape.verticalAxisTitle,
+  chartType: ChartPlanBaseDataSchema.shape.chartType,
+  horizontalAxisTitle: ChartPlanBaseDataSchema.shape.horizontalAxisTitle,
+  verticalAxisTitle: ChartPlanBaseDataSchema.shape.verticalAxisTitle,
   summary: z.string().min(1).max(500)
 });
 
