@@ -1523,7 +1523,7 @@ function applyPivotSort_(pivotTable, planState, createdGroups, createdValues) {
   }
 }
 
-function applyPivotTablePlan_(spreadsheet, plan) {
+function applyPivotTablePlan_(spreadsheet, plan, executionId) {
   const planState = preflightPivotTableStructure_(plan);
   const sourceSheet = spreadsheet.getSheetByName(plan.sourceSheet);
   const targetSheet = spreadsheet.getSheetByName(plan.targetSheet);
@@ -1542,6 +1542,10 @@ function applyPivotTablePlan_(spreadsheet, plan) {
 
   if (typeof anchorRange.createPivotTable !== 'function') {
     throw new Error('Google Sheets host does not expose pivot creation on this range.');
+  }
+
+  if (executionId && findPivotTableAtAnchor_(targetSheet, plan.targetRange)) {
+    throw new Error('Google Sheets host cannot overwrite an existing pivot table with an exact undo snapshot.');
   }
 
   const headerMap = buildHeaderMap_(sourceRange);
@@ -1577,7 +1581,7 @@ function applyPivotTablePlan_(spreadsheet, plan) {
 
   SpreadsheetApp.flush();
 
-  return {
+  return attachLocalExecutionSnapshot_({
     kind: 'pivot_table_update',
     operation: 'pivot_table_update',
     hostPlatform: 'google_sheets',
@@ -1597,7 +1601,13 @@ function applyPivotTablePlan_(spreadsheet, plan) {
     overwriteRisk: plan.overwriteRisk,
     confirmationLevel: plan.confirmationLevel,
     summary: 'Created pivot table on ' + plan.targetSheet + '!' + normalizeA1_(plan.targetRange) + '.'
-  };
+  }, createPivotTableLocalExecutionSnapshot_({
+    executionId: executionId,
+    targetSheet: plan.targetSheet,
+    targetRange: normalizeA1_(plan.targetRange),
+    after: createPivotTableSnapshotState_(pivotTable, plan.targetRange),
+    plan: plan
+  }));
 }
 
 const CHART_TYPE_CONFIGS_ = {
@@ -4327,6 +4337,80 @@ function createChartLocalExecutionSnapshot_(input) {
   };
 }
 
+function getPivotTableAnchorA1_(pivotTable) {
+  if (!pivotTable || typeof pivotTable.getAnchorCell !== 'function') {
+    return null;
+  }
+
+  const anchor = pivotTable.getAnchorCell();
+  return anchor && typeof anchor.getA1Notation === 'function'
+    ? normalizeA1_(anchor.getA1Notation())
+    : null;
+}
+
+function findPivotTableAtAnchor_(sheet, targetRange) {
+  if (!sheet || typeof sheet.getPivotTables !== 'function') {
+    throw new Error('Google Sheets host cannot inspect saved pivot table snapshots.');
+  }
+
+  const pivotTables = sheet.getPivotTables();
+  if (!Array.isArray(pivotTables)) {
+    throw new Error('Google Sheets host cannot inspect saved pivot table snapshots.');
+  }
+
+  const normalizedTargetRange = normalizeA1_(targetRange);
+  const matches = pivotTables.filter(function(pivotTable) {
+    return getPivotTableAnchorA1_(pivotTable) === normalizedTargetRange;
+  });
+
+  if (matches.length > 1) {
+    throw new Error('Google Sheets host found multiple pivot tables at the saved anchor.');
+  }
+
+  return matches[0] || null;
+}
+
+function createPivotTableSnapshotState_(pivotTable, fallbackTargetRange) {
+  if (!pivotTable) {
+    return {
+      exists: false,
+      targetRange: normalizeA1_(fallbackTargetRange)
+    };
+  }
+
+  return {
+    exists: true,
+    targetRange: normalizeA1_(getPivotTableAnchorA1_(pivotTable) || fallbackTargetRange)
+  };
+}
+
+function createPivotTableLocalExecutionSnapshot_(input) {
+  if (
+    !input ||
+    !input.executionId ||
+    !input.targetSheet ||
+    !input.targetRange ||
+    !input.after ||
+    input.after.exists !== true ||
+    !input.plan
+  ) {
+    return null;
+  }
+
+  return {
+    baseExecutionId: input.executionId,
+    kind: 'pivot_table',
+    targetSheet: input.targetSheet,
+    targetRange: input.targetRange,
+    before: {
+      exists: false,
+      targetRange: input.targetRange
+    },
+    after: input.after,
+    plan: cloneLocalExecutionSnapshotValue_(input.plan)
+  };
+}
+
 function createCompositeLocalExecutionSnapshot_(input) {
   if (!input || !input.executionId || !Array.isArray(input.entries) || input.entries.length === 0) {
     return null;
@@ -5515,6 +5599,119 @@ function applyExecutionChartSnapshot_(input) {
   throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
 }
 
+function normalizePivotTableSnapshotState_(state) {
+  if (!state || typeof state !== 'object' || typeof state.exists !== 'boolean') {
+    throw new Error('The saved pivot table snapshot is malformed.');
+  }
+
+  const normalized = {
+    exists: state.exists,
+    targetRange: normalizeA1_(state.targetRange || '')
+  };
+
+  if (!normalized.targetRange) {
+    throw new Error('The saved pivot table snapshot is malformed.');
+  }
+
+  return normalized;
+}
+
+function assertPivotTableSnapshotPlan_(plan) {
+  if (
+    !plan ||
+    typeof plan.sourceSheet !== 'string' ||
+    typeof plan.sourceRange !== 'string' ||
+    typeof plan.targetSheet !== 'string' ||
+    typeof plan.targetRange !== 'string' ||
+    !Array.isArray(plan.rowGroups) ||
+    !Array.isArray(plan.columnGroups) ||
+    !Array.isArray(plan.valueAggregations)
+  ) {
+    throw new Error('The saved pivot table snapshot is malformed.');
+  }
+}
+
+function resolveExecutionPivotTableSnapshot_(input) {
+  if (!input || typeof input !== 'object' || input.kind !== 'pivot_table' || !input.targetSheet || !input.targetRange) {
+    throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+  }
+
+  const from = normalizePivotTableSnapshotState_(input.from);
+  const to = normalizePivotTableSnapshotState_(input.to);
+  const spreadsheet = SpreadsheetApp.getActive();
+  const sheet = spreadsheet.getSheetByName(input.targetSheet);
+  if (!sheet) {
+    throw new Error('Target sheet not found: ' + input.targetSheet);
+  }
+
+  return {
+    spreadsheet: spreadsheet,
+    sheet: sheet,
+    targetSheet: input.targetSheet,
+    targetRange: normalizeA1_(input.targetRange),
+    from: from,
+    to: to,
+    plan: input.plan
+  };
+}
+
+function validateExecutionPivotTableSnapshot_(input) {
+  const snapshot = resolveExecutionPivotTableSnapshot_(input);
+  if (snapshot.from.exists === true) {
+    if (!findPivotTableAtAnchor_(snapshot.sheet, snapshot.from.targetRange)) {
+      throw new Error('Google Sheets host cannot find the saved pivot table snapshot.');
+    }
+  }
+
+  if (snapshot.to.exists === true) {
+    assertPivotTableSnapshotPlan_(snapshot.plan);
+    if (findPivotTableAtAnchor_(snapshot.sheet, snapshot.to.targetRange)) {
+      throw new Error('Google Sheets host cannot restore the saved pivot table because the target anchor is occupied.');
+    }
+  }
+
+  return {
+    ok: true,
+    targetSheet: snapshot.targetSheet,
+    targetRange: snapshot.targetRange
+  };
+}
+
+function applyExecutionPivotTableSnapshot_(input) {
+  const snapshot = resolveExecutionPivotTableSnapshot_(input);
+
+  if (snapshot.from.exists === true && snapshot.to.exists === false) {
+    const pivotTable = findPivotTableAtAnchor_(snapshot.sheet, snapshot.from.targetRange);
+    if (!pivotTable || typeof pivotTable.remove !== 'function') {
+      throw new Error('Google Sheets host cannot remove the saved pivot table snapshot.');
+    }
+
+    pivotTable.remove();
+    SpreadsheetApp.flush();
+    return {
+      ok: true,
+      targetSheet: snapshot.targetSheet,
+      targetRange: snapshot.targetRange
+    };
+  }
+
+  if (snapshot.from.exists === false && snapshot.to.exists === true) {
+    assertPivotTableSnapshotPlan_(snapshot.plan);
+    if (findPivotTableAtAnchor_(snapshot.sheet, snapshot.to.targetRange)) {
+      throw new Error('Google Sheets host cannot restore the saved pivot table because the target anchor is occupied.');
+    }
+
+    applyPivotTablePlan_(snapshot.spreadsheet, snapshot.plan, null);
+    return {
+      ok: true,
+      targetSheet: snapshot.targetSheet,
+      targetRange: snapshot.targetRange
+    };
+  }
+
+  throw new Error('That history entry is no longer available for exact undo or redo in this sheet session.');
+}
+
 function validateExecutionCellSnapshot(input) {
   if (input && input.kind === 'range_format') {
     return validateExecutionRangeFormatSnapshot_(input);
@@ -5538,6 +5735,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'chart') {
     return validateExecutionChartSnapshot_(input);
+  }
+
+  if (input && input.kind === 'pivot_table') {
+    return validateExecutionPivotTableSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -5573,6 +5774,10 @@ function applyExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'chart') {
     return applyExecutionChartSnapshot_(input);
+  }
+
+  if (input && input.kind === 'pivot_table') {
+    return applyExecutionPivotTableSnapshot_(input);
   }
 
   const validated = resolveExecutionCellSnapshot_(input);
@@ -5630,6 +5835,10 @@ function validateExecutionCellSnapshot(input) {
 
   if (input && input.kind === 'chart') {
     return validateExecutionChartSnapshot_(input);
+  }
+
+  if (input && input.kind === 'pivot_table') {
+    return validateExecutionPivotTableSnapshot_(input);
   }
 
   if (!input || typeof input !== 'object') {
@@ -7337,7 +7546,7 @@ function applyWritePlan(input) {
   }
 
   if (isPivotTablePlan_(plan)) {
-    return applyPivotTablePlan_(spreadsheet, plan);
+    return applyPivotTablePlan_(spreadsheet, plan, input.executionId);
   }
 
   if (isChartPlan_(plan)) {

@@ -259,6 +259,10 @@
     return snapshot && snapshot.kind === "chart";
   }
 
+  function isPivotTableLocalExecutionSnapshot(snapshot) {
+    return snapshot && snapshot.kind === "pivot_table";
+  }
+
   function getLocalExecutionSnapshotEntriesForMode(snapshot, mode) {
     if (!isCompositeLocalExecutionSnapshot(snapshot)) {
       return [snapshot];
@@ -357,6 +361,17 @@
         targetSheet: entry.targetSheet,
         targetRange: entry.targetRange,
         ...(entry.chartId !== undefined ? { chartId: entry.chartId } : {}),
+        from: mode === "undo" ? entry.after : entry.before,
+        to: mode === "undo" ? entry.before : entry.after,
+        plan: entry.plan
+      };
+    }
+
+    if (isPivotTableLocalExecutionSnapshot(entry)) {
+      return {
+        kind: "pivot_table",
+        targetSheet: entry.targetSheet,
+        targetRange: entry.targetRange,
         from: mode === "undo" ? entry.after : entry.before,
         to: mode === "undo" ? entry.before : entry.after,
         plan: entry.plan

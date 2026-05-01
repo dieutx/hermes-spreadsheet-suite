@@ -4489,6 +4489,123 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(sidebar.fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("passes Google Sheets pivot table snapshots through sidebar undo before committing", async () => {
+    const backingStore = new Map<string, string>();
+    const plan = {
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      columnGroups: [],
+      valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+      filters: [],
+      explanation: "Build a pivot table by region.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    };
+    const before = {
+      exists: false,
+      targetRange: "A1"
+    };
+    const after = {
+      exists: true,
+      targetRange: "A1"
+    };
+    backingStore.set("Hermes.ReversibleExecutions.v1::google_sheets::sheet-123", JSON.stringify({
+      version: 1,
+      order: ["exec_pivot_001"],
+      executions: {
+        exec_pivot_001: {
+          baseExecutionId: "exec_pivot_001"
+        }
+      },
+      bases: {
+        exec_pivot_001: {
+          baseExecutionId: "exec_pivot_001",
+          kind: "pivot_table",
+          targetSheet: "Sales Pivot",
+          targetRange: "A1",
+          before,
+          after,
+          plan
+        }
+      }
+    }));
+    const sidebar = loadSidebarContext();
+    sidebar.window.localStorage.getItem = vi.fn((key: string) => backingStore.get(key) || null);
+    sidebar.window.localStorage.setItem = vi.fn((key: string, value: string) => {
+      backingStore.set(key, value);
+    });
+    const serverCalls: Array<{ functionName: string; payload?: Record<string, unknown> }> = [];
+    sidebar.callServer = vi.fn(async (functionName: string, payload?: Record<string, unknown>) => {
+      serverCalls.push({ functionName, payload });
+      if (functionName === "getWorkbookSessionKey") {
+        return "google_sheets::sheet-123";
+      }
+
+      if (functionName === "getRuntimeConfig") {
+        return {
+          gatewayBaseUrl: "http://127.0.0.1:8787",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        };
+      }
+
+      if (functionName === "validateExecutionCellSnapshot" || functionName === "applyExecutionCellSnapshot") {
+        return payload;
+      }
+
+      throw new Error(`Unexpected server call: ${functionName}`);
+    });
+    sidebar.fetch = vi.fn(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "pivot_table_update",
+          operation: "pivot_table_update",
+          hostPlatform: "google_sheets",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: init?.body || ""
+        };
+      }
+    }));
+
+    await sidebar.undoExecution("exec_pivot_001");
+
+    const snapshotServerCalls = serverCalls.filter((call) => call.functionName !== "getRuntimeConfig");
+    expect(snapshotServerCalls).toEqual([
+      { functionName: "getWorkbookSessionKey", payload: undefined },
+      {
+        functionName: "validateExecutionCellSnapshot",
+        payload: {
+          kind: "pivot_table",
+          targetSheet: "Sales Pivot",
+          targetRange: "A1",
+          from: after,
+          to: before,
+          plan
+        }
+      },
+      {
+        functionName: "applyExecutionCellSnapshot",
+        payload: {
+          kind: "pivot_table",
+          targetSheet: "Sales Pivot",
+          targetRange: "A1",
+          from: after,
+          to: before,
+          plan
+        }
+      }
+    ]);
+    expect(sidebar.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("applies Google Sheets sheet create snapshots on the server", () => {
     const createdSheet = {
       getName: vi.fn(() => "Staging"),
@@ -5395,12 +5512,18 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       numColumns: 1
     });
     const pivotTable = {
+      getAnchorCell: vi.fn(() => pivotAnchorRange),
+      remove: vi.fn(),
       addRowGroup: vi.fn(),
       addColumnGroup: vi.fn(),
       addPivotValue: vi.fn(),
       addFilter: vi.fn()
     };
-    pivotAnchorRange.createPivotTable = vi.fn(() => pivotTable);
+    const pivotTables: Array<Record<string, unknown>> = [];
+    pivotAnchorRange.createPivotTable = vi.fn(() => {
+      pivotTables.push(pivotTable);
+      return pivotTable;
+    });
     const builtChart = { id: "chart-1" };
     const chartBuilder = {
       addRange: vi.fn().mockReturnThis(),
@@ -5431,6 +5554,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
         }
         if (sheetName === "Sales Pivot") {
           return {
+            getPivotTables: vi.fn(() => pivotTables),
             getRange: vi.fn((...args: unknown[]) => {
               if (args.length === 1 && args[0] === "A1") {
                 return pivotAnchorRange;
