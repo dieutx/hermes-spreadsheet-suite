@@ -1878,6 +1878,28 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.showFilterButton).toBe(true);
   });
 
+  it("rejects table plans whose affectedRanges omit the target range", () => {
+    const parsed = TablePlanDataSchema.safeParse({
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      name: "SalesTable",
+      hasHeaders: true,
+      styleName: "TableStyleMedium2",
+      showBandedRows: true,
+      showBandedColumns: false,
+      showFilterButton: true,
+      showTotalsRow: false,
+      explanation: "Convert the sales range into a table.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!H1:H50"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a chart_update response envelope", () => {
     const parsed = HermesResponseSchema.parse({
       schemaVersion: "1.0.0",

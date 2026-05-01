@@ -1531,6 +1531,15 @@ export const TablePlanDataSchema = strictObject({
   affectedRanges: z.array(z.string().min(1).max(128)).max(12),
   overwriteRisk: OverwriteRiskSchema,
   confirmationLevel: ConfirmationLevelSchema
+}).superRefine((data, ctx) => {
+  const targetRefs = new Set([`${data.targetSheet}!${data.targetRange}`, data.targetRange]);
+  if (!data.affectedRanges.some((range) => targetRefs.has(range))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "affectedRanges must include the target range.",
+      path: ["affectedRanges"]
+    });
+  }
 });
 
 export const AnalysisReportUpdateDataSchema = strictObject({
