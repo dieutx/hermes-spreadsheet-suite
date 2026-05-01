@@ -1408,6 +1408,21 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts sheet structure affectedRanges with equivalent absolute A1 refs", () => {
+    const parsed = SheetStructureUpdateDataSchema.parse({
+      targetSheet: "Sheet1",
+      operation: "merge_cells",
+      targetRange: "$A$1:$C$1",
+      explanation: "Merge the title row across the table.",
+      confidence: 0.89,
+      requiresConfirmation: true,
+      confirmationLevel: "standard",
+      affectedRanges: ["Sheet1!A1:C1"]
+    });
+
+    expect(parsed.affectedRanges).toEqual(["Sheet1!A1:C1"]);
+  });
+
   it("rejects numeric formula cells in set_formulas updates", () => {
     const parsed = SheetUpdateDataSchema.safeParse({
       targetSheet: "Sheet1",
