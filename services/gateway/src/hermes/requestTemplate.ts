@@ -111,6 +111,8 @@ const CONTROL_CELL_ROLE_PATTERN = /\b(?:with|using|use|treat)\b[\s\S]{0,120}?\bc
 const CONTROL_CELL_AS_PATTERN = /\b(?:use|using|treat)\s+\$?[A-Za-z]{1,3}\$?\d+\s+as\b/i;
 const ADVISORY_ARTIFACT_QUESTION_PATTERN = /\b(explain|describe|what is|what are|how do i|how can i|how should i|how to|why|diagnos(?:e|ing|is)?|troubleshoot|help me understand|giai thich|tai sao|huong dan)\b/;
 const DIRECT_ARTIFACT_ACTION_PATTERN = /^\s*(?:please\s+)?(?:create|make|build|insert|add|apply|set up|setup|tao|them|chen)\b/;
+const WHOLE_MESSAGE_HOW_TO_PATTERN = /^\s*(?:please\s+)?(?:explain\s+how\s+to|describe\s+how\s+to|help me understand\s+how\s+to|how\s+(?:do|can|should)\s+i|how\s+to|what\s+(?:is|are)|huong dan)\b/;
+const WRITE_ACTION_AFTER_CONNECTOR_PATTERN = /\b(?:and then|then|after that|afterwards|next|followed by|roi|sau do|tiep theo)\b[\s\S]{0,160}?\b(?:sort|filter|add|create|make|insert|apply|set|copy|move|append|transpose|remove|delete|fill|standardize|trim|split|join|rename|retarget|freeze|unfreeze|autofit|group|ungroup|merge|unmerge|hide|unhide|format|highlight|chart|pivot|import|get|pull|fetch|sap xep|loc|them|tao|chen|ap dung|xoa|doi ten)\b/;
 const WRITE_CAPABLE_RESPONSE_TYPES = new Set<PreferredResponseType>([
   "composite_plan",
   "sheet_update",
@@ -424,6 +426,11 @@ function isLikelyRangeFormatRequest(rawMessage: string, userMessage: string): bo
     STATIC_RANGE_FORMAT_TARGET_PATTERN.test(userMessage);
 }
 
+function isLikelySheetStructureRequest(userMessage: string): boolean {
+  return /\b(insert|delete|hide|unhide|merge|unmerge|freeze|unfreeze|group|ungroup|autofit)\b/.test(userMessage) ||
+    /\b(?:sheet\s+)?tab\s+color\b/.test(userMessage);
+}
+
 function isLikelyGeneratedDataRequest(rawMessage: string, lowerMessage: string): boolean {
   if (!GENERATED_DATA_KEYWORD_PATTERN.test(lowerMessage)) {
     return false;
@@ -560,11 +567,35 @@ function isLikelyAdvisoryOnlyArtifactQuestion(rawMessage: string, userMessage: s
     return false;
   }
 
+  if (WRITE_ACTION_AFTER_CONNECTOR_PATTERN.test(userMessage) &&
+    !WHOLE_MESSAGE_HOW_TO_PATTERN.test(userMessage)) {
+    return false;
+  }
+
   return isLikelyPivotTableRequest(userMessage) ||
     isLikelyChartRequest(userMessage) ||
     isLikelyTablePlanRequest(userMessage) ||
+    isLikelyWorkbookStructureRequest(userMessage) ||
+    isLikelySheetStructureRequest(userMessage) ||
+    (
+      SORT_KEYWORD_PATTERN.test(userMessage) &&
+      (IMPLICIT_TARGET_PATTERN.test(userMessage) ||
+        /(?:^|[^a-z])\$?[a-z]{1,3}\$?\d+(?:\:\$?[a-z]{1,3}\$?\d+)?(?:[^a-z]|$)/i.test(userMessage))
+    ) ||
+    FILTER_KEYWORD_PATTERN.test(userMessage) ||
+    isLikelyNamedRangeRequest(rawMessage, userMessage) ||
+    (
+      VALIDATION_KEYWORD_PATTERN.test(userMessage) &&
+      (
+        /\b(add|set|apply|use|restrict|limit|validate|require)\b/.test(userMessage) ||
+        /\bnamed range\b/.test(userMessage) ||
+        A1_REFERENCE_PATTERN.test(userMessage)
+      )
+    ) ||
     isLikelyRangeFormatRequest(rawMessage, userMessage) ||
     isLikelyConditionalFormatRequest(userMessage) ||
+    isLikelyRangeTransferRequest(userMessage) ||
+    isLikelyDataCleanupRequest(userMessage) ||
     isLikelyExternalDataRequest(userMessage);
 }
 
@@ -793,8 +824,7 @@ function getPreferredResponseType(
     return "data_cleanup_plan";
   }
   if (
-    /\b(insert|delete|hide|unhide|merge|unmerge|freeze|unfreeze|group|ungroup|autofit)\b/.test(userMessage) ||
-    /\b(?:sheet\s+)?tab\s+color\b/.test(userMessage)
+    isLikelySheetStructureRequest(userMessage)
   ) {
     return "sheet_structure_update";
   }
