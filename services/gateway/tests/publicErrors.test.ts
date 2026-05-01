@@ -18,6 +18,9 @@ describe("public error formatting", () => {
     expect(sanitizeClientIssueMessage(
       String.raw`Invalid value produced near \\runner\share\schema.ts:42`
     )).toBe("Invalid request field.");
+    expect(sanitizeClientIssueMessage(
+      String.raw`Invalid value produced at path=\\runner\share\schema.ts:42`
+    )).toBe("Invalid request field.");
     expect(formatClientIssuePath([
       "context",
       String.raw`\\runner\share\debug`,

@@ -1,5 +1,5 @@
 const CLIENT_UNSAFE_VALIDATION_PATTERN =
-  /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt)\/[^\s]+|[A-Za-z]:\\[^\s]+|(?:^|[\s.])\\\\[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|[^/\s]*\.local)[^\s]*/i;
+  /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt)\/[^\s]+|[A-Za-z]:\\[^\s]+|(?:^|[\s.=:])\\\\[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|[^/\s]*\.local)[^\s]*/i;
 
 function normalizePublicErrorText(value: unknown): string {
   return String(value ?? "")
