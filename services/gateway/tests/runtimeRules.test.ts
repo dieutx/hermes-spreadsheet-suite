@@ -66,6 +66,7 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('add conditional-format plans require data.confirmationLevel="standard"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain("host-exact");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("unsupported mappings must fail closed");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("percent and percentile color_scale point values must be between 0 and 100");
   });
 
   it("documents wave-4 transfer and cleanup plan families with destructive confirmation rules", () => {
