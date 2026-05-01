@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const AUTHOR_LOCAL_REPO_PATH = "/root/claude/hermes-spreadsheet-suite";
+const AUTHOR_LOCAL_REPO_PATH_PATTERN = /\/root\/claude(?:\/|$)/;
 const DOCUMENTATION_ROOTS = ["docs", ".github"];
 const ROOT_DOCUMENTS = ["README.md", "CODEX_IMPLEMENTATION_PROMPT.md", ".env.example"];
 
@@ -25,7 +25,7 @@ describe("documentation sensitive path scan", () => {
     ];
 
     const offenders = files
-      .filter((path) => readFileSync(path, "utf8").includes(AUTHOR_LOCAL_REPO_PATH))
+      .filter((path) => AUTHOR_LOCAL_REPO_PATH_PATTERN.test(readFileSync(path, "utf8")))
       .map((path) => path.replace(`${process.cwd()}/`, ""));
 
     expect(offenders).toEqual([]);
