@@ -4661,6 +4661,61 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("applies Google Sheets column visibility snapshots on the server", () => {
+    const columnHidden = new Map([
+      [2, false],
+      [3, false]
+    ]);
+    const sheet = {
+      isColumnHiddenByUser: vi.fn((columnIndex: number) => columnHidden.get(columnIndex)),
+      hideColumns: vi.fn((startColumn: number, columnCount: number) => {
+        for (let offset = 0; offset < columnCount; offset += 1) {
+          columnHidden.set(startColumn + offset, true);
+        }
+      }),
+      showColumns: vi.fn((startColumn: number, columnCount: number) => {
+        for (let offset = 0; offset < columnCount; offset += 1) {
+          columnHidden.set(startColumn + offset, false);
+        }
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((name: string) => {
+        expect(name).toBe("Sheet1");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(code.applyExecutionCellSnapshot({
+      kind: "workbook_structure",
+      operation: "row_column_visibility",
+      from: {
+        exists: true,
+        name: "Sheet1",
+        dimension: "columns",
+        startIndex: 1,
+        count: 2,
+        hiddenStates: [false, false]
+      },
+      to: {
+        exists: true,
+        name: "Sheet1",
+        dimension: "columns",
+        startIndex: 1,
+        count: 2,
+        hiddenStates: [true, false]
+      }
+    })).toMatchObject({
+      ok: true,
+      operation: "row_column_visibility"
+    });
+
+    expect(columnHidden.get(2)).toBe(true);
+    expect(columnHidden.get(3)).toBe(false);
+    expect(code.flush).toHaveBeenCalled();
+  });
+
   it("attaches local undo snapshots for Google Sheets sheet move writes", () => {
     const firstSheet = {
       getName: vi.fn(() => "Sheet1"),
