@@ -84,6 +84,8 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("replace_all_on_target");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('clear_on_target and replace_all_on_target require data.confirmationLevel="destructive"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('add conditional-format plans require data.confirmationLevel="standard"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("conditional format style supports backgroundColor, textColor, bold, italic, underline, and strikethrough only");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("use range_format_update for static numberFormat changes");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("host-exact");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("unsupported mappings must fail closed");
   });

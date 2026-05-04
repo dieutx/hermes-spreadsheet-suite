@@ -3122,6 +3122,7 @@ describe("Hermes spreadsheet contracts", () => {
       confidence: 0.92,
       requiresConfirmation: true,
       affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "standard",
       replacesExistingRules: false
     });
 
