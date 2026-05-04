@@ -2326,6 +2326,49 @@ describe("Hermes spreadsheet contracts", () => {
     }).success).toBe(false);
   });
 
+  it("rejects chart plans with duplicate source fields", () => {
+    const categoryAsSeries = ChartPlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:C20",
+      targetSheet: "Sales Chart",
+      targetRange: "A1",
+      chartType: "line",
+      categoryField: "Month",
+      series: [
+        { field: "Month", label: "Month" }
+      ],
+      title: "Revenue",
+      explanation: "Chart monthly revenue.",
+      confidence: 0.93,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+    const duplicateSeries = ChartPlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:C20",
+      targetSheet: "Sales Chart",
+      targetRange: "A1",
+      chartType: "line",
+      categoryField: "Month",
+      series: [
+        { field: "Revenue", label: "Revenue" },
+        { field: "Revenue", label: "Revenue again" }
+      ],
+      title: "Revenue",
+      explanation: "Chart monthly revenue.",
+      confidence: 0.93,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(categoryAsSeries.success).toBe(false);
+    expect(duplicateSeries.success).toBe(false);
+  });
+
   it("accepts a table plan with native table options", () => {
     const parsed = TablePlanDataSchema.parse({
       targetSheet: "Sales",
