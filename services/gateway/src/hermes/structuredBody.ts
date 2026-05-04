@@ -812,7 +812,12 @@ function normalizeCompositeStepPlanValue(value: unknown): unknown {
           "explanation",
           "confidence",
           "requiresConfirmation",
-          "affectedRanges"
+          "affectedRanges",
+          "sortOn",
+          "mode",
+          "sortMode",
+          "sortType",
+          "formatType"
         ]);
       case "range_filter_plan":
         return pickFields(normalized, [
@@ -868,7 +873,12 @@ function normalizeCompositeStepPlanValue(value: unknown): unknown {
             "explanation",
             "confidence",
             "requiresConfirmation",
-            "affectedRanges"
+            "affectedRanges",
+            "sortOn",
+            "mode",
+            "sortMode",
+            "sortType",
+            "formatType"
           ]);
         case "range_filter_plan":
           return pickFields(normalized, [

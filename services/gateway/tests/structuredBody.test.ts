@@ -922,6 +922,38 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).toThrow();
   });
 
+  it("fails closed for unsupported range sort modes inside composite steps", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "composite_plan",
+      data: {
+        actions: [
+          {
+            id: "sort_sales_by_color",
+            type: "range_sort_plan",
+            data: {
+              targetSheet: "Sales",
+              targetRange: "A1:D50",
+              hasHeader: true,
+              keys: [{ columnRef: "Revenue", direction: "desc" }],
+              mode: "cellColor",
+              explanation: "Sort sales by revenue cell color.",
+              confidence: 0.9,
+              requiresConfirmation: true,
+              affectedRanges: ["Sales!A1:D50"]
+            }
+          }
+        ],
+        explanation: "Run an unsupported color sort.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:D50"],
+        overwriteRisk: "low"
+      }
+    });
+
+    expect(() => HermesStructuredBodySchema.parse(normalized)).toThrow();
+  });
+
   it("normalizes analysis report source and output aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "analysis_report_plan",
