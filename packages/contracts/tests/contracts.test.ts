@@ -3348,6 +3348,39 @@ describe("Hermes spreadsheet contracts", () => {
     }
   });
 
+  it("rejects checkbox validation plans with uncheckedValue but no checkedValue", () => {
+    const parsed = DataValidationPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "C2:C20",
+      ruleType: "checkbox",
+      uncheckedValue: "Pending",
+      allowBlank: false,
+      invalidDataBehavior: "reject",
+      explanation: "Use a custom unchecked value.",
+      confidence: 0.82,
+      requiresConfirmation: true
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts single-value checkbox validation plans when blanks remain allowed", () => {
+    const parsed = DataValidationPlanDataSchema.parse({
+      targetSheet: "Sheet1",
+      targetRange: "C2:C20",
+      ruleType: "checkbox",
+      checkedValue: "Done",
+      allowBlank: true,
+      invalidDataBehavior: "reject",
+      explanation: "Use a single custom checked value.",
+      confidence: 0.82,
+      requiresConfirmation: true
+    });
+
+    expect(parsed.checkedValue).toBe("Done");
+    expect(parsed.uncheckedValue).toBeUndefined();
+  });
+
   it("rejects list validation plans that define both values and sourceRange", () => {
     const parsed = DataValidationPlanDataSchema.safeParse({
       targetSheet: "Sheet1",

@@ -82,6 +82,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("web_table_import/importhtml, importxml, or importdata");
     expect(prompt).toContain("public HTTP(S) URL");
     expect(prompt).toContain("must not reference private or internal URLs");
+    expect(prompt).toContain("do not include uncheckedValue unless checkedValue is also present");
   });
 
   it("advertises Google Sheets top-N filters with the exact-safe cutoff caveat", () => {

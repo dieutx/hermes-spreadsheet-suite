@@ -206,6 +206,7 @@ For type="data_validation_plan":
 - list validation may use values, sourceRange, or namedRangeName, but not more than one source
 - optional inputTitle, inputMessage, errorTitle, and errorMessage customize validation prompts and invalid-entry alerts only when the current host supports them exactly
 - checkbox, whole_number, decimal, date, text_length, and custom_formula must follow the contract-specific validation fields
+- checkbox validation must not include uncheckedValue unless checkedValue is also present
 
 For type="analysis_report_plan":
 - data.sourceSheet is required
