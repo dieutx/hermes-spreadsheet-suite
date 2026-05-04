@@ -1141,7 +1141,8 @@ describe("structured body normalization", () => {
       type: "data_validation_plan",
       data: {
         ruleType: "decimal",
-        comparator: "greater_than_or_equal_to"
+        comparator: "greater_than_or_equal_to",
+        confirmationLevel: "standard"
       }
     });
     expect(() => HermesStructuredBodySchema.parse(validation)).not.toThrow();

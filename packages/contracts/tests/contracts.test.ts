@@ -3091,6 +3091,25 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects validation preservation with destructive confirmation", () => {
+    const parsed = DataValidationPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      ruleType: "list",
+      namedRangeName: "StatusOptions",
+      allowBlank: false,
+      invalidDataBehavior: "reject",
+      explanation: "Add status validation without replacing existing validation.",
+      confidence: 0.95,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "destructive",
+      replacesExistingValidation: false
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts data validation affectedRanges with equivalent absolute A1 refs", () => {
     const parsed = DataValidationPlanDataSchema.parse({
       targetSheet: "Sheet1",
