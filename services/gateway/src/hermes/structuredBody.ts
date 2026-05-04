@@ -2621,15 +2621,30 @@ function buildGoogleFinanceFormula(query: unknown): string | undefined {
     return undefined;
   }
 
-  const args = [
+  const isNonEmptyString = (value: unknown): value is string =>
+    typeof value === "string" && value.trim().length > 0;
+  const rawArgs = [
     query.symbol,
     query.attribute,
     query.startDate,
     query.endDate,
     query.interval
-  ]
-    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    .map((item) => quoteSpreadsheetFormulaString(item.trim()));
+  ];
+  let lastDefinedArgIndex = rawArgs.length - 1;
+  while (
+    lastDefinedArgIndex > 0 &&
+    !isNonEmptyString(rawArgs[lastDefinedArgIndex])
+  ) {
+    lastDefinedArgIndex -= 1;
+  }
+
+  const args = rawArgs
+    .slice(0, lastDefinedArgIndex + 1)
+    .map((item) =>
+      isNonEmptyString(item)
+        ? quoteSpreadsheetFormulaString(item.trim())
+        : ""
+    );
 
   return `=GOOGLEFINANCE(${args.join(",")})`;
 }

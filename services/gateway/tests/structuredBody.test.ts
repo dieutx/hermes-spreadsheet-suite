@@ -555,6 +555,32 @@ describe("structured body normalization", () => {
     });
     expect(() => HermesStructuredBodySchema.parse(marketData)).not.toThrow();
 
+    const marketDataWithDefaultAttribute = normalizeHermesStructuredBodyInput({
+      type: "external_data_plan",
+      data: {
+        provider: "GOOGLEFINANCE",
+        query: {
+          symbol: "NASDAQ:GOOG",
+          startDate: "2026-01-01"
+        },
+        targetSheet: "Market Data",
+        targetRange: "B2",
+        explanation: "Anchor GOOG history in B2.",
+        confidence: 0.92,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(marketDataWithDefaultAttribute).toMatchObject({
+      type: "external_data_plan",
+      data: {
+        sourceType: "market_data",
+        provider: "googlefinance",
+        formula: '=GOOGLEFINANCE("NASDAQ:GOOG",,"2026-01-01")'
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(marketDataWithDefaultAttribute)).not.toThrow();
+
     const webImport = normalizeHermesStructuredBodyInput({
       type: "external_data_plan",
       data: {

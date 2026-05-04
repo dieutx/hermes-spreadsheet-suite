@@ -461,6 +461,79 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.affectedRanges).toEqual(["Market Data!B2"]);
   });
 
+  it("rejects market data formulas that do not match query fields", () => {
+    const basePlan = {
+      sourceType: "market_data",
+      provider: "googlefinance",
+      targetSheet: "Markets",
+      targetRange: "B2",
+      explanation: "Load Google Finance data.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Markets!B2"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard",
+      query: {
+        symbol: "NASDAQ:GOOG",
+        attribute: "price"
+      }
+    } as const;
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=GOOGLEFINANCE("NYSE:IBM","price")'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=GOOGLEFINANCE("NASDAQ:GOOG","volume")'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=GOOGLEFINANCE(A1,"price")'
+    }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=GOOGLEFINANCE("NASDAQ:GOOG","price")+GOOGLEFINANCE("NYSE:IBM","price")'
+    }).success).toBe(false);
+  });
+
+  it("accepts historical market data formulas with omitted optional placeholders", () => {
+    const parsed = ExternalDataPlanDataSchema.parse({
+      sourceType: "market_data",
+      provider: "googlefinance",
+      targetSheet: "Markets",
+      targetRange: "B2",
+      formula: '=GOOGLEFINANCE("NASDAQ:GOOG",,"2026-01-01","2026-04-01","DAILY")',
+      query: {
+        symbol: "NASDAQ:GOOG",
+        startDate: "2026-01-01",
+        endDate: "2026-04-01",
+        interval: "DAILY"
+      },
+      explanation: "Load historical Google Finance data.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Markets!B2"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.query).toMatchObject({
+      symbol: "NASDAQ:GOOG",
+      startDate: "2026-01-01",
+      endDate: "2026-04-01",
+      interval: "DAILY"
+    });
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...parsed,
+      formula: '=GOOGLEFINANCE("NASDAQ:GOOG",,"2026-01-01","2026-04-01","WEEKLY")'
+    }).success).toBe(false);
+  });
+
   it("rejects composite plans that fail to escalate destructive confirmation", () => {
     const parsed = CompositePlanDataSchema.safeParse({
       steps: [

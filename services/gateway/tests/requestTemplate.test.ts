@@ -77,6 +77,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("named_range_update: limited");
     expect(prompt).toContain("external_data_plan: limited");
     expect(prompt).toContain("market_data/googlefinance");
+    expect(prompt).toContain("Market-data formulas must use literal GOOGLEFINANCE arguments");
     expect(prompt).toContain("web_table_import/importhtml, importxml, or importdata");
     expect(prompt).toContain("public HTTP(S) URL");
     expect(prompt).toContain("must not reference private or internal URLs");
