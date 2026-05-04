@@ -140,6 +140,7 @@ For type="conditional_format_plan":
 - conditional format style supports backgroundColor, textColor, bold, italic, underline, and strikethrough only; use range_format_update for static numberFormat changes
 - for ruleType="color_scale", data.points are ordered minimum, optional midpoint, maximum; do not put max first, min last, or min/max at the midpoint
 - for row-highlighting logic driven by a status, breach, overdue, or risk column, or by comparisons between columns, prefer ruleType="custom_formula" with an exact formula instead of static row-by-row formatting
+- custom_formula conditional format formulas must start with =
 - clear_on_target contains no rule payload
 - replace_all_on_target removes existing target rules before applying the new rule
 - conditional formatting is distinct from range_format_update

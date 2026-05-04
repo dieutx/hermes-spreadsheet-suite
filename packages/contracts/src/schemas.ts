@@ -2762,6 +2762,11 @@ const conditionalFormatCompareValueSchema = z.union([
   z.number().finite()
 ]);
 
+const ConditionalFormatFormulaSchema = z.string().min(2).max(16000).refine(
+  (value) => value.trim().startsWith("="),
+  { message: "custom_formula formula must start with =." }
+);
+
 const conditionalFormatAddOrReplaceModeSchema = z.enum([
   "add",
   "replace_all_on_target"
@@ -2897,7 +2902,7 @@ export const ConditionalFormatPlanDataSchema = z.union([
       ...ConditionalFormatPlanSharedFields,
       managementMode: conditionalFormatAddOrReplaceModeSchema,
       ruleType: z.literal("custom_formula"),
-      formula: z.string().min(1).max(16000),
+      formula: ConditionalFormatFormulaSchema,
       style: ConditionalFormatStyleSchema
     }).superRefine((data, ctx) => {
       const shouldReplace = data.managementMode === "replace_all_on_target";

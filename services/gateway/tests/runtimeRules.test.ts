@@ -92,6 +92,7 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('add conditional-format plans require data.confirmationLevel="standard"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain("conditional format style supports backgroundColor, textColor, bold, italic, underline, and strikethrough only");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("use range_format_update for static numberFormat changes");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("custom_formula conditional format formulas must start with =");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("host-exact");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("unsupported mappings must fail closed");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("number_compare values must be finite numbers");

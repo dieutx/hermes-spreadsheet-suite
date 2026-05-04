@@ -3323,6 +3323,27 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects custom conditional formulas without formula syntax", () => {
+    const parsed = ConditionalFormatPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "B2:B20",
+      managementMode: "add",
+      ruleType: "custom_formula",
+      formula: 'COUNTIF($B$2:$B$20,B2)>1',
+      style: {
+        backgroundColor: "#ffdddd"
+      },
+      explanation: "Highlight duplicate values with a custom formula.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Sheet1!B2:B20"],
+      confirmationLevel: "standard",
+      replacesExistingRules: false
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects malformed conditional format date_compare values", () => {
     const malformedLiteral = ConditionalFormatPlanDataSchema.safeParse({
       targetSheet: "Sheet1",
