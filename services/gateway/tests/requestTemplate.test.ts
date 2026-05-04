@@ -816,6 +816,15 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).not.toContain('Prefer type="analysis_report_plan"');
   });
 
+  it("documents exact-safe pivot sort guidance", () => {
+    const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      userMessage: "Create a pivot table report with revenue trends by quarter."
+    }));
+
+    expect(prompt).toContain('sortOn="group_field" on an existing row or column group');
+    expect(prompt).toContain('sortOn="aggregated_value" only when the pivot does not mix row and column groups');
+  });
+
   it("routes chart prompts toward chart_plan", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
       userMessage: "Create a line chart of revenue by month on a new sheet."
