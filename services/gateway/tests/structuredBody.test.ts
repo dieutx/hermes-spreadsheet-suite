@@ -1204,6 +1204,35 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("normalizes preserving range filters to standard confirmation", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "range_filter_plan",
+      data: {
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        hasHeader: true,
+        conditions: [
+          { columnRef: "Status", operator: "equals", value: "Open" }
+        ],
+        combiner: "and",
+        clearExistingFilters: false,
+        explanation: "Keep open rows while preserving existing filters.",
+        confidence: 0.9,
+        requiresConfirmation: true
+      }
+    });
+
+    expect(normalized).toMatchObject({
+      type: "range_filter_plan",
+      data: {
+        clearExistingFilters: false,
+        confirmationLevel: "standard",
+        affectedRanges: ["Sales!A1:F50"]
+      }
+    });
+    expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
+  });
+
   it("normalizes dropdown validation aliases and defaults before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "data_validation_plan",

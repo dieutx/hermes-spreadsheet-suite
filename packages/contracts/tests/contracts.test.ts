@@ -2290,6 +2290,25 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Replace the existing filter state with open rows.",
       confidence: 0.9,
       requiresConfirmation: true,
+      confirmationLevel: "standard",
+      affectedRanges: ["Sheet1!A1:F25"]
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects preserved filter plans with destructive confirmation", () => {
+    const parsed = RangeFilterPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "A1:F25",
+      hasHeader: true,
+      conditions: [{ columnRef: "Status", operator: "equals", value: "Open" }],
+      combiner: "and",
+      clearExistingFilters: false,
+      explanation: "Apply an additional filter without clearing existing filters.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      confirmationLevel: "destructive",
       affectedRanges: ["Sheet1!A1:F25"]
     });
 
