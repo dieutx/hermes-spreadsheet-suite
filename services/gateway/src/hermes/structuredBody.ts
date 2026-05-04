@@ -2621,6 +2621,8 @@ function buildGoogleFinanceFormula(query: unknown): string | undefined {
     return undefined;
   }
 
+  const isNonEmptyString = (value: unknown): value is string =>
+    typeof value === "string" && value.trim().length > 0;
   const rawArgs = [
     query.symbol,
     query.attribute,
@@ -2631,8 +2633,7 @@ function buildGoogleFinanceFormula(query: unknown): string | undefined {
   let lastDefinedArgIndex = rawArgs.length - 1;
   while (
     lastDefinedArgIndex > 0 &&
-    (typeof rawArgs[lastDefinedArgIndex] !== "string" ||
-      !rawArgs[lastDefinedArgIndex].trim())
+    !isNonEmptyString(rawArgs[lastDefinedArgIndex])
   ) {
     lastDefinedArgIndex -= 1;
   }
@@ -2640,7 +2641,7 @@ function buildGoogleFinanceFormula(query: unknown): string | undefined {
   const args = rawArgs
     .slice(0, lastDefinedArgIndex + 1)
     .map((item) =>
-      typeof item === "string" && item.trim().length > 0
+      isNonEmptyString(item)
         ? quoteSpreadsheetFormulaString(item.trim())
         : ""
     );
