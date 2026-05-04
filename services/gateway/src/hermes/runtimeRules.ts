@@ -220,6 +220,7 @@ For type="analysis_report_plan":
 - data.sections is required and must contain one or more analysis sections
 - each section must be an object with type, title, summary, and sourceRanges
 - do not use plain strings or slugs for sections
+- section sourceRanges must be qualified A1 ranges such as Sheet1!A1:D20
 - data.explanation is required
 - data.confidence is required
 - data.affectedRanges is required

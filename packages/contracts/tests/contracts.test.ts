@@ -1913,6 +1913,37 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects analysis report sections with invalid sourceRanges", () => {
+    const invalidSourceRanges = [
+      ["A1:F50"],
+      ["current table"]
+    ];
+
+    for (const sourceRanges of invalidSourceRanges) {
+      const parsed = AnalysisReportPlanDataSchema.safeParse({
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        outputMode: "chat_only",
+        sections: [
+          {
+            type: "summary_stats",
+            title: "Revenue summary",
+            summary: "Average revenue is 12,500.",
+            sourceRanges
+          }
+        ],
+        explanation: "Summarize sales.",
+        confidence: 0.9,
+        requiresConfirmation: false,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "none",
+        confirmationLevel: "standard"
+      });
+
+      expect(parsed.success).toBe(false);
+    }
+  });
+
   it("rejects a materialized analysis report without a target sheet", () => {
     const parsed = AnalysisReportPlanDataSchema.safeParse({
       sourceSheet: "Sales",

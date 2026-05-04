@@ -1157,11 +1157,16 @@ const AnalysisSectionTypeSchema = z.enum([
   "next_actions"
 ]);
 
+const QualifiedA1RangeRefSchema = z.string().min(1).max(128).refine(
+  (value) => normalizeAffectedA1RangeRef(value) !== null,
+  { message: "must be a qualified A1 range." }
+);
+
 const AnalysisReportSectionSchema = strictObject({
   type: AnalysisSectionTypeSchema,
   title: z.string().min(1).max(256),
   summary: z.string().min(1).max(4000),
-  sourceRanges: z.array(z.string().min(1).max(128)).min(1).max(10)
+  sourceRanges: z.array(QualifiedA1RangeRefSchema).min(1).max(10)
 });
 
 const analysisReportPlanSharedFields = {
