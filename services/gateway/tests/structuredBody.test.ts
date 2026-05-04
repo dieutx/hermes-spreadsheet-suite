@@ -2288,6 +2288,53 @@ describe("structured body normalization", () => {
     }
   });
 
+  it("rejects invalid conditional-format compare values after normalization", () => {
+    const invalidNumberCompare = HermesStructuredBodySchema.safeParse(normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        explanation: "Highlight values above ten.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
+        replacesExistingRules: false,
+        managementMode: "add",
+        ruleType: "number_compare",
+        comparator: "greater_than",
+        value: "10",
+        style: {
+          backgroundColor: "#FDECEC"
+        }
+      }
+    }));
+
+    const invalidDateCompare = HermesStructuredBodySchema.safeParse(normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "C2:C20",
+        explanation: "Highlight future dates.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["Sheet1!C2:C20"],
+        confirmationLevel: "standard",
+        replacesExistingRules: false,
+        managementMode: "add",
+        ruleType: "date_compare",
+        comparator: "greater_than",
+        value: "tomorrow",
+        style: {
+          backgroundColor: "#FFF2CC"
+        }
+      }
+    }));
+
+    expect(invalidNumberCompare.success).toBe(false);
+    expect(invalidDateCompare.success).toBe(false);
+  });
+
   it("preserves all supported static range format fields during normalization", () => {
     const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
       type: "range_format_update",
