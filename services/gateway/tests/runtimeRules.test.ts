@@ -126,6 +126,7 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('cannot be represented exactly on the current host');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('unsupported pivot or chart mappings must fail closed');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('every pivot filter requires value');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain('categoryField and all data.series fields must be unique');
   });
 
   it("documents current-region grounding so current-table requests do not force a reselection round-trip", () => {

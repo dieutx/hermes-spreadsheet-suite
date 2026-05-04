@@ -254,6 +254,7 @@ For type="chart_plan":
 - data.chartType is required and must be one of: bar, column, stacked_bar, stacked_column, line, area, pie, scatter
 - data.series is required and must contain one or more series
 - each series item must use field to reference a source header name
+- categoryField and all data.series fields must be unique
 - do not use A1 ranges or name/range objects inside data.series
 - use categoryField when the chart should use a named category axis
 - use optional horizontalAxisTitle and verticalAxisTitle only for chart types with axes; do not attach axis titles to pie charts

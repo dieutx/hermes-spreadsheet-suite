@@ -831,6 +831,7 @@ describe("Hermes spreadsheet request prompt", () => {
 
     expect(prompt).toContain("data.chartType, data.categoryField, data.series");
     expect(prompt).toContain("categoryField must reference the source header used for the category axis");
+    expect(prompt).toContain("categoryField and all data.series fields must be unique");
     expect(prompt).not.toContain("Use categoryField when the chart should use a named category axis");
   });
 
