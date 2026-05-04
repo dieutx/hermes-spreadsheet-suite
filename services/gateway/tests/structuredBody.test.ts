@@ -1983,17 +1983,34 @@ describe("structured body normalization", () => {
       "sheet_update missing shape",
       {
         type: "sheet_update",
-          data: {
-            targetSheet: "Sheet1",
-            targetRange: "A1",
-            operation: "replace_range",
-            values: [[1]],
-            explanation: "Shape is required.",
-            confidence: 0.8,
+        data: {
+          targetSheet: "Sheet1",
+          targetRange: "A1",
+          operation: "replace_range",
+          values: [[1]],
+          explanation: "Shape is required.",
+          confidence: 0.8,
           requiresConfirmation: true
         }
       },
       ["data", "shape"]
+    ],
+    [
+      "sheet_update append_rows operation",
+      {
+        type: "sheet_update",
+        data: {
+          targetSheet: "Sheet1",
+          targetRange: "A2:B2",
+          operation: "append_rows",
+          values: [["North", 42]],
+          explanation: "Append a row.",
+          confidence: 0.8,
+          requiresConfirmation: true,
+          shape: { rows: 1, columns: 2 }
+        }
+      },
+      ["data", "operation"]
     ]
   ])("rejects %s after normalization", (_label, rawBody, expectedPath) => {
     const normalized = normalizeHermesStructuredBodyInput(rawBody);
