@@ -812,7 +812,12 @@ function normalizeCompositeStepPlanValue(value: unknown): unknown {
           "explanation",
           "confidence",
           "requiresConfirmation",
-          "affectedRanges"
+          "affectedRanges",
+          "sortOn",
+          "mode",
+          "sortMode",
+          "sortType",
+          "formatType"
         ]);
       case "range_filter_plan":
         return pickFields(normalized, [
@@ -868,7 +873,12 @@ function normalizeCompositeStepPlanValue(value: unknown): unknown {
             "explanation",
             "confidence",
             "requiresConfirmation",
-            "affectedRanges"
+            "affectedRanges",
+            "sortOn",
+            "mode",
+            "sortMode",
+            "sortType",
+            "formatType"
           ]);
         case "range_filter_plan":
           return pickFields(normalized, [
@@ -1755,6 +1765,13 @@ function normalizeRangeSortPlanData(value: unknown): unknown {
           direction === "ascending" ? "asc"
           : direction === "descending" ? "desc"
           : direction;
+      }
+
+      if (typeof normalizedItem.sortOn === "string") {
+        const sortOn = normalizedItem.sortOn.trim().toLowerCase().replace(/[\s_-]+/g, "");
+        if (sortOn === "value" || sortOn === "values") {
+          normalizedItem.sortOn = "values";
+        }
       }
 
       return normalizedItem;

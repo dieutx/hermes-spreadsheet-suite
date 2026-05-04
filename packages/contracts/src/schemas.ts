@@ -743,7 +743,7 @@ export const SheetStructureUpdateDataSchema = z.discriminatedUnion("operation", 
 export const RangeSortKeySchema = strictObject({
   columnRef: z.union([z.string().min(1).max(128), z.number().int().min(1)]),
   direction: z.enum(["asc", "desc"]),
-  sortOn: z.string().min(1).max(128).optional()
+  sortOn: z.literal("values").optional()
 });
 
 export const RangeSortPlanDataSchema = strictObject({
