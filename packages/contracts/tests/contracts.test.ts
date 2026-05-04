@@ -493,6 +493,45 @@ describe("Hermes spreadsheet contracts", () => {
       ...basePlan,
       formula: '=GOOGLEFINANCE(A1,"price")'
     }).success).toBe(false);
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...basePlan,
+      formula: '=GOOGLEFINANCE("NASDAQ:GOOG","price")+GOOGLEFINANCE("NYSE:IBM","price")'
+    }).success).toBe(false);
+  });
+
+  it("accepts historical market data formulas with omitted optional placeholders", () => {
+    const parsed = ExternalDataPlanDataSchema.parse({
+      sourceType: "market_data",
+      provider: "googlefinance",
+      targetSheet: "Markets",
+      targetRange: "B2",
+      formula: '=GOOGLEFINANCE("NASDAQ:GOOG",,"2026-01-01","2026-04-01","DAILY")',
+      query: {
+        symbol: "NASDAQ:GOOG",
+        startDate: "2026-01-01",
+        endDate: "2026-04-01",
+        interval: "DAILY"
+      },
+      explanation: "Load historical Google Finance data.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Markets!B2"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.query).toMatchObject({
+      symbol: "NASDAQ:GOOG",
+      startDate: "2026-01-01",
+      endDate: "2026-04-01",
+      interval: "DAILY"
+    });
+
+    expect(ExternalDataPlanDataSchema.safeParse({
+      ...parsed,
+      formula: '=GOOGLEFINANCE("NASDAQ:GOOG",,"2026-01-01","2026-04-01","WEEKLY")'
+    }).success).toBe(false);
   });
 
   it("rejects composite plans that fail to escalate destructive confirmation", () => {

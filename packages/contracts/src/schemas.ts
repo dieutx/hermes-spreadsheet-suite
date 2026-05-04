@@ -1331,19 +1331,16 @@ function extractWebImportFormulaSourceUrlKeys(formula: string): string[] {
   );
 }
 
-function extractFormulaFunctionArguments(formula: string, functionName: string): string[] | null {
-  const pattern = new RegExp(String.raw`\b${functionName}\s*\(`, "i");
-  const match = pattern.exec(formula);
-  if (!match) {
-    return null;
-  }
-
+function parseFormulaFunctionArgumentsAt(
+  formula: string,
+  startIndex: number
+): { args: string[]; endIndex: number } | null {
   const args: string[] = [];
   let current = "";
   let depth = 0;
   let inString = false;
 
-  for (let index = match.index + match[0].length; index < formula.length; index += 1) {
+  for (let index = startIndex; index < formula.length; index += 1) {
     const char = formula[index];
     if (inString) {
       current += char;
@@ -1373,7 +1370,7 @@ function extractFormulaFunctionArguments(formula: string, functionName: string):
     if (char === ")") {
       if (depth === 0) {
         args.push(current.trim());
-        return args;
+        return { args, endIndex: index + 1 };
       }
       depth -= 1;
       current += char;
@@ -1392,6 +1389,27 @@ function extractFormulaFunctionArguments(formula: string, functionName: string):
   return null;
 }
 
+function extractFormulaFunctionArgumentLists(formula: string, functionName: string): string[][] | null {
+  const pattern = new RegExp(String.raw`\b${functionName}\s*\(`, "i");
+  const argumentLists: string[][] = [];
+  let remainingFormula = formula;
+  let offset = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(remainingFormula)) !== null) {
+    const argsStartIndex = offset + match.index + match[0].length;
+    const parsed = parseFormulaFunctionArgumentsAt(formula, argsStartIndex);
+    if (!parsed) {
+      return null;
+    }
+
+    argumentLists.push(parsed.args);
+    offset = parsed.endIndex;
+    remainingFormula = formula.slice(offset);
+  }
+
+  return argumentLists.length > 0 ? argumentLists : null;
+}
+
 function parseSpreadsheetFormulaStringLiteral(value: string | undefined): string | null {
   const trimmed = value?.trim();
   if (!trimmed || trimmed.length < 2 || !trimmed.startsWith("\"") || !trimmed.endsWith("\"")) {
@@ -1406,7 +1424,7 @@ function parseSpreadsheetFormulaStringLiteral(value: string | undefined): string
       continue;
     }
 
-    if (trimmed[index + 1] === "\"" && index + 1 < trimmed.length - 1) {
+    if (index + 1 < trimmed.length - 1 && trimmed[index + 1] === "\"") {
       parsed += "\"";
       index += 1;
       continue;
@@ -1500,7 +1518,7 @@ export const ExternalDataPlanDataSchema = z.union([
       });
     }
 
-    const args = extractFormulaFunctionArguments(data.formula, "GOOGLEFINANCE");
+    const argumentLists = extractFormulaFunctionArgumentLists(data.formula, "GOOGLEFINANCE");
     const expectedArgs: Array<[number, string | undefined, string]> = [
       [0, data.query.symbol, "symbol"],
       [1, data.query.attribute, "attribute"],
@@ -1509,26 +1527,28 @@ export const ExternalDataPlanDataSchema = z.union([
       [4, data.query.interval, "interval"]
     ];
 
-    if (!args) {
+    if (!argumentLists) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "market_data formulas must expose literal GOOGLEFINANCE query arguments.",
         path: ["formula"]
       });
     } else {
-      for (const [index, expected, fieldName] of expectedArgs) {
-        if (expected === undefined) {
-          continue;
-        }
+      for (const args of argumentLists) {
+        for (const [index, expected, fieldName] of expectedArgs) {
+          if (expected === undefined) {
+            continue;
+          }
 
-        const actual = parseSpreadsheetFormulaStringLiteral(args[index]);
-        if (actual !== expected.trim()) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `market_data formula must match query.${fieldName}.`,
-            path: ["formula"]
-          });
-          break;
+          const actual = parseSpreadsheetFormulaStringLiteral(args[index]);
+          if (actual !== expected.trim()) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `market_data formula must match query.${fieldName}.`,
+              path: ["formula"]
+            });
+            return;
+          }
         }
       }
     }
