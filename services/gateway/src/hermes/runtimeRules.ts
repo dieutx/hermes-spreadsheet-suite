@@ -181,7 +181,7 @@ For type="range_filter_plan":
 - data.targetRange is required
 - data.hasHeader is required
 - data.conditions is required and must contain at least one filter condition
-- data.combiner is required and must be and or or
+- data.combiner is required and must be and
 - data.clearExistingFilters is required
 - data.explanation is required
 - data.confidence is required

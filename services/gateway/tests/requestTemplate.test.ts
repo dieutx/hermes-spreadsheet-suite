@@ -72,6 +72,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("If you would naturally say none, emit hidden.");
     expect(prompt).toContain("range_transfer_plan: limited");
     expect(prompt).toContain("Supported pasteMode values: values, formulas, formats.");
+    expect(prompt).toContain("Use combiner=and only.");
     expect(prompt).toContain("range_format_update: supported");
     expect(prompt).toContain("Supported static formatting fields");
     expect(prompt).toContain("normalize_case only supports upper, lower, title, and sentence.");
