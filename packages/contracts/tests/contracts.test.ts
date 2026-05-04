@@ -4014,6 +4014,76 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.mode).toBe("sentence");
   });
 
+  it("rejects unsupported standardize_format cleanup patterns", () => {
+    const parsed = DataCleanupPlanDataSchema.safeParse({
+      targetSheet: "Contacts",
+      targetRange: "B2:B50",
+      operation: "standardize_format",
+      formatType: "date_text",
+      formatPattern: "locale-sensitive-fuzzy",
+      explanation: "Normalize dates using a fuzzy locale-specific pattern.",
+      confidence: 0.84,
+      requiresConfirmation: true,
+      confirmationLevel: "standard",
+      affectedRanges: ["Contacts!B2:B50"],
+      overwriteRisk: "medium"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects locale-style date and non-plain number standardize_format cleanup patterns", () => {
+    const shared = {
+      targetSheet: "Contacts",
+      targetRange: "B2:B50",
+      operation: "standardize_format" as const,
+      explanation: "Normalize exact text formats.",
+      confidence: 0.84,
+      requiresConfirmation: true,
+      confirmationLevel: "standard" as const,
+      affectedRanges: ["Contacts!B2:B50"],
+      overwriteRisk: "medium" as const
+    };
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...shared,
+      formatType: "date_text",
+      formatPattern: "MM/DD/YYYY"
+    }).success).toBe(false);
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...shared,
+      formatType: "number_text",
+      formatPattern: "$#,##0.00"
+    }).success).toBe(false);
+  });
+
+  it("accepts exact standardize_format cleanup patterns", () => {
+    const shared = {
+      targetSheet: "Contacts",
+      targetRange: "B2:B50",
+      operation: "standardize_format" as const,
+      explanation: "Normalize exact text formats.",
+      confidence: 0.84,
+      requiresConfirmation: true,
+      confirmationLevel: "standard" as const,
+      affectedRanges: ["Contacts!B2:B50"],
+      overwriteRisk: "medium" as const
+    };
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...shared,
+      formatType: "date_text",
+      formatPattern: "YYYY/MM/DD"
+    }).success).toBe(true);
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...shared,
+      formatType: "number_text",
+      formatPattern: "#,##0.00"
+    }).success).toBe(true);
+  });
+
   it("rejects malformed cleanup target ranges", () => {
     const parsed = DataCleanupPlanDataSchema.safeParse({
       targetSheet: "Contacts",
