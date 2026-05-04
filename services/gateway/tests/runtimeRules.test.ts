@@ -49,6 +49,11 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).not.toContain("and or or");
   });
 
+  it("documents color scale point ordering invariants", () => {
+    expect(SPREADSHEET_RUNTIME_RULES).toContain('for ruleType="color_scale"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("do not put max first, min last, or min/max at the midpoint");
+  });
+
   it("makes reviewer-safe unavailable map to a concrete error response", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("EXTRACTION_UNAVAILABLE");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('prefer type="error"');

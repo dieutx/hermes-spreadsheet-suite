@@ -2233,6 +2233,35 @@ describe("structured body normalization", () => {
     }
   });
 
+  it("rejects color-scale points in impossible positions after normalization", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        explanation: "Apply an invalid color scale.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
+        replacesExistingRules: false,
+        managementMode: "add",
+        ruleType: "color_scale",
+        points: [
+          { type: "max", color: "#63be7b" },
+          { type: "min", color: "#f8696b" }
+        ]
+      }
+    });
+
+    const parsed = HermesStructuredBodySchema.safeParse(normalized);
+
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(JSON.stringify(parsed.error.issues)).toContain("first color_scale point cannot be max");
+    }
+  });
+
   it("preserves all supported static range format fields during normalization", () => {
     const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
       type: "range_format_update",

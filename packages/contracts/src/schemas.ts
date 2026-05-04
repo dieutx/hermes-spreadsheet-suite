@@ -2592,6 +2592,41 @@ export const ConditionalFormatColorScalePointSchema = strictObject({
   }
 });
 
+function validateConditionalFormatColorScalePoints(
+  points: Array<z.infer<typeof ConditionalFormatColorScalePointSchema>>,
+  ctx: z.RefinementCtx
+): void {
+  const first = points[0];
+  const last = points[points.length - 1];
+
+  if (first?.type === "max") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "first color_scale point cannot be max.",
+      path: ["points", 0, "type"]
+    });
+  }
+
+  if (last?.type === "min") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "last color_scale point cannot be min.",
+      path: ["points", points.length - 1, "type"]
+    });
+  }
+
+  if (points.length === 3) {
+    const middle = points[1];
+    if (middle?.type === "min" || middle?.type === "max") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "middle color_scale point must use number, percent, or percentile.",
+        path: ["points", 1, "type"]
+      });
+    }
+  }
+}
+
 const ConditionalFormatPlanSharedFields = {
   targetSheet: z.string().min(1).max(128),
   targetRange: A1TargetRangeSchema,
@@ -2794,6 +2829,7 @@ export const ConditionalFormatPlanDataSchema = z.union([
       ruleType: z.literal("color_scale"),
       points: z.array(ConditionalFormatColorScalePointSchema).min(2).max(3)
     }).superRefine((data, ctx) => {
+      validateConditionalFormatColorScalePoints(data.points, ctx);
       const shouldReplace = data.managementMode === "replace_all_on_target";
       if (data.replacesExistingRules !== shouldReplace) {
         ctx.addIssue({
