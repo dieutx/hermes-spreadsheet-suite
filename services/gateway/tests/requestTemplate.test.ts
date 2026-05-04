@@ -66,6 +66,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("Supported pivot filters use existing pivot fields");
     expect(prompt).toContain("between, or not_between");
     expect(prompt).toContain("Every pivot filter requires value");
+    expect(prompt).toContain("comparison pivot filters require numeric values");
     expect(prompt).toContain("Series labels may use explicit custom legend text when provided.");
     expect(prompt).toContain("Supported legend positions: bottom, left, right, top, hidden.");
     expect(prompt).toContain("Pie charts support exactly one series.");
@@ -138,6 +139,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("Supported pivot filters use existing pivot fields");
     expect(prompt).toContain("between, or not_between");
     expect(prompt).toContain("Every pivot filter requires value");
+    expect(prompt).toContain("comparison pivot filters require numeric values");
     expect(prompt).toContain("chart_plan: limited");
     expect(prompt).toContain("Series labels may use explicit custom legend text when provided.");
     expect(prompt).toContain("note_writes: unsupported");
@@ -821,6 +823,7 @@ describe("Hermes spreadsheet request prompt", () => {
       userMessage: "Create a pivot table report with revenue trends by quarter."
     }));
 
+    expect(prompt).toContain("Pivot comparison filters require numeric values");
     expect(prompt).toContain('sortOn="group_field" on an existing row or column group');
     expect(prompt).toContain('sortOn="aggregated_value" only when the pivot does not mix row and column groups');
   });
