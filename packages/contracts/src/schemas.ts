@@ -2686,7 +2686,6 @@ export const SheetUpdateDataSchema = strictObject({
   targetRange: z.string().min(1).max(128),
   operation: z.enum([
     "replace_range",
-    "append_rows",
     "set_formulas",
     "set_notes",
     "mixed_update"
@@ -2714,14 +2713,6 @@ export const SheetUpdateDataSchema = strictObject({
       code: z.ZodIssueCode.custom,
       message: "replace_range requires values, formulas, or notes.",
       path: ["operation"]
-    });
-  }
-
-  if (data.operation === "append_rows" && !hasValues) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "append_rows requires values.",
-      path: ["values"]
     });
   }
 
