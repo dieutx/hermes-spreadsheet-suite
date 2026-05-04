@@ -2140,6 +2140,67 @@ describe("Hermes spreadsheet contracts", () => {
     expect(missingUpperBound.success).toBe(false);
   });
 
+  it("rejects non-numeric pivot comparison filter values", () => {
+    const basePlan = {
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      explanation: "Build a sales pivot with numeric filters.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    };
+
+    expect(PivotTablePlanDataSchema.safeParse({
+      ...basePlan,
+      filters: [
+        { field: "Deals", operator: "greater_than", value: "many" }
+      ]
+    }).success).toBe(false);
+
+    expect(PivotTablePlanDataSchema.safeParse({
+      ...basePlan,
+      filters: [
+        { field: "Discount", operator: "between", value: 0.1, value2: "high" }
+      ]
+    }).success).toBe(false);
+  });
+
+  it("accepts numeric string pivot comparison filter values", () => {
+    const parsed = PivotTablePlanDataSchema.parse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      targetSheet: "Sales Pivot",
+      targetRange: "A1",
+      rowGroups: ["Region"],
+      valueAggregations: [
+        { field: "Revenue", aggregation: "sum" }
+      ],
+      filters: [
+        { field: "Deals", operator: "greater_than", value: "5" },
+        { field: "Discount", operator: "between", value: "0.1", value2: "0.3" }
+      ],
+      explanation: "Build a sales pivot with numeric string filters.",
+      confidence: 0.9,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.filters).toEqual([
+      { field: "Deals", operator: "greater_than", value: "5" },
+      { field: "Discount", operator: "between", value: "0.1", value2: "0.3" }
+    ]);
+  });
+
   it("requires pivot filter comparison values", () => {
     const basePlan = {
       sourceSheet: "Sales",
