@@ -370,7 +370,8 @@ describe("Google Sheets wave 1 helper compilation", () => {
         clearExistingFilters: true,
         explanation: "Keep rows whose status is not exactly Closed.",
         confidence: 0.91,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     });
 
@@ -463,7 +464,8 @@ describe("Google Sheets wave 1 helper compilation", () => {
         clearExistingFilters: true,
         explanation: "Keep the top two amounts.",
         confidence: 0.88,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     });
 
@@ -559,7 +561,8 @@ describe("Google Sheets wave 1 helper compilation", () => {
         clearExistingFilters: true,
         explanation: "Keep open work.",
         confidence: 0.91,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     });
 
@@ -806,7 +809,8 @@ describe("Google Sheets wave 1 helper compilation", () => {
         clearExistingFilters: true,
         explanation: "Keep the top two amounts.",
         confidence: 0.88,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     })).toThrow("Google Sheets grid filters cannot represent topN exactly when duplicate display values cross the cutoff.");
     expect(createFilter).not.toHaveBeenCalled();
@@ -824,7 +828,8 @@ describe("Google Sheets wave 1 helper compilation", () => {
         clearExistingFilters: true,
         explanation: "Keep open rows or large amounts.",
         confidence: 0.87,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     })).toThrow('Google Sheets grid filters cannot represent combiner "or" exactly for multiple conditions.');
   });
@@ -976,7 +981,8 @@ describe("Google Sheets wave 1 helper compilation", () => {
         clearExistingFilters: false,
         explanation: "Keep rows that are not closed and above the threshold.",
         confidence: 0.9,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "standard"
       }
     }, {
       runId: "run_filter",
@@ -986,6 +992,41 @@ describe("Google Sheets wave 1 helper compilation", () => {
     expect(filterPreview).toContain("Status notEquals Closed");
     expect(filterPreview).toContain("Amount greaterThan 10");
     expect(filterPreview).toContain("Preserve existing filters");
+    expect(filterPreview).toContain("standard");
+
+    const clearFilterResponse = {
+      type: "range_filter_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:F25",
+        hasHeader: true,
+        conditions: [
+          { columnRef: "Status", operator: "notEquals", value: "Closed" }
+        ],
+        combiner: "and",
+        clearExistingFilters: true,
+        explanation: "Replace existing filters.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
+      }
+    };
+    const confirm = vi.fn(() => true);
+    (sidebar.window as any).confirm = confirm;
+    expect(sidebar.buildWriteApprovalRequest({
+      requestId: "req_filter_clear",
+      runId: "run_filter_clear",
+      plan: sidebar.getStructuredPreview(clearFilterResponse)
+    })).toMatchObject({
+      requestId: "req_filter_clear",
+      runId: "run_filter_clear",
+      destructiveConfirmation: { confirmed: true },
+      plan: {
+        kind: "range_filter_plan",
+        confirmationLevel: "destructive"
+      }
+    });
+    expect(confirm).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed in preview for unsupported Google Sheets filter combinations", () => {
@@ -1004,7 +1045,8 @@ describe("Google Sheets wave 1 helper compilation", () => {
         clearExistingFilters: true,
         explanation: "Keep open rows or large amounts.",
         confidence: 0.88,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     };
     const topNResponse = {
@@ -1020,7 +1062,8 @@ describe("Google Sheets wave 1 helper compilation", () => {
         clearExistingFilters: true,
         explanation: "Keep the top two amounts.",
         confidence: 0.88,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     };
     const duplicateColumnResponse = {
@@ -1037,7 +1080,8 @@ describe("Google Sheets wave 1 helper compilation", () => {
         clearExistingFilters: true,
         explanation: "Keep only active status rows.",
         confidence: 0.88,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        confirmationLevel: "destructive"
       }
     };
 

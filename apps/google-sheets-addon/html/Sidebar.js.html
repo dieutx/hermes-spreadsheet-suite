@@ -3683,7 +3683,8 @@
           explanation: response.data.explanation,
           confidence: response.data.confidence,
           requiresConfirmation: response.data.requiresConfirmation,
-          affectedRanges: response.data.affectedRanges
+          affectedRanges: response.data.affectedRanges,
+          confirmationLevel: response.data.confirmationLevel
         };
       case "range_format_update":
         return {
@@ -4168,6 +4169,7 @@
             ${escapeHtml(preview.targetSheet)}!${escapeHtml(preview.targetRange)}
             • ${preview.hasHeader ? "header" : "no header"}
             • ${escapeHtml(preview.combiner)}
+            ${preview.confirmationLevel ? ` • ${escapeHtml(preview.confirmationLevel)}` : ""}
           </div>
           <div>${escapeHtml(conditionsSummary)}</div>
           <div class="preview-meta">${escapeHtml(formatClearExistingFiltersState(preview.clearExistingFilters))}</div>

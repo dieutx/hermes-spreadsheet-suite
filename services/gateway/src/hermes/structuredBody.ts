@@ -825,6 +825,7 @@ function normalizeCompositeStepPlanValue(value: unknown): unknown {
           "explanation",
           "confidence",
           "requiresConfirmation",
+          "confirmationLevel",
           "affectedRanges"
         ]);
       default:
@@ -880,6 +881,7 @@ function normalizeCompositeStepPlanValue(value: unknown): unknown {
             "explanation",
             "confidence",
             "requiresConfirmation",
+            "confirmationLevel",
             "affectedRanges"
           ]);
         default:
@@ -1867,6 +1869,10 @@ function normalizeRangeFilterPlanData(value: unknown): unknown {
 
   if (!hasOwn(normalized, "clearExistingFilters")) {
     normalized.clearExistingFilters = true;
+  }
+
+  if (!normalized.confirmationLevel || typeof normalized.confirmationLevel !== "string") {
+    normalized.confirmationLevel = normalized.clearExistingFilters ? "destructive" : "standard";
   }
 
   if (!Array.isArray(normalized.affectedRanges) || normalized.affectedRanges.length === 0) {
