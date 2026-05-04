@@ -84,6 +84,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("market_data/googlefinance");
     expect(prompt).toContain("Market-data formulas must use literal GOOGLEFINANCE arguments");
     expect(prompt).toContain("web_table_import/importhtml, importxml, or importdata");
+    expect(prompt).toContain("Web import formulas must use literal arguments matching");
     expect(prompt).toContain("public HTTP(S) URL");
     expect(prompt).toContain("must not reference private or internal URLs");
     expect(prompt).toContain("do not include uncheckedValue unless checkedValue is also present");
