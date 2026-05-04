@@ -2251,6 +2251,28 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.affectedRanges).toEqual(["Sales!A1:C20", "Sales Chart!A1"]);
   });
 
+  it("accepts exact-safe pie chart plans with one series and no axes", () => {
+    const parsed = ChartPlanDataSchema.parse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:C20",
+      targetSheet: "Sales Chart",
+      targetRange: "A1",
+      chartType: "pie",
+      categoryField: "Region",
+      series: [{ field: "Revenue", label: "Revenue" }],
+      title: "Revenue by Region",
+      explanation: "Chart regional revenue.",
+      confidence: 0.93,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:C20", "Sales Chart!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.chartType).toBe("pie");
+    expect(parsed.series).toEqual([{ field: "Revenue", label: "Revenue" }]);
+  });
+
   it("rejects unsupported pie chart options before host preview", () => {
     const basePlan = {
       sourceSheet: "Sales",
