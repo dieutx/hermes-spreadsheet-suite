@@ -2499,8 +2499,7 @@ export const ConditionalFormatStyleSchema = strictObject({
   bold: z.boolean().optional(),
   italic: z.boolean().optional(),
   underline: z.boolean().optional(),
-  strikethrough: z.boolean().optional(),
-  numberFormat: z.string().min(1).max(128).optional()
+  strikethrough: z.boolean().optional()
 }).superRefine((data, ctx) => {
   if (!Object.values(data).some((value) => value !== undefined)) {
     ctx.addIssue({

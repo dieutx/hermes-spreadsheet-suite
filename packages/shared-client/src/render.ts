@@ -352,9 +352,6 @@ function formatConditionalFormatStyle(plan: ConditionalFormatPlanData): string {
   if (plan.style.strikethrough) {
     styleParts.push("strikethrough");
   }
-  if (plan.style.numberFormat) {
-    styleParts.push(`number format ${plan.style.numberFormat}`);
-  }
 
   return styleParts.length > 0
     ? `Style: ${styleParts.join(", ")}.`

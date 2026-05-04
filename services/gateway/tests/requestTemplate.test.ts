@@ -1079,6 +1079,8 @@ describe("Hermes spreadsheet request prompt", () => {
 
     expect(prompt).toContain("data.sections must be an array of objects with type, title, summary, and sourceRanges");
     expect(prompt).toContain("Each series item must use field to reference a source header name");
+    expect(prompt).toContain("Conditional format style supports backgroundColor, textColor, bold, italic, underline, and strikethrough only");
+    expect(prompt).toContain("use range_format_update for static numberFormat changes");
     expect(prompt).toContain("For row-highlighting logic driven by a status/breach/overdue column or by comparisons between columns, prefer ruleType=\"custom_formula\"");
     expect(prompt).toContain("Do not compress multiple cleanup transforms into one broad cleanup step");
   });

@@ -2192,7 +2192,6 @@ describe("structured body normalization", () => {
         style: {
           underline: true,
           strikethrough: false,
-          numberFormat: "#,##0.00",
           textColor: "#111111"
         }
       }
@@ -2201,9 +2200,37 @@ describe("structured body normalization", () => {
     expect(parsed.data.style).toEqual({
       underline: true,
       strikethrough: false,
-      numberFormat: "#,##0.00",
       textColor: "#111111"
     });
+  });
+
+  it("rejects conditional-format number formats after normalization", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        explanation: "Highlight revenue values.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
+        replacesExistingRules: false,
+        managementMode: "add",
+        ruleType: "custom_formula",
+        formula: '=B2>1000',
+        style: {
+          numberFormat: "#,##0.00"
+        }
+      }
+    });
+
+    const parsed = HermesStructuredBodySchema.safeParse(normalized);
+
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(JSON.stringify(parsed.error.issues)).toContain("numberFormat");
+    }
   });
 
   it("preserves all supported static range format fields during normalization", () => {
