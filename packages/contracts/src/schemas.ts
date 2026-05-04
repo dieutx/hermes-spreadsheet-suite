@@ -2800,8 +2800,8 @@ export const ConditionalFormatPlanDataSchema = z.union([
       managementMode: conditionalFormatAddOrReplaceModeSchema,
       ruleType: z.literal("number_compare"),
       comparator: ConditionalFormatComparatorSchema,
-      value: conditionalFormatCompareValueSchema,
-      value2: conditionalFormatCompareValueSchema.optional(),
+      value: z.number().finite(),
+      value2: z.number().finite().optional(),
       style: ConditionalFormatStyleSchema
     }).superRefine((data, ctx) => {
       conditionalFormatComparatorRefinement(data, ctx);
@@ -2819,8 +2819,8 @@ export const ConditionalFormatPlanDataSchema = z.union([
       managementMode: conditionalFormatAddOrReplaceModeSchema,
       ruleType: z.literal("date_compare"),
       comparator: ConditionalFormatComparatorSchema,
-      value: conditionalFormatCompareValueSchema,
-      value2: conditionalFormatCompareValueSchema.optional(),
+      value: DateLiteralSchema,
+      value2: DateLiteralSchema.optional(),
       style: ConditionalFormatStyleSchema
     }).superRefine((data, ctx) => {
       conditionalFormatComparatorRefinement(data, ctx);
