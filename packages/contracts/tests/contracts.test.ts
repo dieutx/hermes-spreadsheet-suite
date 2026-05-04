@@ -4032,6 +4032,32 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects locale-style date and non-plain number standardize_format cleanup patterns", () => {
+    const shared = {
+      targetSheet: "Contacts",
+      targetRange: "B2:B50",
+      operation: "standardize_format" as const,
+      explanation: "Normalize exact text formats.",
+      confidence: 0.84,
+      requiresConfirmation: true,
+      confirmationLevel: "standard" as const,
+      affectedRanges: ["Contacts!B2:B50"],
+      overwriteRisk: "medium" as const
+    };
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...shared,
+      formatType: "date_text",
+      formatPattern: "MM/DD/YYYY"
+    }).success).toBe(false);
+
+    expect(DataCleanupPlanDataSchema.safeParse({
+      ...shared,
+      formatType: "number_text",
+      formatPattern: "$#,##0.00"
+    }).success).toBe(false);
+  });
+
   it("accepts exact standardize_format cleanup patterns", () => {
     const shared = {
       targetSheet: "Contacts",
