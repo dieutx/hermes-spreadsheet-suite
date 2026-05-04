@@ -280,6 +280,7 @@ For type="table_plan":
 - data.overwriteRisk is required
 - data.confirmationLevel is required
 - data.name, data.styleName, data.showBandedRows, data.showBandedColumns, data.showFilterButton, and data.showTotalsRow are optional
+- data.name must start with a letter or underscore, contain only letters/numbers/underscores, not start with true or false, not be R or C, and not be an A1/R1C1 cell reference
 - on Google Sheets, table_plan is limited to exact-safe table-like range formatting with row banding and optional filters; do not request styleName or showTotalsRow=true
 - if the requested table behavior cannot be represented exactly on the current host, return type="error" with data.code="UNSUPPORTED_OPERATION"
 - unsupported table mappings must fail closed

@@ -2479,6 +2479,50 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.showFilterButton).toBe(true);
   });
 
+  it("accepts table names with year suffixes", () => {
+    const parsed = TablePlanDataSchema.parse({
+      targetSheet: "Sales",
+      targetRange: "A1:F50",
+      name: "SalesTable2026",
+      hasHeaders: true,
+      explanation: "Convert the sales range into a named table.",
+      confidence: 0.92,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.name).toBe("SalesTable2026");
+  });
+
+  it("rejects table names that hosts cannot represent exactly", () => {
+    const invalidNames = [
+      "Sales Total",
+      "A1",
+      "R1C1",
+      "trueTable",
+      "C"
+    ];
+
+    for (const name of invalidNames) {
+      const parsed = TablePlanDataSchema.safeParse({
+        targetSheet: "Sales",
+        targetRange: "A1:F50",
+        name,
+        hasHeaders: true,
+        explanation: "Convert the sales range into a table with an invalid name.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      });
+
+      expect(parsed.success).toBe(false);
+    }
+  });
+
   it("rejects table plans whose affectedRanges omit the target range", () => {
     const parsed = TablePlanDataSchema.safeParse({
       targetSheet: "Sales",
