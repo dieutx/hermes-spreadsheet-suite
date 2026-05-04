@@ -2492,6 +2492,7 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Show rows that match either condition.",
       confidence: 0.84,
       requiresConfirmation: true,
+      confirmationLevel: "destructive",
       affectedRanges: ["Sheet1!A1:F25"]
     });
 
