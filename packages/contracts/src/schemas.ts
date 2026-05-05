@@ -3491,12 +3491,12 @@ export const PlanHistoryEntrySchema = strictObject({
   undoEligible: z.boolean(),
   redoEligible: z.boolean(),
   summary: z.string().min(1).max(12000),
-  stepEntries: z.array(PlanHistoryStepEntrySchema).optional(),
+  stepEntries: z.array(PlanHistoryStepEntrySchema).max(32).optional(),
   linkedExecutionId: z.string().min(1).max(128).optional()
 });
 
 export const PlanHistoryPageSchema = strictObject({
-  entries: z.array(PlanHistoryEntrySchema),
+  entries: z.array(PlanHistoryEntrySchema).max(100),
   nextCursor: z.string().min(1).max(256).regex(/^(0|[1-9]\d*)$/).optional()
 });
 

@@ -16,6 +16,7 @@ export class FreshDryRunRequiredError extends Error {}
 const SANITIZED_EXECUTION_SUMMARY =
   "Execution summary hidden because it contained internal details.";
 const UNSAFE_EXECUTION_SUMMARY_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|(?:^|\s)[A-Za-z]:\\[^\s]+|(?:^|\s)\\\\[^\s]+|https?:\/\/[^\s]+/i;
+const DEFAULT_HISTORY_PAGE_SIZE = 100;
 
 type StoredDryRunResult = DryRunResult & { sessionId?: string };
 
@@ -167,8 +168,8 @@ export class ExecutionLedger {
 
     const startIndex = this.parseCursor(cursor);
     const pageSize = typeof limit === "number" && Number.isFinite(limit)
-      ? Math.max(1, Math.min(limit, 100))
-      : entries.length;
+      ? Math.max(1, Math.min(limit, DEFAULT_HISTORY_PAGE_SIZE))
+      : DEFAULT_HISTORY_PAGE_SIZE;
 
     const pageEntries = entries.slice(startIndex, startIndex + pageSize);
     const nextCursor = startIndex + pageSize < entries.length
