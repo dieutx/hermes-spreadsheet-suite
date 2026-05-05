@@ -197,7 +197,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
     expect(taskpane.renderStructuredPreview(undefined, {})).toBe("");
   });
 
-  it("treats chat-only analysis reports as non-write plans, expands materialized analysis report previews, enables safe pivot previews, keeps unsupported pivot non-executable, and allows exact-safe chart previews", async () => {
+  it("treats chat-only analysis reports as non-write plans, keeps materialized analysis reports on the full range, enables safe pivot previews, keeps unsupported pivot non-executable, and allows exact-safe chart previews", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})
     });
@@ -231,7 +231,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         sourceRange: "A1:F50",
         outputMode: "materialize_report",
         targetSheet: "Sales Report",
-        targetRange: "A1",
+        targetRange: "A1:D6",
         sections: [
           {
             type: "summary_stats",
@@ -249,7 +249,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         explanation: "Materialize the analysis report onto a report sheet.",
         confidence: 0.91,
         requiresConfirmation: true,
-        affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+        affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D6"],
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
@@ -428,7 +428,53 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
     expect(unsupportedChartTargetHtml).not.toContain("Confirm Chart");
   });
 
-  it("applies a materialized analysis report in Excel using the same resolved plan sent for approval", async () => {
+  it("does not treat materialized analysis report anchors as confirmable Excel writes", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    });
+    const anchorResponse = {
+      type: "analysis_report_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        outputMode: "materialize_report",
+        targetSheet: "Sales Report",
+        targetRange: "A1",
+        sections: [
+          {
+            type: "summary_stats",
+            title: "Revenue summary",
+            summary: "Average revenue is 12,500.",
+            sourceRanges: ["Sales!A1:F50"]
+          },
+          {
+            type: "group_breakdown",
+            title: "By region",
+            summary: "West leads closed-won revenue.",
+            sourceRanges: ["Sales!A1:F50", "Sales!H1:J20"]
+          }
+        ],
+        explanation: "Materialize the analysis report onto a report sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(taskpane.isWritePlanResponse(anchorResponse)).toBe(false);
+    expect(taskpane.getRequiresConfirmation(anchorResponse)).toBe(false);
+
+    const html = taskpane.renderStructuredPreview(anchorResponse, {
+      runId: "run_analysis_report_anchor_preview",
+      requestId: "req_analysis_report_anchor_preview"
+    });
+    expect(html).toContain("Excel host requires analysis report targetRange to match the full destination rectangle.");
+    expect(html).not.toContain("Confirm Analysis Report");
+  });
+
+  it("applies a materialized analysis report in Excel using the approved full range", async () => {
     const expandedTargetRange = createRangeStub({
       address: "Sales Report!A1:D6",
       rowCount: 6,
@@ -471,7 +517,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         sourceRange: "A1:F50",
         outputMode: "materialize_report",
         targetSheet: "Sales Report",
-        targetRange: "A1",
+        targetRange: "A1:D6",
         sections: [
           {
             type: "summary_stats",
@@ -489,7 +535,7 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
         explanation: "Materialize the analysis report onto a report sheet.",
         confidence: 0.91,
         requiresConfirmation: true,
-        affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+        affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D6"],
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
@@ -527,6 +573,80 @@ describe("Excel wave 5 analysis, pivot, and chart plans", () => {
       ["summary_stats", "Revenue summary", "Average revenue is 12,500.", "Sales!A1:F50"],
       ["group_breakdown", "By region", "West leads closed-won revenue.", "Sales!A1:F50, Sales!H1:J20"]
     ]);
+  });
+
+  it("fails closed when an Excel analysis report targetRange is only an anchor", async () => {
+    const anchorRange = createRangeStub({
+      address: "Sales Report!A1",
+      rowCount: 1,
+      columnCount: 1,
+      values: [[""]]
+    });
+    const expandedTargetRange = createRangeStub({
+      address: "Sales Report!A1:D6",
+      rowCount: 6,
+      columnCount: 4,
+      values: Array.from({ length: 6 }, () => Array.from({ length: 4 }, () => ""))
+    });
+    anchorRange.getResizedRange = vi.fn(() => expandedTargetRange);
+    const worksheet = {
+      getRange: vi.fn((rangeName: string) => {
+        if (rangeName === "A1") {
+          return anchorRange;
+        }
+        if (rangeName === "A1:D6") {
+          return expandedTargetRange;
+        }
+        throw new Error(`Unexpected range: ${rangeName}`);
+      })
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn((sheetName: string) => {
+            expect(sheetName).toBe("Sales Report");
+            return worksheet;
+          })
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        outputMode: "materialize_report",
+        targetSheet: "Sales Report",
+        targetRange: "A1",
+        sections: [
+          {
+            type: "summary_stats",
+            title: "Revenue summary",
+            summary: "Average revenue is 12,500.",
+            sourceRanges: ["Sales!A1:F50"]
+          },
+          {
+            type: "group_breakdown",
+            title: "By region",
+            summary: "West leads closed-won revenue.",
+            sourceRanges: ["Sales!A1:F50", "Sales!H1:J20"]
+          }
+        ],
+        explanation: "Materialize the analysis report onto a report sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      },
+      requestId: "req_analysis_report_anchor_excel_001",
+      runId: "run_analysis_report_anchor_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host requires analysis report targetRange to match the full destination rectangle.");
+
+    expect(anchorRange.getResizedRange).not.toHaveBeenCalled();
+    expect(expandedTargetRange.values).toEqual(Array.from({ length: 6 }, () => Array.from({ length: 4 }, () => "")));
   });
 
   it("applies a safe pivot table in Excel", async () => {

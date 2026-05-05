@@ -13,6 +13,7 @@ import { getPromptReferencedA1Notations } from "./referencedCells.js?v=20260423w
 import { rangeHasExistingContent } from "./rangeSafety.js?v=20260423w";
 import {
   buildAnalysisReportMatrix,
+  getAnalysisReportTargetRangeSupportError,
   getAnalysisReportPreviewSummary,
   getAnalysisReportStatusSummary,
   getChartPreviewSummary,
@@ -4765,6 +4766,10 @@ function getExcelPlanSupportError(preview) {
 
   const kind = inferExcelPreviewSupportKind(preview);
 
+  if (kind === "analysis_report_plan") {
+    return getAnalysisReportTargetRangeSupportError(preview);
+  }
+
   if (kind === "pivot_table_plan") {
     if (!isSingleCellA1Anchor(preview.targetRange)) {
       return "This Excel runtime requires a single-cell target anchor for pivot tables.";
@@ -5536,7 +5541,7 @@ function getRequiresConfirmation(response) {
   }
 
   if (response.type === "analysis_report_plan") {
-    return response.data.outputMode === "materialize_report";
+    return isWritePlanResponse(response) && response.data.outputMode === "materialize_report";
   }
 
   if (response.type === "pivot_table_plan") {
@@ -5723,7 +5728,7 @@ function isWritePlanResponse(response) {
 
   if (response.type === "analysis_report_plan" &&
     response.data?.outputMode === "materialize_report") {
-    return true;
+    return !getAnalysisReportTargetRangeSupportError(response.data);
   }
 
   if (response.type === "composite_plan") {
@@ -6472,6 +6477,14 @@ function resolveFullMatrixTargetRange(targetRange, expectedRows, expectedColumns
   }
 
   throw new Error(`The approved targetRange does not match the ${shapeLabel}.`);
+}
+
+function resolveAnalysisReportFullTargetRange(targetRange, expectedRows, expectedColumns) {
+  if (targetRange.rowCount === expectedRows && targetRange.columnCount === expectedColumns) {
+    return targetRange;
+  }
+
+  throw new Error("Excel host requires analysis report targetRange to match the full destination rectangle.");
 }
 
 function resolveAppendMatrixTargetRange(targetRange, expectedRows, expectedColumns) {
@@ -9381,6 +9394,7 @@ function renderStructuredPreview(response, message) {
   }
 
   if (preview.kind === "analysis_report_plan") {
+    const supportError = getExcelPlanSupportError(preview);
     return `
       <div class="preview">
         <div class="preview-meta">
@@ -9393,8 +9407,9 @@ function renderStructuredPreview(response, message) {
         </div>
         <div>${escapeHtml(preview.explanation)}</div>
         <div class="preview-meta">${escapeHtml(preview.summary)}</div>
+        ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
         ${renderTable([], preview.rows)}
-        ${getRequiresConfirmation(response) ? `
+        ${getRequiresConfirmation(response) && !supportError ? `
           <div class="preview-actions">
             <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
               Confirm Analysis Report
@@ -11468,11 +11483,10 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       await context.sync();
 
       const reportMatrix = buildAnalysisReportMatrix(resolvedPlan);
-      const resolvedTargetRange = resolveExactMatrixTargetRange(
+      const resolvedTargetRange = resolveAnalysisReportFullTargetRange(
         target,
         reportMatrix.length,
-        reportMatrix[0]?.length || 1,
-        "analysis report shape"
+        reportMatrix[0]?.length || 1
       );
       resolvedTargetRange.load(["values", "formulas"]);
       await context.sync();
