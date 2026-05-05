@@ -1084,6 +1084,20 @@ describe("shared client render helpers", () => {
     );
   });
 
+  it("redacts IPv4-mapped private proof identifiers in shared-client proof lines", () => {
+    const response = baseResponse({
+      requestId: "http://[::ffff:7f00:1]/debug",
+      hermesRunId: "http://[::ffff:192.168.1.10]/debug"
+    });
+
+    const proof = formatProofLine(response);
+    expect(proof).toContain("requestId unavailable");
+    expect(proof).toContain("hermesRunId unavailable");
+    expect(proof).not.toContain("::ffff");
+    expect(proof).not.toContain("7f00");
+    expect(proof).not.toContain("192.168");
+  });
+
   it("redacts unsafe proof metadata in shared-client meta lines", () => {
     const response = baseResponse({
       skillsUsed: [
@@ -1091,6 +1105,7 @@ describe("shared client render helpers", () => {
         "/srv/hermes/private-tool.ts",
         "https://169.254.169.254/latest/meta-data",
         "https://[fd00::1]/latest/meta-data",
+        "https://[::ffff:7f00:1]/latest/meta-data",
         "HERMES_API_SERVER_KEY=secret"
       ],
       downstreamProvider: {
@@ -1106,6 +1121,8 @@ describe("shared client render helpers", () => {
     expect(metaLine).not.toContain("/srv/hermes");
     expect(metaLine).not.toContain("169.254.169.254");
     expect(metaLine).not.toContain("fd00");
+    expect(metaLine).not.toContain("::ffff");
+    expect(metaLine).not.toContain("7f00");
     expect(metaLine).not.toContain("internal.example");
     expect(metaLine).not.toContain("provider https://internal");
 

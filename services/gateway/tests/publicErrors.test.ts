@@ -60,4 +60,15 @@ describe("public error formatting", () => {
       "values"
     ])).toBe("(redacted)");
   });
+
+  it("sanitizes IPv4-mapped private metadata URLs in validation issue messages and paths", () => {
+    expect(sanitizeClientIssueMessage(
+      "Invalid value produced near http://[::ffff:7f00:1]/latest/meta-data"
+    )).toBe("Invalid request field.");
+    expect(formatClientIssuePath([
+      "context",
+      "http://[::ffff:192.168.1.10]/latest/meta-data",
+      "values"
+    ])).toBe("(redacted)");
+  });
 });
