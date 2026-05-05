@@ -1971,6 +1971,25 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(documentSettings.get("Hermes.EnableAutoOpen")).toBe(true);
   });
 
+  it("does not log raw startup default persistence failures in Excel", async () => {
+    const documentSettings = new Map<string, unknown>();
+    const setStartupBehavior = vi.fn(async () => {
+      throw new Error("startup failed with DATABASE_PASSWORD=secret_123");
+    });
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    }, {
+      documentSettings,
+      locationSearch: "?enableDocumentAutoOpen=1",
+      addinSetStartupBehavior: setStartupBehavior
+    });
+
+    await taskpane.ensureDemoStartupDefaults();
+
+    expect(consoleWarn).toHaveBeenCalledWith("Hermes startup default could not be persisted.");
+  });
+
   it("does not load the full selected range matrix when the selected range exceeds the inline threshold", async () => {
     const selectionHeaderValues = [[
       "Date", "Category", "Product", "Region", "Units",
