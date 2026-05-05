@@ -18,7 +18,19 @@ describe("public error formatting", () => {
     expect(sanitizeClientIssueMessage("Invalid value DATABASE_PASSWORD=secret_123")).toBe(
       "Invalid request field."
     );
+    expect(sanitizeClientIssueMessage("Invalid value qa_DATABASE_PASSWORD")).toBe(
+      "Invalid request field."
+    );
     expect(formatClientIssuePath(["context", "CLIENT_TOKEN=secret_456", "values"])).toBe(
+      "(redacted)"
+    );
+  });
+
+  it("sanitizes standalone secret markers in validation issue messages and paths", () => {
+    expect(sanitizeClientIssueMessage("Invalid value TOKEN")).toBe(
+      "Invalid request field."
+    );
+    expect(formatClientIssuePath(["context", "SECRET", "values"])).toBe(
       "(redacted)"
     );
   });
