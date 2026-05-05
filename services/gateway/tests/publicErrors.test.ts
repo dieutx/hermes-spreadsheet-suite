@@ -38,4 +38,15 @@ describe("public error formatting", () => {
       "values"
     ])).toBe("(redacted)");
   });
+
+  it("sanitizes link-local metadata URLs in validation issue messages and paths", () => {
+    expect(sanitizeClientIssueMessage(
+      "Invalid value produced near http://169.254.169.254/latest/meta-data"
+    )).toBe("Invalid request field.");
+    expect(formatClientIssuePath([
+      "context",
+      "http://169.254.169.254/latest/meta-data",
+      "values"
+    ])).toBe("(redacted)");
+  });
 });
