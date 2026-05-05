@@ -938,6 +938,28 @@ describe("request router", () => {
     expect((labeledMacosResponse.body as any).error).not.toContain("request-status");
 
     traceBus.ensureRun(
+      "run_status_wrapped_macos_error_001",
+      "req_status_wrapped_macos_error_001",
+      "sess_status_error_001"
+    );
+    traceBus.setError(
+      "run_status_wrapped_macos_error_001",
+      "Provider failed while reading (/Users/runner/work/request-status.ts:42)"
+    );
+
+    const wrappedMacosResponse = await invokeGet(router, "run_status_wrapped_macos_error_001", {
+      requestId: "req_status_wrapped_macos_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(wrappedMacosResponse.statusCode).toBe(200);
+    expect((wrappedMacosResponse.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((wrappedMacosResponse.body as any).error).not.toContain("runner");
+    expect((wrappedMacosResponse.body as any).error).not.toContain("request-status");
+
+    traceBus.ensureRun(
       "run_status_windows_error_001",
       "req_status_windows_error_001",
       "sess_status_error_001"
