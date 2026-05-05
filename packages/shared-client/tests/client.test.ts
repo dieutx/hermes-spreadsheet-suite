@@ -1254,6 +1254,24 @@ describe("shared client render helpers", () => {
     expect(wrappedUncMetaLine).not.toContain("\\\\runner");
     expect(wrappedUncMetaLine).not.toContain("private-tool");
     expect(wrappedUncMetaLine).not.toContain("provider");
+
+    const wrappedPosixResponse = baseResponse({
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        String.raw`("/srv/hermes/private-tool.ts")`
+      ],
+      downstreamProvider: {
+        label: String.raw`("/srv/hermes/provider")`,
+        model: "gpt-5"
+      }
+    });
+
+    const wrappedPosixMetaLine = getResponseMetaLine(wrappedPosixResponse);
+
+    expect(wrappedPosixMetaLine).toContain("skills SelectionExplainerSkill");
+    expect(wrappedPosixMetaLine).not.toContain("/srv/hermes");
+    expect(wrappedPosixMetaLine).not.toContain("private-tool");
+    expect(wrappedPosixMetaLine).not.toContain("provider");
   });
 
   it("formats the wave 2 trace labels", () => {
