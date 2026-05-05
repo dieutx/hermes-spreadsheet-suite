@@ -8622,9 +8622,9 @@ function getBorderStyleEnum_(style) {
     case 'double':
       return borderStyle.DOUBLE || null;
     case 'medium':
-      return borderStyle.SOLID_MEDIUM || borderStyle.SOLID || null;
+      return borderStyle.SOLID_MEDIUM || null;
     case 'thick':
-      return borderStyle.SOLID_THICK || borderStyle.SOLID || null;
+      return borderStyle.SOLID_THICK || null;
     default:
       return null;
   }
@@ -8676,6 +8676,12 @@ function expandRangeBorderLines_(border) {
 function applyRangeBorderLine_(range, side, line) {
   const enabled = line.style !== 'none';
   const style = enabled ? getBorderStyleEnum_(line.style) : null;
+  if (enabled && !style) {
+    throw new Error('Google Sheets host does not support exact border style ' + line.style + '.');
+  }
+  if (!range || typeof range.setBorder !== 'function') {
+    throw new Error('Google Sheets host does not support exact range borders on this range.');
+  }
   const color = enabled ? (line.color || null) : null;
   const top = side === 'top' ? enabled : null;
   const left = side === 'left' ? enabled : null;

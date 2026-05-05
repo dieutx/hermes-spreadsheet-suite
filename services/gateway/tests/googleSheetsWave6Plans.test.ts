@@ -3205,6 +3205,85 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     });
   });
 
+  it("fails closed for Google Sheets border formatting when exact border styles are unavailable", () => {
+    const targetRange = {
+      setBorder: vi.fn()
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:C3");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(() => code.applyWritePlan({
+      requestId: "req_range_format_border_styles_sheets_001",
+      runId: "run_range_format_border_styles_sheets_001",
+      approvalToken: "token",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "B2:C3",
+        format: {
+          border: {
+            outer: {
+              style: "solid",
+              color: "#1f2937"
+            }
+          }
+        },
+        explanation: "Add an outside border.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    })).toThrow("Google Sheets host does not support exact border style solid.");
+
+    expect(targetRange.setBorder).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for Google Sheets border formatting when the range border API is unavailable", () => {
+    const targetRange = {};
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:C3");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(() => code.applyWritePlan({
+      requestId: "req_range_format_border_api_sheets_001",
+      runId: "run_range_format_border_api_sheets_001",
+      approvalToken: "token",
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "B2:C3",
+        format: {
+          border: {
+            outer: {
+              style: "none"
+            }
+          }
+        },
+        explanation: "Remove an outside border.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      }
+    })).toThrow("Google Sheets host does not support exact range borders on this range.");
+  });
+
   it("attaches local undo snapshots for Google Sheets autofit row writes", () => {
     const rowHeights = new Map<number, number>([
       [2, 24],
