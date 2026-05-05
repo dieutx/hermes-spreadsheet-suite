@@ -23,6 +23,15 @@ describe("public error formatting", () => {
     );
   });
 
+  it("sanitizes standalone secret markers in validation issue messages and paths", () => {
+    expect(sanitizeClientIssueMessage("Invalid value TOKEN")).toBe(
+      "Invalid request field."
+    );
+    expect(formatClientIssuePath(["context", "SECRET", "values"])).toBe(
+      "(redacted)"
+    );
+  });
+
   it("sanitizes UNC paths in validation issue messages and paths", () => {
     expect(sanitizeClientIssueMessage(
       String.raw`Invalid value produced near \\runner\share\schema.ts:42`
