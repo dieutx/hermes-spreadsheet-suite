@@ -1291,6 +1291,19 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(wrappedMetaLine).not.toContain("provider");
   });
 
+  it("does not embed server-only Hermes environment names in Google Sheets host source", () => {
+    const forbiddenNames = [
+      ["HERMES", "API", "SERVER", "KEY"].join("_"),
+      ["HERMES", "AGENT", "BASE", "URL"].join("_"),
+      ["HERMES", "AGENT", "API", "KEY"].join("_")
+    ];
+
+    for (const name of forbiddenNames) {
+      expect(sidebarHtml).not.toContain(name);
+      expect(codeScript).not.toContain(name);
+    }
+  });
+
   it("escapes quotes in Google Sheets preview action attributes", () => {
     const sidebar = loadSidebarContext();
 
