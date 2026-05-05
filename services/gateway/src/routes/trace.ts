@@ -1,8 +1,19 @@
 import { Router } from "express";
+import { z } from "zod";
+import { HermesTraceEventSchema } from "@hermes/contracts";
 import type { TraceBus } from "../lib/traceBus.js";
 
 const TRACE_ID_MAX_LENGTH = 128;
 const PUBLIC_TRACE_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
+
+const TracePollResponseSchema = z.object({
+  runId: z.string().min(1).max(TRACE_ID_MAX_LENGTH).regex(PUBLIC_TRACE_ID_PATTERN),
+  requestId: z.string().min(1).max(TRACE_ID_MAX_LENGTH).regex(PUBLIC_TRACE_ID_PATTERN).optional(),
+  hermesRunId: z.string().min(1).max(TRACE_ID_MAX_LENGTH).regex(PUBLIC_TRACE_ID_PATTERN).optional(),
+  status: z.enum(["accepted", "processing", "completed", "failed"]),
+  nextIndex: z.number().int().nonnegative().safe(),
+  events: z.array(HermesTraceEventSchema).max(500)
+}).strict();
 
 function parseAfterQuery(value: unknown): number | undefined {
   if (value === undefined) {
@@ -68,6 +79,16 @@ function invalidTraceIdentifierRequest() {
   };
 }
 
+function internalTraceResponseError() {
+  return {
+    error: {
+      code: "INTERNAL_ERROR",
+      message: "The gateway couldn't load that Hermes trace.",
+      userAction: "Send the request again from the spreadsheet if you need a fresh trace."
+    }
+  };
+}
+
 export function createTraceRouter(input: {
   traceBus: TraceBus;
 }): Router {
@@ -123,14 +144,21 @@ export function createTraceRouter(input: {
     }
 
     const events = input.traceBus.list(runId, after);
-    res.json({
+    const response = {
       runId,
       requestId: activeRun.requestId,
       hermesRunId: activeRun.hermesRunId,
       status: activeRun.status,
       nextIndex: activeRun.firstEventIndex + activeRun.events.length,
       events
-    });
+    };
+    const parsedResponse = TracePollResponseSchema.safeParse(response);
+    if (!parsedResponse.success) {
+      res.status(500).json(internalTraceResponseError());
+      return;
+    }
+
+    res.json(parsedResponse.data);
   });
 
   return router;

@@ -238,4 +238,43 @@ describe("trace router", () => {
     expect((response.body as any).events).toHaveLength(2);
     expect((response.body as any).nextIndex).toBe(3);
   });
+
+  it("fails closed when the trace store returns malformed events", async () => {
+    const activeRun = {
+      requestId: "req_trace_invalid",
+      status: "completed",
+      firstEventIndex: 0,
+      events: [
+        {
+          event: "completed",
+          timestamp: "not-a-date"
+        }
+      ]
+    };
+    const traceBus = {
+      peekRun() {
+        return activeRun;
+      },
+      getRun() {
+        return activeRun;
+      },
+      list() {
+        return activeRun.events;
+      }
+    } as unknown as TraceBus;
+    const router = createTraceRouter({ traceBus });
+
+    const response = await invokeGet(router, "run_trace_invalid", {
+      requestId: "req_trace_invalid"
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toEqual({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "The gateway couldn't load that Hermes trace.",
+        userAction: "Send the request again from the spreadsheet if you need a fresh trace."
+      }
+    });
+  });
 });
