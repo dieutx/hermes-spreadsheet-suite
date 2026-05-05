@@ -159,6 +159,44 @@ describe("TraceBus", () => {
     expect(event.details).not.toHaveProperty("sheet");
   });
 
+  it("sanitizes wrapped Windows and UNC paths in optional trace metadata", () => {
+    const bus = new TraceBus();
+
+    bus.append("run_wrapped_windows_trace", {
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      label: String.raw`Selected provider (\\server\share\provider.ts)`,
+      skillName: "SelectionExplainerSkill",
+      toolName: String.raw`Tool at "C:\Users\runner\tools\extractor.ts"`,
+      providerLabel: "Gateway provider",
+      details: {
+        range: "A1:B2",
+        sheet: String.raw`Budget (\\server\share\budget.xlsx)`,
+        attachmentId: "att_public_001",
+        mode: "demo"
+      }
+    });
+
+    const [event] = bus.list("run_wrapped_windows_trace", 0);
+
+    expect(event).toMatchObject({
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      skillName: "SelectionExplainerSkill",
+      providerLabel: "Gateway provider",
+      details: {
+        range: "A1:B2",
+        attachmentId: "att_public_001",
+        mode: "demo"
+      }
+    });
+    expect(event).not.toHaveProperty("label");
+    expect(event).not.toHaveProperty("toolName");
+    expect(event.details).not.toHaveProperty("sheet");
+    expect(JSON.stringify(event)).not.toContain("\\\\server");
+    expect(JSON.stringify(event)).not.toContain("C:\\Users");
+  });
+
   it("keeps requestId, hermesRunId, and the validated final response together", () => {
     const bus = new TraceBus();
     bus.ensureRun("run_2", "req_2");
