@@ -98,4 +98,29 @@ describe("write-back approval tokens", () => {
     expect(verified.valid).toBe(false);
     expect(verified.expired).toBe(true);
   });
+
+  it("rejects a token issued in the future", () => {
+    const secret = "demo-secret";
+    const issuedAt = "2026-04-19T09:35:00.000Z";
+    const token = createApprovalToken({
+      requestId: "req_123",
+      runId: "run_123",
+      planDigest: "digest_123",
+      issuedAt,
+      secret
+    });
+
+    const verified = verifyApprovalToken({
+      token,
+      requestId: "req_123",
+      runId: "run_123",
+      planDigest: "digest_123",
+      secret,
+      maxAgeMs: 60_000,
+      nowMs: Date.parse("2026-04-19T09:32:00.000Z")
+    });
+
+    expect(verified.valid).toBe(false);
+    expect(verified.expired).toBe(false);
+  });
 });
