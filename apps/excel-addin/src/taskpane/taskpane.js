@@ -220,7 +220,7 @@ async function ensureDemoStartupDefaults() {
   const results = await Promise.allSettled(operations);
   for (const result of results) {
     if (result.status === "rejected") {
-      console.warn("Hermes startup default could not be persisted.", result.reason);
+      console.warn("Hermes startup default could not be persisted.");
     }
   }
 }
