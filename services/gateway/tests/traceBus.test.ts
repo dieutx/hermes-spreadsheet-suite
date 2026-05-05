@@ -96,6 +96,33 @@ describe("TraceBus", () => {
     expect(event.details).not.toHaveProperty("range");
   });
 
+  it("sanitizes unsafe trace detail modes before storage", () => {
+    const bus = new TraceBus();
+
+    bus.append("run_mode_trace", {
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      label: "Result generated",
+      details: {
+        range: "A1:B2",
+        mode: "APPROVAL_SECRET=secret"
+      }
+    });
+
+    const [event] = bus.list("run_mode_trace", 0);
+
+    expect(event).toMatchObject({
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      label: "Result generated",
+      details: {
+        range: "A1:B2"
+      }
+    });
+    expect(event.details).not.toHaveProperty("mode");
+    expect(JSON.stringify(event)).not.toContain("secret");
+  });
+
   it("sanitizes Windows local paths in optional trace metadata", () => {
     const bus = new TraceBus();
 
