@@ -32,6 +32,7 @@ const LOCAL_GATEWAY_DEFAULT_ALLOWED_ORIGINS = [
 const DEFAULT_HERMES_AGENT_TIMEOUT_MS = 45_000;
 const SAFE_PUBLIC_LABEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,79}$/;
 const UNSAFE_PUBLIC_LABEL_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt)\/[^\s]+|https?:\/\/[^\s]+/i;
+const UNSAFE_PUBLIC_ENV_NAME_PATTERN = /\b(?:[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*|SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)\b/;
 
 function decodeIpv4MappedHostname(hostname: string): string | undefined {
   const match = hostname.match(/^(?:::ffff:|0:0:0:0:0:ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
@@ -93,7 +94,11 @@ function sanitizePublicLabel(value: string | undefined, fallback: string): strin
     return fallback;
   }
 
-  if (UNSAFE_PUBLIC_LABEL_PATTERN.test(label) || !SAFE_PUBLIC_LABEL_PATTERN.test(label)) {
+  if (
+    UNSAFE_PUBLIC_LABEL_PATTERN.test(label) ||
+    UNSAFE_PUBLIC_ENV_NAME_PATTERN.test(label) ||
+    !SAFE_PUBLIC_LABEL_PATTERN.test(label)
+  ) {
     return fallback;
   }
 

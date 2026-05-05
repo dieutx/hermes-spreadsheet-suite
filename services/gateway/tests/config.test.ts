@@ -78,6 +78,16 @@ describe("gateway config", () => {
     });
   });
 
+  it("sanitizes generic secret markers in public gateway labels", () => {
+    process.env.HERMES_SERVICE_LABEL = "Prod DATABASEPASSWORD";
+    process.env.HERMES_ENVIRONMENT_LABEL = "CACHE TOKEN";
+
+    expect(getConfig()).toMatchObject({
+      serviceLabel: "hermes-gateway-local",
+      environmentLabel: "local-dev"
+    });
+  });
+
   it("defaults the Hermes Agent timeout to 45 seconds", () => {
     expect(getConfig()).toMatchObject({
       hermesAgentTimeoutMs: 45_000
