@@ -2218,6 +2218,57 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(wrapTextSet).not.toHaveBeenCalled();
   });
 
+  it("fails closed for Excel border formatting when the borders API is unavailable", async () => {
+    let targetRange: any;
+    targetRange = {
+      rowCount: 2,
+      columnCount: 2,
+      values: [["Region", "Revenue"]],
+      formulas: [["", ""]],
+      load: vi.fn(),
+      getCell: vi.fn(() => targetRange),
+      format: {
+        fill: {},
+        font: {},
+        horizontalAlignment: "Left",
+        verticalAlignment: "Bottom",
+        wrapText: false
+      }
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    });
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sales",
+        targetRange: "A1:B2",
+        format: {
+          border: {
+            outer: {
+              style: "solid",
+              color: "#1f2937"
+            }
+          }
+        },
+        explanation: "Add an outside border.",
+        confidence: 0.91,
+        requiresConfirmation: true
+      },
+      requestId: "req_range_format_border_api_excel_001",
+      runId: "run_range_format_border_api_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host does not support exact range borders on this range.");
+  });
+
   it("attaches local undo snapshots for Excel range format writes", async () => {
     let targetRange: any;
     targetRange = {
