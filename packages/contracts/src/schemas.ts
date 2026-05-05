@@ -143,6 +143,27 @@ export const SheetValues2DSchema = z.array(TableRowSchema);
 const NullableTextCellSchema = z.union([z.string(), z.null()]);
 const NullableText2DSchema = z.array(z.array(NullableTextCellSchema));
 
+function validateFormulaCells(
+  matrix: Array<Array<string | null>> | undefined,
+  ctx: z.RefinementCtx
+): void {
+  if (!matrix) {
+    return;
+  }
+
+  matrix.forEach((row, rowIndex) => {
+    row.forEach((cell, columnIndex) => {
+      if (typeof cell === "string" && !cell.trim().startsWith("=")) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "sheet_update formula cells must be null or start with =.",
+          path: ["formulas", rowIndex, columnIndex]
+        });
+      }
+    });
+  });
+}
+
 function validateMatrixHeaderWidths(
   matrix: unknown[][] | undefined,
   headersLength: number | undefined,
@@ -3022,6 +3043,7 @@ export const SheetUpdateDataSchema = strictObject({
   validateRectangularMatrix(data.values, ctx, "values");
   validateRectangularMatrix(data.formulas, ctx, "formulas");
   validateRectangularMatrix(data.notes, ctx, "notes");
+  validateFormulaCells(data.formulas, ctx);
 
   const hasValues = data.values !== undefined;
   const hasFormulas = data.formulas !== undefined;

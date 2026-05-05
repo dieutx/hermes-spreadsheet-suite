@@ -1675,6 +1675,34 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects sheet update formulas without formula syntax", () => {
+    const formulasOnly = SheetUpdateDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "A1:A1",
+      operation: "set_formulas",
+      formulas: [["SUM(A1:A3)"]],
+      explanation: "Set a malformed formula.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      shape: { rows: 1, columns: 1 }
+    });
+
+    const mixedUpdate = SheetUpdateDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "A1:B1",
+      operation: "mixed_update",
+      values: [["Label", null]],
+      formulas: [[null, "SUM(A1:A3)"]],
+      explanation: "Set mixed values and formulas.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      shape: { rows: 1, columns: 2 }
+    });
+
+    expect(formulasOnly.success).toBe(false);
+    expect(mixedUpdate.success).toBe(false);
+  });
+
   it("rejects boolean note cells in set_notes updates", () => {
     const parsed = SheetUpdateDataSchema.safeParse({
       targetSheet: "Sheet1",

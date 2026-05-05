@@ -383,6 +383,7 @@ For type="sheet_update":
 - data.shape.rows and data.shape.columns must match the proposed matrix dimensions
 - data.targetRange must match data.shape.rows x data.shape.columns
 - values, formulas, and notes are optional, but any provided matrix must be rectangular and match data.shape
+- sheet_update formula cells must be null or start with =
 - do not use append_rows; append transferred ranges with range_transfer_plan or insert explicit rows before a sheet_update
 - overwriteRisk is optional
 
