@@ -1023,11 +1023,14 @@ function prepareExcelRangeFormatSnapshotTargets(target, format) {
   const cells = Array.from({ length: rowCount }, (_, rowIndex) =>
     Array.from({ length: columnCount }, (_, columnIndex) => target.getCell(rowIndex, columnIndex))
   );
+  const borderCollection = borderSides.length > 0
+    ? getExcelRangeBorderCollection(target)
+    : null;
   const borders = {};
   for (const side of borderSides) {
     const excelSide = mapRangeBorderSideToExcel(side);
     if (excelSide) {
-      borders[side] = target.format.borders.getItem(excelSide);
+      borders[side] = borderCollection.getItem(excelSide);
     }
   }
 
@@ -2519,13 +2522,19 @@ function applyExcelRangeFormatBorderSnapshot(target, borders) {
     return;
   }
 
-  for (const [side, snapshot] of Object.entries(borders)) {
+  const borderEntries = Object.entries(borders);
+  if (borderEntries.length === 0) {
+    return;
+  }
+
+  const borderCollection = getExcelRangeBorderCollection(target);
+  for (const [side, snapshot] of borderEntries) {
     const excelSide = mapRangeBorderSideToExcel(side);
     if (!excelSide) {
       continue;
     }
 
-    const border = target.format.borders.getItem(excelSide);
+    const border = borderCollection.getItem(excelSide);
     if (hasSnapshotField(snapshot, "lineStyle")) {
       border.lineStyle = snapshot.lineStyle;
     }
@@ -5860,15 +5869,29 @@ function mapRangeBorderWeightToExcel(style) {
   }
 }
 
+function getExcelRangeBorderCollection(target) {
+  const borders = target?.format?.borders;
+  if (!borders || typeof borders.getItem !== "function") {
+    throw new Error("Excel host does not support exact range borders on this range.");
+  }
+  return borders;
+}
+
 function applyExcelRangeBorder(target, borderPlan) {
-  for (const { side, line } of expandRangeBorderLines(borderPlan)) {
+  const borderLines = expandRangeBorderLines(borderPlan);
+  if (borderLines.length === 0) {
+    return;
+  }
+
+  const borderCollection = getExcelRangeBorderCollection(target);
+  for (const { side, line } of borderLines) {
     const excelSide = mapRangeBorderSideToExcel(side);
     const lineStyle = mapRangeBorderLineStyleToExcel(line.style);
     if (!excelSide || !lineStyle) {
       continue;
     }
 
-    const border = target.format.borders.getItem(excelSide);
+    const border = borderCollection.getItem(excelSide);
     border.lineStyle = lineStyle;
 
     if (line.style !== "none") {
