@@ -1234,7 +1234,7 @@ function splitSpreadsheetFormulaArguments_(content) {
       continue;
     }
 
-    if (char === '"' || char === "'") {
+    if (char === '"') {
       quote = char;
       current += char;
       continue;
@@ -1294,7 +1294,7 @@ function extractSpreadsheetFormulaFunctionArgumentLists_(formula, functionName) 
         continue;
       }
 
-      if (char === '"' || char === "'") {
+      if (char === '"') {
         quote = char;
         content += char;
         index += 1;
@@ -1340,17 +1340,16 @@ function parseSpreadsheetFormulaStringLiteral_(value) {
     return null;
   }
 
-  const quote = trimmed[0];
-  if ((quote !== '"' && quote !== "'") || trimmed[trimmed.length - 1] !== quote) {
+  if (trimmed[0] !== '"' || trimmed[trimmed.length - 1] !== '"') {
     return null;
   }
 
   let parsed = '';
   for (let index = 1; index < trimmed.length - 1; index += 1) {
     const char = trimmed[index];
-    if (char === quote) {
-      if (index + 1 < trimmed.length - 1 && trimmed[index + 1] === quote) {
-        parsed += quote;
+    if (char === '"') {
+      if (index + 1 < trimmed.length - 1 && trimmed[index + 1] === '"') {
+        parsed += '"';
         index += 1;
         continue;
       }
