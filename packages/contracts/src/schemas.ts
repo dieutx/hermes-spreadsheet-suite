@@ -3446,9 +3446,34 @@ export const DryRunResultSchema = strictObject({
   }
 });
 
+const PlanHistoryPlanTypeSchema = z.enum([
+  "unknown_plan",
+  "composite_step",
+  "undo_request",
+  "redo_request",
+  "composite_plan",
+  "workbook_structure_update",
+  "range_format_update",
+  "conditional_format_plan",
+  "sheet_structure_update",
+  "range_sort_plan",
+  "range_filter_plan",
+  "data_validation_plan",
+  "analysis_report_plan",
+  "pivot_table_plan",
+  "chart_plan",
+  "table_plan",
+  "named_range_update",
+  "range_transfer_plan",
+  "data_cleanup_plan",
+  "sheet_update",
+  "sheet_import_plan",
+  "external_data_plan"
+]);
+
 const PlanHistoryStepEntrySchema = strictObject({
   stepId: z.string().min(1).max(128),
-  planType: z.string().min(1).max(128),
+  planType: PlanHistoryPlanTypeSchema,
   status: z.enum(["completed", "failed", "skipped"]),
   summary: z.string().min(1).max(12000),
   linkedExecutionId: z.string().min(1).max(128).optional()
@@ -3458,7 +3483,7 @@ export const PlanHistoryEntrySchema = strictObject({
   executionId: z.string().min(1).max(128),
   requestId: z.string().min(1).max(128),
   runId: z.string().min(1).max(128),
-  planType: z.string().min(1).max(128),
+  planType: PlanHistoryPlanTypeSchema,
   planDigest: z.string().min(1).max(256),
   status: z.enum(["approved", "completed", "failed", "undone", "redone"]),
   timestamp: z.string().datetime({ offset: true }),

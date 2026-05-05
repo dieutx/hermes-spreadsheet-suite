@@ -31,6 +31,7 @@ import type {
   ExternalDataPlanData,
   HermesResponse,
   NamedRangeUpdateData,
+  PlanHistoryEntry,
   PivotTablePlanData,
   RangeTransferPlanData,
   SheetStructureUpdateData
@@ -1378,8 +1379,30 @@ function requiresDestructiveConfirmation(plan: ApprovalPlan): boolean {
   return false;
 }
 
-function getPlanTypeFromResponse(response: HermesResponse | undefined): string {
-  return response?.type ?? "unknown_plan";
+function getPlanTypeFromResponse(response: HermesResponse | undefined): PlanHistoryEntry["planType"] {
+  switch (response?.type) {
+    case "composite_plan":
+    case "workbook_structure_update":
+    case "range_format_update":
+    case "conditional_format_plan":
+    case "sheet_structure_update":
+    case "range_sort_plan":
+    case "range_filter_plan":
+    case "data_validation_plan":
+    case "analysis_report_plan":
+    case "pivot_table_plan":
+    case "chart_plan":
+    case "table_plan":
+    case "named_range_update":
+    case "range_transfer_plan":
+    case "data_cleanup_plan":
+    case "sheet_update":
+    case "sheet_import_plan":
+    case "external_data_plan":
+      return response.type;
+    default:
+      return "unknown_plan";
+  }
 }
 
 function buildHistorySummary(
