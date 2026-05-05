@@ -135,7 +135,7 @@ function containsSensitiveGatewayErrorText(text: string): boolean {
   const numericIpv4UrlPattern =
     /https?:\/\/(?:0x[0-9a-f]+|0[0-7]+|\d+)(?:\.(?:0x[0-9a-f]+|0[0-7]+|\d+)){0,3}(?::\d+)?(?:[/?#]|\s|$)/i;
   const secretEnvNamePattern =
-    /\b[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*\b/;
+    /\b(?:[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*|SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)\b/;
   return (
     /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)/i.test(text) ||
     secretEnvNamePattern.test(text) ||
