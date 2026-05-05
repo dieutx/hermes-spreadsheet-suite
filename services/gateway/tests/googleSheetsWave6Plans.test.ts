@@ -1251,6 +1251,35 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(embeddedMetaLine).toContain("skills SelectionExplainerSkill");
     expect(embeddedMetaLine).toContain("provider Hermes Gateway");
     expect(embeddedMetaLine).not.toContain("qa_HERMES");
+
+    const wrappedMetaLine = hooks.getResponseMetaLine({
+      type: "chat",
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        String.raw`("/srv/hermes/private-tool.ts")`,
+        String.raw`("C:\Users\runner\work\private-tool.ts")`,
+        String.raw`("\\server\share\private-tool.ts")`
+      ],
+      downstreamProvider: {
+        label: String.raw`("\\server\share\provider")`,
+        model: "gpt-5"
+      },
+      ui: {
+        showConfidence: true,
+        showRequiresConfirmation: false
+      },
+      data: {
+        message: "Processed remotely.",
+        confidence: 0.9
+      }
+    });
+
+    expect(wrappedMetaLine).toContain("skills SelectionExplainerSkill");
+    expect(wrappedMetaLine).not.toContain("/srv/hermes");
+    expect(wrappedMetaLine).not.toContain("C:\\Users");
+    expect(wrappedMetaLine).not.toContain("\\\\server");
+    expect(wrappedMetaLine).not.toContain("private-tool");
+    expect(wrappedMetaLine).not.toContain("provider");
   });
 
   it("escapes quotes in Google Sheets preview action attributes", () => {
