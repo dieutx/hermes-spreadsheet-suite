@@ -533,6 +533,16 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     )).toBe("Failed to contact Hermes.");
 
     expect(sidebar.sanitizeHostExecutionError(
+      new Error("Unhandled failure with DATABASE_PASSWORD=secret_123"),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
+    expect(sidebar.sanitizeHostExecutionError(
+      new Error("Unhandled failure with TOKEN"),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
+    expect(sidebar.sanitizeHostExecutionError(
       new Error("Unhandled failure at path=/srv/hermes/apps/google-sheets-addon/src/Code.gs:42"),
       "Failed to contact Hermes."
     )).toBe("Failed to contact Hermes.");
@@ -569,6 +579,14 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
 
     expect(code.sanitizeHostExecutionError(
       new Error("Request failed at https://internal.example/api with HERMES_API_SERVER_KEY=secret_123")
+    )).toBe("Write-back failed.");
+
+    expect(code.sanitizeHostExecutionError(
+      new Error("Unhandled failure with DATABASE_PASSWORD=secret_123")
+    )).toBe("Write-back failed.");
+
+    expect(code.sanitizeHostExecutionError(
+      new Error("Unhandled failure with TOKEN")
     )).toBe("Write-back failed.");
 
     expect(sidebar.sanitizeHostExecutionError(
