@@ -569,6 +569,15 @@ const DRY_RUN_SENSITIVE_LANGUAGE_PATTERN =
   /(?:^|\n)\s*at\s+(?:file:\/\/\/|\S+)|(?:^|[\s(["'=:])\/(?:root|home|Users|var|tmp|workspace|app|srv|etc|opt|mnt)\/|[A-Za-z]:\\|(?:^|[\s(["'=:])\\\\[^\s]+|\b(?:stack trace|traceback|TypeError|ReferenceError|SyntaxError|RangeError):?|https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i;
 const DRY_RUN_SECRET_IDENTIFIER_PATTERN =
   /\b(?:HERMES_[A-Z0-9_]+|[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*|client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret)\b/i;
+const PLAN_HISTORY_UNAVAILABLE_SUMMARY = "Plan history details are unavailable for this entry.";
+
+function containsUnsafeClientText(value: string): boolean {
+  return (
+    DRY_RUN_INTERNAL_LANGUAGE_PATTERN.test(value) ||
+    DRY_RUN_SENSITIVE_LANGUAGE_PATTERN.test(value) ||
+    DRY_RUN_SECRET_IDENTIFIER_PATTERN.test(value)
+  );
+}
 
 function sanitizeDryRunUnsupportedReason(reason?: string): string | undefined {
   const resolvedReason = typeof reason === "string" ? reason.trim() : "";
@@ -647,9 +656,7 @@ function sanitizeDryRunUnsupportedReason(reason?: string): string | undefined {
   }
 
   if (
-    DRY_RUN_INTERNAL_LANGUAGE_PATTERN.test(resolvedReason) ||
-    DRY_RUN_SENSITIVE_LANGUAGE_PATTERN.test(resolvedReason) ||
-    DRY_RUN_SECRET_IDENTIFIER_PATTERN.test(resolvedReason)
+    containsUnsafeClientText(resolvedReason)
   ) {
     return "Dry-run preview isn't available for this plan in this spreadsheet app.";
   }
@@ -674,7 +681,47 @@ export function formatDryRunSummary(result: DryRunResult): string {
 }
 
 export function formatHistoryEntrySummary(entry: PlanHistoryEntry): string {
-  return entry.summary;
+  return sanitizePlanHistoryText(entry.summary);
+}
+
+function sanitizePlanHistoryText(value?: string): string {
+  const resolvedValue = typeof value === "string" ? value.trim() : "";
+  if (!resolvedValue || containsUnsafeClientText(resolvedValue)) {
+    return PLAN_HISTORY_UNAVAILABLE_SUMMARY;
+  }
+
+  return resolvedValue;
+}
+
+function sanitizePlanHistoryLinkedExecutionId(value?: string): string | undefined {
+  const resolvedValue = typeof value === "string" ? value.trim() : "";
+  if (!resolvedValue || containsUnsafeClientText(resolvedValue)) {
+    return undefined;
+  }
+
+  return resolvedValue;
+}
+
+function sanitizePlanHistoryEntry(entry: PlanHistoryEntry): PlanHistoryEntry {
+  const { linkedExecutionId, stepEntries, ...rest } = entry;
+  const sanitizedLinkedExecutionId = sanitizePlanHistoryLinkedExecutionId(linkedExecutionId);
+  const sanitizedEntry: PlanHistoryEntry = {
+    ...rest,
+    summary: sanitizePlanHistoryText(entry.summary)
+  };
+
+  if (sanitizedLinkedExecutionId) {
+    sanitizedEntry.linkedExecutionId = sanitizedLinkedExecutionId;
+  }
+
+  if (stepEntries) {
+    sanitizedEntry.stepEntries = stepEntries.map((step) => ({
+      ...step,
+      summary: sanitizePlanHistoryText(step.summary)
+    }));
+  }
+
+  return sanitizedEntry;
 }
 
 export function buildDryRunPreview(
@@ -722,13 +769,14 @@ export function buildDryRunPreview(
 export function buildPlanHistoryPreview(
   page: PlanHistoryPage
 ): Extract<StructuredPreview, { kind: "plan_history_page" }> {
+  const entries = page.entries.map(sanitizePlanHistoryEntry);
   return {
     kind: "plan_history_page",
-    entries: page.entries,
-    summary: page.entries.length === 0
+    entries,
+    summary: entries.length === 0
       ? "No plan history entries."
-      : `Loaded ${page.entries.length} plan history entr${page.entries.length === 1 ? "y" : "ies"}.`,
-    details: page.entries.map((entry) => {
+      : `Loaded ${entries.length} plan history entr${entries.length === 1 ? "y" : "ies"}.`,
+    details: entries.map((entry) => {
       const lineage = entry.linkedExecutionId ? ` linked=${entry.linkedExecutionId}` : "";
       return `${entry.timestamp} ${entry.summary} (undo=${entry.undoEligible ? "eligible" : "ineligible"}, redo=${entry.redoEligible ? "eligible" : "ineligible"})${lineage}`;
     }),

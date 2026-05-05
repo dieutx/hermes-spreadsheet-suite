@@ -801,6 +801,44 @@ describe("shared client render helpers", () => {
     });
   });
 
+  it("sanitizes sensitive plan-history summaries before rendering them", () => {
+    const historyEntry = {
+      executionId: "exec_001",
+      linkedExecutionId: "http://localhost:8787/internal/exec_000",
+      status: "completed",
+      summary:
+        "Traceback reading /root/claude/hermes/services/gateway/src/routes/writeback.ts with APPROVAL_SECRET",
+      timestamp: "2026-04-20T12:00:00.000Z",
+      undoEligible: true,
+      redoEligible: false,
+      stepEntries: [
+        {
+          stepId: "step_update",
+          planType: "sheet_update",
+          status: "completed",
+          summary: String.raw`Failed while reading \\runner\share\history.ts`
+        }
+      ]
+    } as any;
+
+    expect(formatHistoryEntrySummary(historyEntry)).toBe(
+      "Plan history details are unavailable for this entry."
+    );
+
+    const preview = buildPlanHistoryPreview({
+      entries: [historyEntry]
+    } as any);
+
+    expect(preview.entries[0].summary).toBe("Plan history details are unavailable for this entry.");
+    expect(preview.entries[0].linkedExecutionId).toBeUndefined();
+    expect(preview.entries[0].stepEntries?.[0].summary).toBe(
+      "Plan history details are unavailable for this entry."
+    );
+    expect(preview.details.join("\n")).not.toMatch(
+      /APPROVAL_SECRET|\/root|localhost|\\\\runner|Traceback|history\.ts/i
+    );
+  });
+
   it("sanitizes technical dry-run unsupported reasons before rendering them", () => {
     const dryRunResult = {
       simulated: false,
