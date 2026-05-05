@@ -575,6 +575,154 @@ describe("Excel wave 2 plan helpers", () => {
     expect(ignoreBlanks.set).not.toHaveBeenCalled();
   });
 
+  it("fails closed before mutating Excel validation when rule API is unavailable", async () => {
+    const ignoreBlanks = { set: vi.fn() };
+    const prompt = { set: vi.fn() };
+    const errorAlert = { set: vi.fn() };
+    const dataValidation = {};
+    Object.defineProperty(dataValidation, "ignoreBlanks", {
+      configurable: true,
+      set(value) {
+        ignoreBlanks.set(value);
+      }
+    });
+    Object.defineProperty(dataValidation, "prompt", {
+      configurable: true,
+      set(value) {
+        prompt.set(value);
+      }
+    });
+    Object.defineProperty(dataValidation, "errorAlert", {
+      configurable: true,
+      set(value) {
+        errorAlert.set(value);
+      }
+    });
+    Object.preventExtensions(dataValidation);
+
+    const targetRange = {
+      load: vi.fn(),
+      address: "Sheet1!B2:B20",
+      rowCount: 19,
+      columnCount: 1,
+      dataValidation
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "whole_number",
+        comparator: "between",
+        value: 1,
+        value2: 10,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        inputTitle: "Entry guidance",
+        inputMessage: "Enter a whole number from 1 to 10.",
+        errorTitle: "Invalid entry",
+        errorMessage: "Only whole numbers from 1 to 10 are allowed.",
+        explanation: "Restrict values to whole numbers between 1 and 10.",
+        confidence: 0.96,
+        requiresConfirmation: true
+      },
+      requestId: "req_validation_missing_rule_api_excel_001",
+      runId: "run_validation_missing_rule_api_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host does not support data validation rules on this range.");
+
+    expect(ignoreBlanks.set).not.toHaveBeenCalled();
+    expect(prompt.set).not.toHaveBeenCalled();
+    expect(errorAlert.set).not.toHaveBeenCalled();
+    expect(context.sync).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before mutating Excel validation when blank-handling API is unavailable", async () => {
+    const validationRule = { set: vi.fn() };
+    const prompt = { set: vi.fn() };
+    const errorAlert = { set: vi.fn() };
+    const dataValidation = {};
+    Object.defineProperty(dataValidation, "rule", {
+      configurable: true,
+      set(rule) {
+        validationRule.set(rule);
+      }
+    });
+    Object.defineProperty(dataValidation, "prompt", {
+      configurable: true,
+      set(value) {
+        prompt.set(value);
+      }
+    });
+    Object.defineProperty(dataValidation, "errorAlert", {
+      configurable: true,
+      set(value) {
+        errorAlert.set(value);
+      }
+    });
+    Object.preventExtensions(dataValidation);
+
+    const targetRange = {
+      load: vi.fn(),
+      address: "Sheet1!B2:B20",
+      rowCount: 19,
+      columnCount: 1,
+      dataValidation
+    };
+    const worksheet = {
+      getRange: vi.fn(() => targetRange)
+    };
+    const context = {
+      sync: vi.fn(async () => {}),
+      workbook: {
+        worksheets: {
+          getItem: vi.fn(() => worksheet)
+        }
+      }
+    };
+    const taskpane = await loadTaskpaneModule(context);
+
+    await expect(taskpane.applyWritePlan({
+      plan: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        ruleType: "whole_number",
+        comparator: "between",
+        value: 1,
+        value2: 10,
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        inputTitle: "Entry guidance",
+        inputMessage: "Enter a whole number from 1 to 10.",
+        errorTitle: "Invalid entry",
+        errorMessage: "Only whole numbers from 1 to 10 are allowed.",
+        explanation: "Restrict values to whole numbers between 1 and 10.",
+        confidence: 0.96,
+        requiresConfirmation: true
+      },
+      requestId: "req_validation_missing_blank_api_excel_001",
+      runId: "run_validation_missing_blank_api_excel_001",
+      approvalToken: "token"
+    })).rejects.toThrow("Excel host does not support exact validation blank handling on this range.");
+
+    expect(validationRule.set).not.toHaveBeenCalled();
+    expect(prompt.set).not.toHaveBeenCalled();
+    expect(errorAlert.set).not.toHaveBeenCalled();
+    expect(context.sync).not.toHaveBeenCalled();
+  });
+
   it("attaches local undo snapshots for Excel data validation writes", async () => {
     const oldRule = {
       decimal: {
