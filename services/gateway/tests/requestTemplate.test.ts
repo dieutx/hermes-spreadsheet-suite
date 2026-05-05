@@ -54,6 +54,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("requiresConfirmation must be true");
     expect(prompt).toContain("targetRange must match");
     expect(prompt).toContain("Do not use append_rows");
+    expect(prompt).toContain("analysis_report_plan affectedRanges must include the qualified source range");
     expect(prompt).toContain("supportsNoteWrites");
     expect(prompt).toContain("data.name must start with a letter or underscore");
     expect(prompt).toContain("For color_scale, points are ordered minimum, optional midpoint, maximum");

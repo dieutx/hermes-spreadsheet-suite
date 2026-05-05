@@ -139,6 +139,8 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('outputMode is required and must be chat_only or materialize_report');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('chat_only requires data.requiresConfirmation=false');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('materialize_report requires data.requiresConfirmation=true');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("analysis_report_plan affectedRanges must include the qualified source range");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("the full materialized target range");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('cannot be represented exactly on the current host');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('unsupported pivot or chart mappings must fail closed');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('every pivot filter requires value');

@@ -1048,6 +1048,59 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("rejects analysis reports with understated affected ranges after normalization", () => {
+    const missingSource = HermesStructuredBodySchema.safeParse(normalizeHermesStructuredBodyInput({
+      type: "analysis_report_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        outputMode: "chat_only",
+        sections: [
+          {
+            type: "summary_stats",
+            title: "Revenue summary",
+            summary: "Average revenue is 12,500.",
+            sourceRanges: ["Sales!A1:F50"]
+          }
+        ],
+        explanation: "Summarize sales.",
+        confidence: 0.9,
+        requiresConfirmation: false,
+        affectedRanges: ["Other!A1:F50"],
+        overwriteRisk: "none",
+        confirmationLevel: "standard"
+      }
+    }));
+
+    const missingFullTarget = HermesStructuredBodySchema.safeParse(normalizeHermesStructuredBodyInput({
+      type: "analysis_report_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        outputMode: "materialize_report",
+        targetSheet: "Summary",
+        targetRange: "A1:D5",
+        sections: [
+          {
+            type: "summary_stats",
+            title: "Revenue summary",
+            summary: "Average revenue is 12,500.",
+            sourceRanges: ["Sales!A1:F50"]
+          }
+        ],
+        explanation: "Write a report.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Summary!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    }));
+
+    expect(missingSource.success).toBe(false);
+    expect(missingFullTarget.success).toBe(false);
+  });
+
   it("normalizes conditional format aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "conditional_format_plan",

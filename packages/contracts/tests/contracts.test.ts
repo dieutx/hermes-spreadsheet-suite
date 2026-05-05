@@ -1889,6 +1889,30 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.requiresConfirmation).toBe(false);
   });
 
+  it("rejects analysis report plans whose affectedRanges omit the source range", () => {
+    const parsed = AnalysisReportPlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      outputMode: "chat_only",
+      sections: [
+        {
+          type: "summary_stats",
+          title: "Revenue summary",
+          summary: "Average revenue is 12,500.",
+          sourceRanges: ["Sales!A1:F50"]
+        }
+      ],
+      explanation: "Summarize sales.",
+      confidence: 0.9,
+      requiresConfirmation: false,
+      affectedRanges: ["Other!A1:F50"],
+      overwriteRisk: "none",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects a materialized analysis report without a target sheet", () => {
     const parsed = AnalysisReportPlanDataSchema.safeParse({
       sourceSheet: "Sales",
@@ -1964,6 +1988,32 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects materialized analysis report affectedRanges that omit the full target range", () => {
+    const parsed = AnalysisReportPlanDataSchema.safeParse({
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      outputMode: "materialize_report",
+      targetSheet: "Sales Report",
+      targetRange: "A1:D5",
+      sections: [
+        {
+          type: "summary_stats",
+          title: "Revenue summary",
+          summary: "Average revenue is 12,500.",
+          sourceRanges: ["Sales!A1:F50"]
+        }
+      ],
+      explanation: "Write a report sheet.",
+      confidence: 0.91,
+      requiresConfirmation: true,
+      affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+      overwriteRisk: "low",
+      confirmationLevel: "standard"
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts a materialized analysis report with a full target range", () => {
     const parsed = AnalysisReportPlanDataSchema.parse({
       sourceSheet: "Sales",
@@ -1982,7 +2032,7 @@ describe("Hermes spreadsheet contracts", () => {
       explanation: "Write a report sheet.",
       confidence: 0.91,
       requiresConfirmation: true,
-      affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+      affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D5"],
       overwriteRisk: "low",
       confirmationLevel: "standard"
     });
