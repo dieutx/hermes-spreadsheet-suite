@@ -669,6 +669,18 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
 
+    await expect(taskpane.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return String.raw`Gateway failed at ("/srv/hermes/server.ts:42")`;
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
     let htmlError: Error | undefined;
     try {
       await taskpane.parseGatewayJsonResponse({
@@ -704,6 +716,23 @@ describe("Excel wave 6 composite plans and execution controls", () => {
           error: {
             message: "ReferenceError at /srv/hermes/services/gateway/src/app.ts:99 HERMES_API_SERVER_KEY=secret_123",
             userAction: "Inspect https://internal.example/debug for stack trace details."
+          }
+        };
+      },
+      async text() {
+        return "";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(taskpane.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        return {
+          error: {
+            message: "Gateway failed while formatting diagnostics.",
+            userAction: String.raw`Inspect ("/srv/hermes/debug.log") before retrying.`
           }
         };
       },
