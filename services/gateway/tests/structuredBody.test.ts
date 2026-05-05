@@ -777,6 +777,25 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("rejects sheet update formulas without formula syntax after normalization", () => {
+    const parsed = HermesStructuredBodySchema.safeParse(normalizeHermesStructuredBodyInput({
+      type: "sheet_update",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "A1:B1",
+        operation: "set_formulas",
+        values: [["Label", null]],
+        formulas: [[null, "SUM(A1:A3)"]],
+        explanation: "Set mixed values and formulas.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        shape: { rows: 1, columns: 2 }
+      }
+    }));
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("normalizes chart legendPosition none to the contract-safe hidden alias", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "chart_plan",

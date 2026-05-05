@@ -59,6 +59,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("custom_formula validation formulas must start with =");
     expect(prompt).toContain("custom_formula conditional format formulas must start with =");
     expect(prompt).toContain("supportsNoteWrites");
+    expect(prompt).toContain("sheet_update formula cells must be null or start with =");
     expect(prompt).toContain("data.name must start with a letter or underscore");
     expect(prompt).toContain("For color_scale, points are ordered minimum, optional midpoint, maximum");
     expect(prompt).toContain("number_compare values must be finite numbers");

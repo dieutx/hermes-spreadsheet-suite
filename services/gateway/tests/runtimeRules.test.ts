@@ -25,6 +25,7 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("targetRange must match");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("do not use append_rows");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("supportsNoteWrites");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("sheet_update formula cells must be null or start with =");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("host capability matrix");
   });
 
