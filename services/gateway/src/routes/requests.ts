@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import { HermesRequestSchema } from "@hermes/contracts";
+import { HermesRequestSchema, HermesResponseSchema } from "@hermes/contracts";
 import type { HermesRequest } from "@hermes/contracts";
 import type { GatewayConfig } from "../lib/config.js";
 import { formatClientIssuePath, sanitizeClientIssueMessage } from "../lib/publicErrors.js";
@@ -209,6 +209,16 @@ function invalidRunStatusRequest() {
       code: "INVALID_REQUEST",
       message: "Run status identifiers are invalid.",
       userAction: "Retry status polling from the current Hermes session."
+    }
+  };
+}
+
+function invalidRunStatusResponse() {
+  return {
+    error: {
+      code: "INTERNAL_ERROR",
+      message: "The gateway couldn't load that Hermes request status.",
+      userAction: "Send the request again from the spreadsheet if you need a fresh result."
     }
   };
 }
@@ -459,6 +469,11 @@ export function createRequestRouter(input: {
           userAction: "Send the request again from the spreadsheet if you need a fresh result."
         }
       });
+      return;
+    }
+
+    if (activeRun.response && !HermesResponseSchema.safeParse(activeRun.response).success) {
+      res.status(500).json(invalidRunStatusResponse());
       return;
     }
 
