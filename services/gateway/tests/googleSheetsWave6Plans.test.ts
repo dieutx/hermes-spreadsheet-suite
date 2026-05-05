@@ -4253,6 +4253,122 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(code.flush).toHaveBeenCalled();
   });
 
+  it("fails closed before restoring Google Sheets validation snapshots when builder options are unavailable", () => {
+    const setDataValidation = vi.fn();
+    const targetRange = {
+      getNumRows: vi.fn(() => 19),
+      getNumColumns: vi.fn(() => 1),
+      setDataValidation
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:B20");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({
+      spreadsheet,
+      spreadsheetAppOverrides: {
+        newDataValidation() {
+          return {
+            withCriteria: vi.fn(function() {
+              return this;
+            }),
+            build: vi.fn(() => ({ kind: "validation" }))
+          };
+        }
+      }
+    });
+
+    expect(() => code.applyExecutionCellSnapshot({
+      kind: "data_validation",
+      targetSheet: "Sales",
+      targetRange: "B2:B20",
+      shape: {
+        rows: 19,
+        columns: 1
+      },
+      validation: {
+        rule: {
+          criteriaType: "NUMBER_BETWEEN",
+          criteriaValues: [
+            { kind: "scalar", value: 1 },
+            { kind: "scalar", value: 10 }
+          ],
+          allowInvalid: false
+        }
+      }
+    })).toThrow("Google Sheets host does not support exact validation invalid-entry behavior.");
+
+    expect(setDataValidation).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before restoring Google Sheets validation snapshot help text when builder support is unavailable", () => {
+    const setDataValidation = vi.fn();
+    const targetRange = {
+      getNumRows: vi.fn(() => 19),
+      getNumColumns: vi.fn(() => 1),
+      setDataValidation
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:B20");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({
+      spreadsheet,
+      spreadsheetAppOverrides: {
+        newDataValidation() {
+          return {
+            withCriteria: vi.fn(function() {
+              return this;
+            }),
+            setAllowInvalid: vi.fn(function() {
+              return this;
+            }),
+            build: vi.fn(() => ({ kind: "validation" }))
+          };
+        }
+      }
+    });
+
+    expect(() => code.applyExecutionCellSnapshot({
+      kind: "data_validation",
+      targetSheet: "Sales",
+      targetRange: "B2:B20",
+      shape: {
+        rows: 19,
+        columns: 1
+      },
+      validation: {
+        rule: {
+          criteriaType: "NUMBER_BETWEEN",
+          criteriaValues: [
+            { kind: "scalar", value: 1 },
+            { kind: "scalar", value: 10 }
+          ],
+          allowInvalid: false,
+          helpText: "Enter a number from 1 to 10."
+        }
+      }
+    })).toThrow("Google Sheets host does not support exact validation help text.");
+
+    expect(setDataValidation).not.toHaveBeenCalled();
+  });
+
   it("fails closed before applying Google Sheets validation when builder options are unavailable", () => {
     const setDataValidation = vi.fn();
     const targetRange = {

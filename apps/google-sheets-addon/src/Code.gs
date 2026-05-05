@@ -6055,16 +6055,21 @@ function buildDataValidationRuleFromSnapshot_(spreadsheet, sheet, validation) {
 
   builder.withCriteria(resolveDataValidationCriteria_(rule.criteriaType), criteriaValues);
 
-  if (typeof rule.allowInvalid === 'boolean' && typeof builder.setAllowInvalid === 'function') {
+  if (typeof rule.allowInvalid === 'boolean') {
+    if (typeof builder.setAllowInvalid !== 'function') {
+      throw new Error('Google Sheets host does not support exact validation invalid-entry behavior.');
+    }
     builder.setAllowInvalid(rule.allowInvalid);
   }
 
   if (
     Object.prototype.hasOwnProperty.call(rule, 'helpText') &&
     rule.helpText !== null &&
-    rule.helpText !== undefined &&
-    typeof builder.setHelpText === 'function'
+    rule.helpText !== undefined
   ) {
+    if (typeof builder.setHelpText !== 'function') {
+      throw new Error('Google Sheets host does not support exact validation help text.');
+    }
     builder.setHelpText(String(rule.helpText));
   }
 
