@@ -6203,6 +6203,20 @@ function applyExcelCheckboxValidation(target, plan) {
   };
 }
 
+function assertExcelDataValidationWriteSupport(dataValidation, plan) {
+  if (!("rule" in dataValidation)) {
+    throw new Error("Excel host does not support data validation rules on this range.");
+  }
+
+  if (typeof plan.allowBlank === "boolean" && !("ignoreBlanks" in dataValidation)) {
+    throw new Error("Excel host does not support exact validation blank handling on this range.");
+  }
+
+  if (!("prompt" in dataValidation) || !("errorAlert" in dataValidation)) {
+    throw new Error("Excel host does not support exact data validation prompt or error alert on this range.");
+  }
+}
+
 async function assertExcelNamedRangeCreateDoesNotCollide(context, collection, name) {
   if (!collection || typeof collection.getItemOrNullObject !== "function") {
     return;
@@ -11151,6 +11165,7 @@ async function applyWritePlan({ plan, requestId, runId, approvalToken, execution
       }
 
       const validationRule = buildExcelValidationRule(plan);
+      assertExcelDataValidationWriteSupport(target.dataValidation, plan);
       target.load(["rowCount", "columnCount"]);
       loadExcelDataValidationSnapshotTarget(target);
       await context.sync();
