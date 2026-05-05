@@ -52,6 +52,12 @@ describe("Google Sheets add-on deploy helpers", () => {
     expect(isAppsScriptReachableGatewayBaseUrl("http://gateway.example.com")).toBe(false);
     expect(isAppsScriptReachableGatewayBaseUrl("http://localhost:8787")).toBe(false);
     expect(isAppsScriptReachableGatewayBaseUrl("http://127.0.0.1:8787")).toBe(false);
+    expect(isAppsScriptReachableGatewayBaseUrl("https://localhost.:8787")).toBe(false);
+    expect(isAppsScriptReachableGatewayBaseUrl("https://app.localhost:8787")).toBe(false);
+    expect(isAppsScriptReachableGatewayBaseUrl("https://gateway.local:8787")).toBe(false);
+    expect(isAppsScriptReachableGatewayBaseUrl("https://gateway.internal:8787")).toBe(false);
+    expect(isAppsScriptReachableGatewayBaseUrl("https://127.0.0.2:8787")).toBe(false);
+    expect(isAppsScriptReachableGatewayBaseUrl("https://169.254.1.10:8787")).toBe(false);
     expect(isAppsScriptReachableGatewayBaseUrl("http://192.168.1.10:8787")).toBe(false);
     expect(isAppsScriptReachableGatewayBaseUrl("https://[::1]:8787")).toBe(false);
     expect(isAppsScriptReachableGatewayBaseUrl("https://[fc00::1]:8787")).toBe(false);

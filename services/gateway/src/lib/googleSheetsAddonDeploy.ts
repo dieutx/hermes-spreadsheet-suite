@@ -92,6 +92,41 @@ export function extractGoogleSpreadsheetId(input: string): string {
   throw new Error("Could not extract a Google Sheets spreadsheet id from the provided input.");
 }
 
+function parseIpv4Host(host: string): number[] | null {
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) {
+    return null;
+  }
+
+  const octets = host.split(".").map((part) => Number.parseInt(part, 10));
+  if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return null;
+  }
+
+  return octets;
+}
+
+function isBlockedIpv4Host(host: string): boolean {
+  const octets = parseIpv4Host(host);
+  if (!octets) {
+    return false;
+  }
+
+  const [first, second] = octets;
+  return first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168);
+}
+
+function isLocalHostname(host: string): boolean {
+  return host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal");
+}
+
 export function isAppsScriptReachableGatewayBaseUrl(baseUrl: string): boolean {
   const value = String(baseUrl || "").trim();
   let parsedUrl: URL;
@@ -102,7 +137,7 @@ export function isAppsScriptReachableGatewayBaseUrl(baseUrl: string): boolean {
   }
 
   const protocol = String(parsedUrl.protocol || "").toLowerCase();
-  const host = String(parsedUrl.hostname || "").toLowerCase();
+  const host = String(parsedUrl.hostname || "").replace(/\.$/, "").toLowerCase();
   if (protocol !== "https:") {
     return false;
   }
@@ -110,11 +145,7 @@ export function isAppsScriptReachableGatewayBaseUrl(baseUrl: string): boolean {
     return false;
   }
 
-  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
-    return false;
-  }
-
-  if (/^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) {
+  if (isLocalHostname(host) || isBlockedIpv4Host(host)) {
     return false;
   }
 
@@ -152,13 +183,7 @@ export function isAppsScriptReachableGatewayBaseUrl(baseUrl: string): boolean {
       ? decodeMappedIpv4(normalizedIpv6Host.replace(/^::ffff:/i, ""))
       : null;
     if (mappedIpv4) {
-      if (
-        mappedIpv4 === "127.0.0.1" ||
-        mappedIpv4 === "0.0.0.0" ||
-        /^10\./.test(mappedIpv4) ||
-        /^192\.168\./.test(mappedIpv4) ||
-        /^172\.(1[6-9]|2\d|3[0-1])\./.test(mappedIpv4)
-      ) {
+      if (isBlockedIpv4Host(mappedIpv4)) {
         return false;
       }
     }
