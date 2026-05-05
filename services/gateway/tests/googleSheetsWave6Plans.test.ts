@@ -7643,6 +7643,16 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
 
     expect(code.extractGatewayErrorMessage(
       500,
+      String.raw`Gateway failed at ("C:\Users\runner\work\server.ts:42")`
+    )).toBe("Hermes gateway request failed with 500.");
+
+    expect(code.extractGatewayErrorMessage(
+      500,
+      String.raw`Gateway failed at ("\\runner\share\server.ts:42")`
+    )).toBe("Hermes gateway request failed with 500.");
+
+    expect(code.extractGatewayErrorMessage(
+      500,
       "Gateway failed while fetching http://169.254.169.254/latest/meta-data"
     )).toBe("Hermes gateway request failed with 500.");
 
@@ -7737,6 +7747,30 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       },
       async text() {
         return String.raw`Gateway failed path=\\runner\share\server.ts:42`;
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return String.raw`Gateway failed at ("C:\Users\runner\work\server.ts:42")`;
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return String.raw`Gateway failed at ("\\runner\share\server.ts:42")`;
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
 
