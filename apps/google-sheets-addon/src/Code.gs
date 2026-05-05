@@ -6055,16 +6055,21 @@ function buildDataValidationRuleFromSnapshot_(spreadsheet, sheet, validation) {
 
   builder.withCriteria(resolveDataValidationCriteria_(rule.criteriaType), criteriaValues);
 
-  if (typeof rule.allowInvalid === 'boolean' && typeof builder.setAllowInvalid === 'function') {
+  if (typeof rule.allowInvalid === 'boolean') {
+    if (typeof builder.setAllowInvalid !== 'function') {
+      throw new Error('Google Sheets host does not support exact validation invalid-entry behavior.');
+    }
     builder.setAllowInvalid(rule.allowInvalid);
   }
 
   if (
     Object.prototype.hasOwnProperty.call(rule, 'helpText') &&
     rule.helpText !== null &&
-    rule.helpText !== undefined &&
-    typeof builder.setHelpText === 'function'
+    rule.helpText !== undefined
   ) {
+    if (typeof builder.setHelpText !== 'function') {
+      throw new Error('Google Sheets host does not support exact validation help text.');
+    }
     builder.setHelpText(String(rule.helpText));
   }
 
@@ -9005,6 +9010,10 @@ function findNamedRange_(spreadsheet, name) {
 }
 
 function applyValidationBuilderOptions_(builder, plan) {
+  if (!builder || typeof builder.setAllowInvalid !== 'function') {
+    throw new Error('Google Sheets host does not support exact validation invalid-entry behavior.');
+  }
+
   if (plan.invalidDataBehavior !== 'reject' && plan.invalidDataBehavior !== 'warn') {
     throw new Error('Unsupported invalidDataBehavior: ' + plan.invalidDataBehavior);
   }
@@ -9021,6 +9030,9 @@ function applyValidationBuilderOptions_(builder, plan) {
 
   const helpText = plan.inputMessage || plan.helpText;
   if (helpText) {
+    if (typeof builder.setHelpText !== 'function') {
+      throw new Error('Google Sheets host does not support exact validation help text.');
+    }
     builder.setHelpText(helpText);
   }
 
