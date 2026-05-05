@@ -287,6 +287,11 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     )).toBe("Failed to contact Hermes.");
 
     expect(taskpane.sanitizeHostExecutionError(
+      new Error("Request failed at http://[::ffff:7f00:1]/latest/meta-data"),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
+    expect(taskpane.sanitizeHostExecutionError(
       new Error("Writeback failed for qa_HERMES_API_SERVER_KEY")
     )).toBe("Write-back failed.");
   });
@@ -576,6 +581,18 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       },
       async text() {
         return "Gateway failed while fetching http://169.254.169.254/latest/meta-data";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(taskpane.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return "Gateway failed while fetching http://[::ffff:7f00:1]/latest/meta-data";
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
 
@@ -901,6 +918,7 @@ describe("Excel wave 6 composite plans and execution controls", () => {
         "\\\\server\\share\\private-tool.ts",
         "https://169.254.169.254/latest/meta-data",
         "https://[fd00::1]/latest/meta-data",
+        "https://[::ffff:7f00:1]/latest/meta-data",
         "HERMES_API_SERVER_KEY=secret"
       ],
       downstreamProvider: {
@@ -924,6 +942,8 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(metaLine).not.toContain("\\\\server");
     expect(metaLine).not.toContain("169.254.169.254");
     expect(metaLine).not.toContain("fd00");
+    expect(metaLine).not.toContain("::ffff");
+    expect(metaLine).not.toContain("7f00");
     expect(metaLine).not.toContain("internal.example");
     expect(metaLine).not.toContain("provider https://internal");
 
