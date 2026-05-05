@@ -1171,6 +1171,30 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("rejects custom conditional formulas without formula syntax after normalization", () => {
+    const parsed = HermesStructuredBodySchema.safeParse(normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        managementMode: "add",
+        rule: {
+          type: "formula",
+          customFormula: "COUNTIF($B$2:$B$20,B2)>1",
+          format: {
+            background: "#ffdddd"
+          }
+        },
+        explanation: "Highlight duplicate values with a custom formula.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Sheet1!B2:B20"]
+      }
+    }));
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("normalizes conditional format clear aliases to destructive confirmation", () => {
     const parsed = HermesStructuredBodySchema.parse(normalizeHermesStructuredBodyInput({
       type: "conditional_format_plan",
