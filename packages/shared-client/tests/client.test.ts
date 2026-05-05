@@ -1176,6 +1176,24 @@ describe("shared client render helpers", () => {
     expect(windowsMetaLine).not.toContain("\\\\runner");
     expect(windowsMetaLine).not.toContain("private-tool");
     expect(windowsMetaLine).not.toContain("label=");
+
+    const wrappedUncResponse = baseResponse({
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        String.raw`("\\runner\share\private-tool.ts")`
+      ],
+      downstreamProvider: {
+        label: String.raw`("\\runner\share\provider")`,
+        model: "gpt-5"
+      }
+    });
+
+    const wrappedUncMetaLine = getResponseMetaLine(wrappedUncResponse);
+
+    expect(wrappedUncMetaLine).toContain("skills SelectionExplainerSkill");
+    expect(wrappedUncMetaLine).not.toContain("\\\\runner");
+    expect(wrappedUncMetaLine).not.toContain("private-tool");
+    expect(wrappedUncMetaLine).not.toContain("provider");
   });
 
   it("formats the wave 2 trace labels", () => {

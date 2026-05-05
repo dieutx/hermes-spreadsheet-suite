@@ -74,6 +74,23 @@ describe("shared client trace helpers", () => {
     expect(proof).not.toContain("env=");
   });
 
+  it("sanitizes wrapped UNC proof label values", () => {
+    const response = responseWithIds({
+      requestId: "req_safe_001",
+      hermesRunId: "run_safe_001"
+    });
+    response.serviceLabel = String.raw`("\\runner\share\private-tool.ts")`;
+    response.environmentLabel = String.raw`("\\runner\share\secret.env")`;
+
+    const proof = formatProofLine(response);
+
+    expect(proof).toContain("service unavailable");
+    expect(proof).toContain("environment unavailable");
+    expect(proof).not.toContain("\\\\runner");
+    expect(proof).not.toContain("private-tool");
+    expect(proof).not.toContain("secret.env");
+  });
+
   it("sanitizes link-local proof label values", () => {
     const response = responseWithIds({
       requestId: "req_safe_001",
