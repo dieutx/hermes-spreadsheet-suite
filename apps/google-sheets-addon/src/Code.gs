@@ -1212,6 +1212,188 @@ function extractExternalDataFormulaSourceUrlKeys_(formula, functionName) {
   return keys;
 }
 
+function splitSpreadsheetFormulaArguments_(content) {
+  const args = [];
+  let current = '';
+  let depth = 0;
+  let quote = '';
+
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content[index];
+
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        if (content[index + 1] === quote) {
+          current += content[index + 1];
+          index += 1;
+        } else {
+          quote = '';
+        }
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === '(') {
+      depth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ')') {
+      depth -= 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ',' && depth === 0) {
+      args.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  args.push(current.trim());
+  return args;
+}
+
+function extractSpreadsheetFormulaFunctionArgumentLists_(formula, functionName) {
+  const source = String(formula || '');
+  const pattern = new RegExp("\\b" + functionName + "\\s*\\(", "gi");
+  const lists = [];
+  let match = pattern.exec(source);
+
+  while (match) {
+    let index = pattern.lastIndex;
+    let depth = 1;
+    let quote = '';
+    let content = '';
+
+    while (index < source.length) {
+      const char = source[index];
+
+      if (quote) {
+        content += char;
+        if (char === quote) {
+          if (source[index + 1] === quote) {
+            content += source[index + 1];
+            index += 1;
+          } else {
+            quote = '';
+          }
+        }
+        index += 1;
+        continue;
+      }
+
+      if (char === '"') {
+        quote = char;
+        content += char;
+        index += 1;
+        continue;
+      }
+
+      if (char === '(') {
+        depth += 1;
+        content += char;
+        index += 1;
+        continue;
+      }
+
+      if (char === ')') {
+        depth -= 1;
+        if (depth === 0) {
+          break;
+        }
+        content += char;
+        index += 1;
+        continue;
+      }
+
+      content += char;
+      index += 1;
+    }
+
+    if (depth !== 0) {
+      return null;
+    }
+
+    lists.push(splitSpreadsheetFormulaArguments_(content));
+    pattern.lastIndex = index + 1;
+    match = pattern.exec(source);
+  }
+
+  return lists.length > 0 ? lists : null;
+}
+
+function parseSpreadsheetFormulaStringLiteral_(value) {
+  const trimmed = String(value == null ? '' : value).trim();
+  if (trimmed.length < 2) {
+    return null;
+  }
+
+  if (trimmed[0] !== '"' || trimmed[trimmed.length - 1] !== '"') {
+    return null;
+  }
+
+  let parsed = '';
+  for (let index = 1; index < trimmed.length - 1; index += 1) {
+    const char = trimmed[index];
+    if (char === '"') {
+      if (index + 1 < trimmed.length - 1 && trimmed[index + 1] === '"') {
+        parsed += '"';
+        index += 1;
+        continue;
+      }
+      return null;
+    }
+    parsed += char;
+  }
+
+  return parsed;
+}
+
+function getMarketDataFormulaQueryError_(plan) {
+  const argumentLists = extractSpreadsheetFormulaFunctionArgumentLists_(plan.formula, 'GOOGLEFINANCE');
+  if (!argumentLists) {
+    return 'Google Sheets market data formulas must expose literal GOOGLEFINANCE query arguments.';
+  }
+
+  const query = plan.query || {};
+  const expectedArgs = [
+    [0, query.symbol, 'symbol'],
+    [1, query.attribute, 'attribute'],
+    [2, query.startDate, 'startDate'],
+    [3, query.endDate, 'endDate'],
+    [4, query.interval, 'interval']
+  ];
+
+  for (let listIndex = 0; listIndex < argumentLists.length; listIndex += 1) {
+    const args = argumentLists[listIndex];
+    for (let expectedIndex = 0; expectedIndex < expectedArgs.length; expectedIndex += 1) {
+      const expected = expectedArgs[expectedIndex][1];
+      if (expected === undefined) {
+        continue;
+      }
+
+      const actual = parseSpreadsheetFormulaStringLiteral_(args[expectedArgs[expectedIndex][0]]);
+      if (actual !== String(expected).trim()) {
+        return 'Google Sheets market data formula must match query.' + expectedArgs[expectedIndex][2] + '.';
+      }
+    }
+  }
+
+  return '';
+}
+
 function getExternalDataProviderFunctionName_(provider) {
   switch (provider) {
     case 'importhtml':
@@ -1240,6 +1422,10 @@ function assertExternalDataPlanSafe_(plan) {
     }
     if (!/GOOGLEFINANCE\s*\(/i.test(formula)) {
       throw new Error('Google Sheets market data formulas must use GOOGLEFINANCE(...).');
+    }
+    const queryError = getMarketDataFormulaQueryError_(plan);
+    if (queryError) {
+      throw new Error(queryError);
     }
     return;
   }
