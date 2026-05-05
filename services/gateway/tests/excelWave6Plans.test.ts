@@ -645,6 +645,30 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
 
+    await expect(taskpane.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return String.raw`Gateway failed at ("C:\Users\runner\work\server.ts:42")`;
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(taskpane.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return String.raw`Gateway failed at ("\\runner\share\server.ts:42")`;
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
     let htmlError: Error | undefined;
     try {
       await taskpane.parseGatewayJsonResponse({
