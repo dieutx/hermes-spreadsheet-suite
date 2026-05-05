@@ -955,6 +955,11 @@ const SpreadsheetFormulaStringSchema = z.string().min(2).max(4000).refine(
   { message: "formula must start with =." }
 );
 
+const CustomValidationFormulaSchema = z.string().min(2).max(16000).refine(
+  (value) => value.trim().startsWith("="),
+  { message: "custom_formula validation formulas must start with =." }
+);
+
 function isValidDateLiteral(value: string): boolean {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) {
@@ -1063,7 +1068,7 @@ export const DataValidationPlanDataSchema = z.union([
   strictObject({
     ...dataValidationSharedFields,
     ruleType: z.literal("custom_formula"),
-    formula: z.string().min(1).max(16000)
+    formula: CustomValidationFormulaSchema
   })
 ]).superRefine((data, ctx) => {
   const affectedRanges = data.affectedRanges ?? [];

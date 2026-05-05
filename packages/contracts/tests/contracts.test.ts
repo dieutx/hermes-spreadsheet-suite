@@ -3842,6 +3842,22 @@ describe("Hermes spreadsheet contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects custom formula validation rules without formula syntax", () => {
+    const parsed = DataValidationPlanDataSchema.safeParse({
+      targetSheet: "Sheet1",
+      targetRange: "G2:G20",
+      ruleType: "custom_formula",
+      formula: "COUNTIF($B$2:$B$20,G2)<=1",
+      allowBlank: false,
+      invalidDataBehavior: "reject",
+      explanation: "Reject duplicate values in the input range.",
+      confidence: 0.86,
+      requiresConfirmation: true
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts single-value checkbox validation plans when blanks remain allowed", () => {
     const parsed = DataValidationPlanDataSchema.parse({
       targetSheet: "Sheet1",

@@ -42,6 +42,7 @@ describe("spreadsheet runtime rules", () => {
   it("documents data validation replacement confirmation-level invariants", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('data.replacesExistingValidation=true requires data.confirmationLevel="destructive"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('validation plans that preserve existing validation require data.confirmationLevel="standard"');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("custom_formula validation formulas must start with =");
   });
 
   it("documents exact-safe range filter combiner support", () => {
