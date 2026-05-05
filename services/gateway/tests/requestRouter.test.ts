@@ -198,6 +198,31 @@ describe("request router", () => {
     expect((matchingSessionId.body as any).runId).toBe(runId);
   });
 
+  it("fails closed when a stored run response is malformed", async () => {
+    const traceBus = new TraceBus();
+    traceBus.ensureRun("run_status_invalid", "req_status_invalid", "sess_123");
+    (traceBus.peekRun("run_status_invalid") as any).status = "completed";
+    (traceBus.peekRun("run_status_invalid") as any).response = {
+      schemaVersion: "bad",
+      type: "chat"
+    };
+    const { router } = createTestRouter({ traceBus });
+
+    const response = await invokeGet(router, "run_status_invalid", {
+      requestId: "req_status_invalid",
+      sessionId: "sess_123"
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toEqual({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "The gateway couldn't load that Hermes request status.",
+        userAction: "Send the request again from the spreadsheet if you need a fresh result."
+      }
+    });
+  });
+
   it("uses the injected TraceBus clock for request trace timestamps", async () => {
     let nowMs = Date.UTC(2026, 3, 23, 1, 2, 3);
     const traceBus = new TraceBus({
@@ -656,7 +681,12 @@ describe("request router", () => {
       startedAt: "2026-04-22T00:00:00.000Z",
       completedAt: "2026-04-22T00:00:01.000Z",
       durationMs: 1000,
-      trace: [],
+      trace: [
+        {
+          event: "completed",
+          timestamp: "2026-04-22T00:00:01.000Z"
+        }
+      ],
       ui: {
         displayMode: "chat-first",
         showTrace: true,
@@ -774,7 +804,7 @@ describe("request router", () => {
       durationMs: 1000,
       trace: [
         {
-          event: "response_completed",
+          event: "completed",
           timestamp: "2026-04-22T00:00:01.000Z"
         }
       ],
