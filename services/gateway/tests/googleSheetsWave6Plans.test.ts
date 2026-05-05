@@ -1966,7 +1966,11 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     const sourceUrls = [
       "http://[fc00::1]/data.csv",
       "http://[fe80::1]/data.csv",
-      "http://[::ffff:127.0.0.1]/data.csv"
+      "http://[::ffff:127.0.0.1]/data.csv",
+      "http://2130706433/data.csv",
+      "http://0177.0.0.1/data.csv",
+      "http://0x7f.0.0.1/data.csv",
+      "http://2852039166/data.csv"
     ];
 
     sourceUrls.forEach((sourceUrl, index) => {
@@ -6332,7 +6336,11 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     const sourceUrls = [
       "http://[fc00::1]/data.csv",
       "http://[fe80::1]/data.csv",
-      "http://[::ffff:127.0.0.1]/data.csv"
+      "http://[::ffff:127.0.0.1]/data.csv",
+      "http://2130706433/data.csv",
+      "http://0177.0.0.1/data.csv",
+      "http://0x7f.0.0.1/data.csv",
+      "http://2852039166/data.csv"
     ];
 
     sourceUrls.forEach((sourceUrl) => {

@@ -1030,16 +1030,56 @@ function isBlockedExternalDataHostname_(hostname) {
     .replace(/^\[|\]$/g, '')
     .replace(/\.+$/g, '')
     .toLowerCase();
-  const ipv4Parts = normalized.split('.');
-  const ipv4Octets = ipv4Parts.length === 4
-    ? ipv4Parts.map(function(part) {
-      return /^\d+$/.test(part) ? Number(part) : NaN;
-    })
-    : [];
+
+  function parseIpv4NumberPart_(part) {
+    if (/^0x[0-9a-f]+$/i.test(part)) {
+      return Number.parseInt(part.slice(2), 16);
+    }
+    if (part.length > 1 && /^0[0-7]+$/.test(part)) {
+      return Number.parseInt(part.slice(1), 8);
+    }
+    if (/^\d+$/.test(part)) {
+      return Number(part);
+    }
+    return NaN;
+  }
+
+  function parseLegacyIpv4Hostname_(value) {
+    const parts = String(value || '').split('.');
+    if (parts.length < 1 || parts.length > 4 || parts.some(function(part) { return !part; })) {
+      return [];
+    }
+
+    const parsed = parts.map(parseIpv4NumberPart_);
+    if (parsed.some(function(part) { return !Number.isSafeInteger(part) || part < 0; })) {
+      return [];
+    }
+
+    const lastIndex = parsed.length - 1;
+    const lastMaxByLength = [0xffffffff, 0xffffff, 0xffff, 0xff][lastIndex];
+    if (parsed.slice(0, lastIndex).some(function(part) { return part > 255; }) || parsed[lastIndex] > lastMaxByLength) {
+      return [];
+    }
+
+    let address = parsed[lastIndex];
+    if (parsed.length === 2) {
+      address += parsed[0] * 0x1000000;
+    } else if (parsed.length === 3) {
+      address += parsed[0] * 0x1000000 + parsed[1] * 0x10000;
+    } else if (parsed.length === 4) {
+      address += parsed[0] * 0x1000000 + parsed[1] * 0x10000 + parsed[2] * 0x100;
+    }
+
+    return [
+      Math.floor(address / 0x1000000) % 256,
+      Math.floor(address / 0x10000) % 256,
+      Math.floor(address / 0x100) % 256,
+      address % 256
+    ];
+  }
+
+  const ipv4Octets = parseLegacyIpv4Hostname_(normalized);
   const isPrivateIpv4 = ipv4Octets.length === 4 &&
-    ipv4Octets.every(function(octet) {
-      return Number.isInteger(octet) && octet >= 0 && octet <= 255;
-    }) &&
     (
       ipv4Octets[0] === 0 ||
       ipv4Octets[0] === 10 ||
