@@ -174,9 +174,12 @@ function eventKey(event: HermesTraceEvent): string {
 }
 
 const UNSAFE_TRACE_METADATA_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+|[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|(?:^|[\s(["'=:])[A-Za-z]:\\[^\s]+|(?:^|[\s(["'=:])\\\\[^\s]+|https?:\/\/[^\s]+/i;
+const UNSAFE_STANDALONE_TRACE_SECRET_PATTERN = /\b(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)\b/;
 
 function isUnsafeTraceText(value: unknown): boolean {
-  return typeof value === "string" && UNSAFE_TRACE_METADATA_PATTERN.test(value);
+  return typeof value === "string" &&
+    (UNSAFE_TRACE_METADATA_PATTERN.test(value) ||
+      UNSAFE_STANDALONE_TRACE_SECRET_PATTERN.test(value));
 }
 
 function sanitizeTraceDetails(
