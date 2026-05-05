@@ -2065,6 +2065,35 @@ describe("HermesAgentClient", () => {
     });
     expect(JSON.stringify(response)).not.toContain("\\\\server");
     expect(JSON.stringify(response)).not.toContain("wrapped-provider.ts");
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: String.raw`Provider failed in ("C:\Users\runner\work\windows-provider.ts")`
+      }
+    }), {
+      status: 503,
+      headers: { "content-type": "application/json" }
+    })));
+
+    await client.processRequest({
+      runId: "run_wrapped_windows_provider_diagnostic_sanitized_001",
+      request: baseRequest({
+        requestId: "req_wrapped_windows_provider_diagnostic_sanitized_001",
+        userMessage: "Explain this workbook."
+      }),
+      traceBus
+    });
+
+    const windowsResponse = traceBus.getRun("run_wrapped_windows_provider_diagnostic_sanitized_001")?.response;
+    expect(windowsResponse?.type).toBe("error");
+    expect(windowsResponse?.data).toMatchObject({
+      code: "PROVIDER_ERROR",
+      message: "The Hermes service couldn't complete that request right now.",
+      retryable: true,
+      userAction: "Retry the request after the remote Hermes Agent service recovers."
+    });
+    expect(JSON.stringify(windowsResponse)).not.toContain("C:\\Users");
+    expect(JSON.stringify(windowsResponse)).not.toContain("windows-provider.ts");
   });
 
   it("sanitizes embedded provider error diagnostics before returning gateway error responses", async () => {
