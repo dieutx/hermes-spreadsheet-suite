@@ -2163,6 +2163,34 @@ describe("HermesAgentClient", () => {
     });
     expect(JSON.stringify(response)).not.toContain("DATABASE_PASSWORD");
     expect(JSON.stringify(response)).not.toContain("secret_123");
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: "Provider failed while logging TOKEN=secret_456"
+      }
+    }), {
+      status: 503,
+      headers: { "content-type": "application/json" }
+    })));
+
+    await client.processRequest({
+      runId: "run_provider_standalone_secret_sanitized_001",
+      request: baseRequest({
+        requestId: "req_provider_standalone_secret_sanitized_001",
+        userMessage: "Explain this workbook."
+      }),
+      traceBus
+    });
+
+    const standaloneResponse = traceBus.getRun("run_provider_standalone_secret_sanitized_001")?.response;
+    expect(standaloneResponse?.type).toBe("error");
+    expect(standaloneResponse?.data).toMatchObject({
+      code: "PROVIDER_ERROR",
+      message: "The Hermes service couldn't complete that request right now.",
+      retryable: true,
+      userAction: "Retry the request after the remote Hermes Agent service recovers."
+    });
+    expect(JSON.stringify(standaloneResponse)).not.toContain("TOKEN=secret_456");
   });
 
   it("sanitizes IPv4-mapped private provider diagnostics before returning gateway error responses", async () => {
