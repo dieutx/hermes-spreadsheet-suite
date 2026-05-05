@@ -7893,6 +7893,14 @@ function resolveFullTransferTargetRange_(targetRange, expectedRows, expectedColu
   throw new Error('The approved targetRange does not match the transfer shape.');
 }
 
+function resolveAnalysisReportTargetRange_(targetRange, expectedRows, expectedColumns) {
+  if (targetRange.getNumRows() === expectedRows && targetRange.getNumColumns() === expectedColumns) {
+    return targetRange;
+  }
+
+  throw new Error('Google Sheets host requires analysis report targetRange to match the full destination rectangle.');
+}
+
 function deriveTransferTargetRangeA1_(plan, targetRange) {
   const planBounds = parseA1RangeReference_(plan.targetRange);
   if (planBounds.rowCount === targetRange.getNumRows() &&
@@ -9576,9 +9584,9 @@ function applyWritePlan(input) {
     }
 
     const reportMatrix = buildAnalysisReportMatrix_(plan);
-    const targetAnchor = reportSheet.getRange(plan.targetRange);
-    const resolvedTargetRange = resolveTransferTargetRange_(
-      targetAnchor,
+    const targetRange = reportSheet.getRange(plan.targetRange);
+    const resolvedTargetRange = resolveAnalysisReportTargetRange_(
+      targetRange,
       reportMatrix.length,
       reportMatrix[0] ? reportMatrix[0].length : 1
     );
