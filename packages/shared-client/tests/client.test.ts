@@ -1394,6 +1394,23 @@ describe("shared client render helpers", () => {
     expect(wrappedPosixMetaLine).not.toContain("provider");
   });
 
+  it("redacts standalone secret markers in shared-client meta lines", () => {
+    const response = baseResponse({
+      skillsUsed: ["SelectionExplainerSkill", "TOKEN"],
+      downstreamProvider: {
+        label: "SECRET",
+        model: "PASSWORD"
+      }
+    });
+
+    const metaLine = getResponseMetaLine(response);
+
+    expect(metaLine).toContain("skills SelectionExplainerSkill");
+    expect(metaLine).not.toContain("TOKEN");
+    expect(metaLine).not.toContain("SECRET");
+    expect(metaLine).not.toContain("PASSWORD");
+  });
+
   it("formats the wave 2 trace labels", () => {
     expect(formatTraceTimeline([
       { event: "data_validation_plan_ready", timestamp: "2026-04-20T09:00:01.000Z" },

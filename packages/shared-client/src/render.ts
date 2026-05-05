@@ -1665,10 +1665,13 @@ export function getRequiresConfirmation(response: HermesResponse): boolean {
 }
 
 const UNSAFE_PROOF_METADATA_PATTERN = /(?:HERMES_[A-Z0-9_]+|[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*|client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|(?:^|[\s(["'=:])\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|[A-Za-z]:\\[^\s]+|(?:^|[\s(["'=:])\\\\[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\])[^\s]*/i;
+const UNSAFE_STANDALONE_PROOF_METADATA_PATTERN = /\b(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)\b/;
 
 function hasUnsafeProofMetadata(value: unknown): boolean {
   return typeof value === "string" &&
-    (UNSAFE_PROOF_METADATA_PATTERN.test(value) || NUMERIC_IPV4_URL_PATTERN.test(value));
+    (UNSAFE_PROOF_METADATA_PATTERN.test(value) ||
+      UNSAFE_STANDALONE_PROOF_METADATA_PATTERN.test(value) ||
+      NUMERIC_IPV4_URL_PATTERN.test(value));
 }
 
 function getSafeSkillsUsed(skillsUsed: string[] | undefined): string[] {
