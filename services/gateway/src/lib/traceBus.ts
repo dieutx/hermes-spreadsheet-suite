@@ -200,7 +200,7 @@ function sanitizeTraceDetails(
     sanitized.attachmentId = details.attachmentId;
   }
 
-  if (details.mode) {
+  if (details.mode && !isUnsafeTraceText(details.mode)) {
     sanitized.mode = details.mode;
   }
 
