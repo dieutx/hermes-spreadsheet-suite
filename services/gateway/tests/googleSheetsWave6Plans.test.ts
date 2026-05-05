@@ -28,6 +28,7 @@ function loadCodeModule(options: {
   urlFetchApp?: {
     fetch: ReturnType<typeof vi.fn>;
   };
+  spreadsheetAppOverrides?: Record<string, unknown>;
 } = {}) {
   const flush = options.flush || vi.fn();
   const scriptProperties = new Map<string, string>(Object.entries(options.scriptProperties || {}));
@@ -162,7 +163,8 @@ function loadCodeModule(options: {
             };
           }
         };
-      }
+      },
+      ...(options.spreadsheetAppOverrides || {})
     },
     HtmlService: {
       createHtmlOutputFromFile,
@@ -4249,6 +4251,114 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       helpText: "Enter a number from 1 to 10."
     });
     expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("fails closed before applying Google Sheets validation when builder options are unavailable", () => {
+    const setDataValidation = vi.fn();
+    const targetRange = {
+      setDataValidation
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:B20");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({
+      spreadsheet,
+      spreadsheetAppOverrides: {
+        newDataValidation() {
+          return {
+            requireValueInList: vi.fn(function() {
+              return this;
+            }),
+            build: vi.fn(() => ({ kind: "validation" }))
+          };
+        }
+      }
+    });
+
+    expect(() => code.applyWritePlan({
+      requestId: "req_validation_builder_api_sheets_001",
+      runId: "run_validation_builder_api_sheets_001",
+      approvalToken: "token",
+      plan: {
+        type: "data_validation_plan",
+        targetSheet: "Sales",
+        targetRange: "B2:B20",
+        ruleType: "list",
+        values: ["Open", "Closed"],
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        explanation: "Add status dropdown validation.",
+        confidence: 0.92,
+        requiresConfirmation: true
+      }
+    })).toThrow("Google Sheets host does not support exact validation invalid-entry behavior.");
+
+    expect(setDataValidation).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before applying Google Sheets validation help text when builder support is unavailable", () => {
+    const setDataValidation = vi.fn();
+    const targetRange = {
+      setDataValidation
+    };
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2:B20");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales");
+        return sheet;
+      })
+    };
+    const code = loadCodeModule({
+      spreadsheet,
+      spreadsheetAppOverrides: {
+        newDataValidation() {
+          return {
+            setAllowInvalid: vi.fn(function() {
+              return this;
+            }),
+            requireValueInList: vi.fn(function() {
+              return this;
+            }),
+            build: vi.fn(() => ({ kind: "validation" }))
+          };
+        }
+      }
+    });
+
+    expect(() => code.applyWritePlan({
+      requestId: "req_validation_builder_help_text_sheets_001",
+      runId: "run_validation_builder_help_text_sheets_001",
+      approvalToken: "token",
+      plan: {
+        type: "data_validation_plan",
+        targetSheet: "Sales",
+        targetRange: "B2:B20",
+        ruleType: "list",
+        values: ["Open", "Closed"],
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        helpText: "Choose one of the approved statuses.",
+        explanation: "Add status dropdown validation.",
+        confidence: 0.92,
+        requiresConfirmation: true
+      }
+    })).toThrow("Google Sheets host does not support exact validation help text.");
+
+    expect(setDataValidation).not.toHaveBeenCalled();
   });
 
   it("passes Google Sheets named range snapshots through sidebar undo before committing", async () => {
