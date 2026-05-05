@@ -394,15 +394,15 @@ export class ExecutionLedger {
   }
 
   private getHistoryKey(workbookSessionKey: string, sessionId?: string): string {
-    return sessionId ? `${workbookSessionKey}::session::${sessionId}` : workbookSessionKey;
+    return JSON.stringify(["history", workbookSessionKey, sessionId ?? null]);
   }
 
   private getDryRunKey(workbookSessionKey: string, planDigest: string, sessionId?: string): string {
-    return `${this.getHistoryKey(workbookSessionKey, sessionId)}::${planDigest}`;
+    return JSON.stringify(["dry_run", workbookSessionKey, sessionId ?? null, planDigest]);
   }
 
   private getExecutionKey(workbookSessionKey: string, executionId: string, sessionId?: string): string {
-    return `${this.getHistoryKey(workbookSessionKey, sessionId)}::${executionId}`;
+    return JSON.stringify(["execution", workbookSessionKey, sessionId ?? null, executionId]);
   }
 
   private buildControlExecutionId(

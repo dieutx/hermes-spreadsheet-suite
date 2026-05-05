@@ -30,6 +30,68 @@ describe("ExecutionLedger", () => {
     expect(entry).not.toHaveProperty("workbookSessionKey");
   });
 
+  it("does not expose session-scoped history through delimiter-colliding unscoped workbook keys", () => {
+    const ledger = new ExecutionLedger();
+
+    ledger.recordCompleted({
+      executionId: "exec_session_scoped",
+      workbookSessionKey: "excel_windows::workbook-123",
+      sessionId: "sess_abc",
+      requestId: "req_001",
+      runId: "run_001",
+      planType: "sheet_update",
+      planDigest: "digest_001",
+      status: "completed",
+      timestamp: "2026-04-20T13:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "Updated Sales!A1:B2."
+    });
+
+    expect(
+      ledger.listHistory("excel_windows::workbook-123", undefined, undefined, "sess_abc")
+        .entries.map((entry) => entry.executionId)
+    ).toEqual(["exec_session_scoped"]);
+    expect(
+      ledger.listHistory("excel_windows::workbook-123::session::sess_abc")
+        .entries
+    ).toEqual([]);
+  });
+
+  it("does not expose session-scoped dry-runs through delimiter-colliding unscoped workbook keys", () => {
+    const nowMs = Date.UTC(2026, 3, 20, 13, 0, 0);
+    const ledger = new ExecutionLedger({ now: () => nowMs });
+    const expiresAt = "2026-04-20T13:05:00.000Z";
+
+    ledger.storeDryRun({
+      simulated: true,
+      planDigest: "digest_session_scoped",
+      workbookSessionKey: "excel_windows::workbook-123",
+      sessionId: "sess_abc",
+      steps: [],
+      predictedAffectedRanges: [],
+      predictedSummaries: [],
+      overwriteRisk: "low",
+      reversible: true,
+      expiresAt
+    });
+
+    expect(
+      ledger.getDryRun(
+        "excel_windows::workbook-123",
+        "digest_session_scoped",
+        "sess_abc"
+      )?.planDigest
+    ).toBe("digest_session_scoped");
+    expect(
+      ledger.getDryRun(
+        "excel_windows::workbook-123::session::sess_abc",
+        "digest_session_scoped"
+      )
+    ).toBeUndefined();
+  });
+
   it("sanitizes unsafe execution history summaries before storage", () => {
     const ledger = new ExecutionLedger();
 
@@ -284,6 +346,32 @@ describe("ExecutionLedger", () => {
       undoEligible: true,
       redoEligible: false
     });
+  });
+
+  it("does not undo session-scoped executions through delimiter-colliding unscoped workbook keys", () => {
+    const ledger = new ExecutionLedger();
+
+    ledger.recordCompleted({
+      executionId: "exec_session_scoped",
+      workbookSessionKey: "excel_windows::workbook-123",
+      sessionId: "sess_abc",
+      requestId: "req_001",
+      runId: "run_001",
+      planType: "sheet_update",
+      planDigest: "digest_001",
+      status: "completed",
+      timestamp: "2026-04-20T13:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "Updated Sales!A1:B2."
+    });
+
+    expect(() => ledger.undoExecution({
+      executionId: "exec_session_scoped",
+      requestId: "req_undo_collide",
+      workbookSessionKey: "excel_windows::workbook-123::session::sess_abc"
+    })).toThrow("Undo target is missing, stale, or not reversible.");
   });
 
   it("creates redo lineage from an undo execution and rejects superseded lineage points", () => {
