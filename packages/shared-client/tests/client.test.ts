@@ -1142,6 +1142,30 @@ describe("shared client render helpers", () => {
     });
   });
 
+  it("sanitizes standalone secret markers from dry-run unsupported reasons", () => {
+    const dryRunResult = {
+      simulated: false,
+      planDigest: "digest_standalone_secret_marker",
+      workbookSessionKey: "excel_windows::workbook-123",
+      steps: [],
+      predictedAffectedRanges: [],
+      predictedSummaries: [],
+      overwriteRisk: "low",
+      reversible: false,
+      expiresAt: "2026-04-20T13:00:00.000Z",
+      unsupportedReason: "Dry-run failed while reading TOKEN"
+    } as any;
+
+    expect(formatDryRunSummary(dryRunResult)).toBe(
+      "Dry-run preview isn't available for this plan in this spreadsheet app."
+    );
+    expect(buildDryRunPreview(dryRunResult)).toMatchObject({
+      kind: "dry_run_result",
+      unsupportedReason: "Dry-run preview isn't available for this plan in this spreadsheet app.",
+      summary: "Dry-run preview isn't available for this plan in this spreadsheet app."
+    });
+  });
+
   it("renders composite previews for sheet import steps without assuming explanation exists", () => {
     const response = baseResponse({
       type: "composite_plan",
