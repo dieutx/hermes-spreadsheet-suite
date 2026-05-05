@@ -4101,7 +4101,7 @@ function formatGatewayIssueSummary(issues) {
     return "";
   }
 
-  return issues
+  const summary = issues
     .slice(0, 3)
     .map((issue) => {
       const path = typeof issue?.path === "string" && issue.path.trim().length > 0
@@ -4113,6 +4113,8 @@ function formatGatewayIssueSummary(issues) {
       return `${path}: ${detail}`;
     })
     .join("\n");
+
+  return containsSensitiveGatewayErrorText(summary) ? "" : summary;
 }
 
 function appendGatewayIssueSummary(message, issues) {

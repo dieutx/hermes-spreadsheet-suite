@@ -332,6 +332,18 @@ describe("Excel wave 6 composite plans and execution controls", () => {
       "Request details:\n" +
       "context.selection.headers: headers.length must match selection.range width."
     );
+
+    expect(taskpane.appendGatewayIssueSummary(
+      "Hermes couldn't prepare a valid request from the current spreadsheet state.\n\nRefresh the sheet state and try again.",
+      [
+        {
+          path: "context.selection.values",
+          message: "Invalid value while reading HERMES_API_SERVER_KEY=secret_123."
+        }
+      ]
+    )).toBe(
+      "Hermes couldn't prepare a valid request from the current spreadsheet state.\n\nRefresh the sheet state and try again."
+    );
   });
 
   it("scrolls the Excel message list to the latest message after render work completes", async () => {
