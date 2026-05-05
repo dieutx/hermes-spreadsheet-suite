@@ -59,6 +59,7 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("For color_scale, points are ordered minimum, optional midpoint, maximum");
     expect(prompt).toContain("number_compare values must be finite numbers");
     expect(prompt).toContain("date_compare values must be valid YYYY-MM-DD literals");
+    expect(prompt).toContain("percent and percentile color_scale point values must be between 0 and 100");
   });
 
   it("includes a host capability matrix for Google Sheets planning", () => {
