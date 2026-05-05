@@ -38,6 +38,23 @@ describe("AttachmentStore", () => {
     expect(store.get(attachment.id)?.metadata.fileName).toBe("uploaded-image.png");
   });
 
+  it("falls back when uploaded file names contain standalone secret markers", () => {
+    const store = new AttachmentStore();
+
+    const attachment = store.save({
+      buffer: Buffer.from("png"),
+      mimeType: "image/png",
+      fileName: "TOKEN.png",
+      size: 3,
+      source: "upload",
+      previewUrl: "/api/uploads/att_1/content"
+    });
+
+    expect(attachment.fileName).toBe("uploaded-image.png");
+    expect(attachment.fileName).not.toContain("TOKEN");
+    expect(store.get(attachment.id)?.metadata.fileName).toBe("uploaded-image.png");
+  });
+
   it("falls back when uploaded file names contain local filesystem paths", () => {
     const store = new AttachmentStore();
 
