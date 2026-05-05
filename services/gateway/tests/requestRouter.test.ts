@@ -1004,6 +1004,28 @@ describe("request router", () => {
     expect((labeledWindowsResponse.body as any).error).not.toContain("request-status");
 
     traceBus.ensureRun(
+      "run_status_wrapped_windows_error_001",
+      "req_status_wrapped_windows_error_001",
+      "sess_status_error_001"
+    );
+    traceBus.setError(
+      "run_status_wrapped_windows_error_001",
+      String.raw`Provider failed while reading ("C:\Users\runner\work\request-status.ts:42")`
+    );
+
+    const wrappedWindowsResponse = await invokeGet(router, "run_status_wrapped_windows_error_001", {
+      requestId: "req_status_wrapped_windows_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(wrappedWindowsResponse.statusCode).toBe(200);
+    expect((wrappedWindowsResponse.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((wrappedWindowsResponse.body as any).error).not.toContain("runner");
+    expect((wrappedWindowsResponse.body as any).error).not.toContain("request-status");
+
+    traceBus.ensureRun(
       "run_status_unc_error_001",
       "req_status_unc_error_001",
       "sess_status_error_001"
@@ -1046,5 +1068,27 @@ describe("request router", () => {
     );
     expect((labeledUncResponse.body as any).error).not.toContain("runner");
     expect((labeledUncResponse.body as any).error).not.toContain("request-status");
+
+    traceBus.ensureRun(
+      "run_status_wrapped_unc_error_001",
+      "req_status_wrapped_unc_error_001",
+      "sess_status_error_001"
+    );
+    traceBus.setError(
+      "run_status_wrapped_unc_error_001",
+      String.raw`Provider failed while reading ("\\runner\share\request-status.ts:42")`
+    );
+
+    const wrappedUncResponse = await invokeGet(router, "run_status_wrapped_unc_error_001", {
+      requestId: "req_status_wrapped_unc_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(wrappedUncResponse.statusCode).toBe(200);
+    expect((wrappedUncResponse.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((wrappedUncResponse.body as any).error).not.toContain("runner");
+    expect((wrappedUncResponse.body as any).error).not.toContain("request-status");
   });
 });
