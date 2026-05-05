@@ -20,6 +20,24 @@ describe("AttachmentStore", () => {
     expect(store.get(attachment.id)?.metadata.fileName).toBe("uploaded-image.png");
   });
 
+  it("falls back when uploaded file names contain generic secret assignments", () => {
+    const store = new AttachmentStore();
+
+    const attachment = store.save({
+      buffer: Buffer.from("png"),
+      mimeType: "image/png",
+      fileName: "DATABASE_PASSWORD=secret_123.png",
+      size: 3,
+      source: "upload",
+      previewUrl: "/api/uploads/att_1/content"
+    });
+
+    expect(attachment.fileName).toBe("uploaded-image.png");
+    expect(attachment.fileName).not.toContain("DATABASE_PASSWORD");
+    expect(attachment.fileName).not.toContain("secret_123");
+    expect(store.get(attachment.id)?.metadata.fileName).toBe("uploaded-image.png");
+  });
+
   it("falls back when uploaded file names contain local filesystem paths", () => {
     const store = new AttachmentStore();
 
