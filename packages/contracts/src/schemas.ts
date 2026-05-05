@@ -91,6 +91,39 @@ function normalizeCompositeAffectedRangeRef(value: string): string {
   return normalizeAffectedA1RangeRef(value) ?? value.trim();
 }
 
+function isQualifiedSpreadsheetRangeRef(value: string): boolean {
+  const separatorIndex = value.lastIndexOf("!");
+  if (separatorIndex <= 0 || separatorIndex === value.length - 1) {
+    return false;
+  }
+
+  const range = value.slice(separatorIndex + 1).replace(/\$/g, "").trim();
+  if (parseA1Range(range) !== null) {
+    return true;
+  }
+
+  const rowRange = range.match(/^([1-9][0-9]*):([1-9][0-9]*)$/);
+  if (rowRange) {
+    const start = Number.parseInt(rowRange[1], 10);
+    const end = Number.parseInt(rowRange[2], 10);
+    return end >= start;
+  }
+
+  const columnRange = range.match(/^([A-Z]+):([A-Z]+)$/i);
+  if (columnRange) {
+    const start = columnLettersToNumber(columnRange[1]);
+    const end = columnLettersToNumber(columnRange[2]);
+    return start !== null && end !== null && end >= start;
+  }
+
+  return false;
+}
+
+const QualifiedSpreadsheetRangeRefSchema = z.string().min(1).max(128).refine(
+  isQualifiedSpreadsheetRangeRef,
+  { message: "must be a qualified spreadsheet range reference." }
+);
+
 const NamedRangeIdentifierSchema = z.string().min(1).max(250)
   .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, {
     message: "name must start with a letter or underscore and contain only letters, numbers, and underscores."
@@ -3388,7 +3421,7 @@ const DryRunStepSchema = strictObject({
   stepId: z.string().min(1).max(128),
   status: z.enum(["simulated", "unsupported", "skipped"]),
   summary: z.string().min(1).max(12000),
-  predictedAffectedRanges: z.array(z.string().min(1).max(128)).optional(),
+  predictedAffectedRanges: z.array(QualifiedSpreadsheetRangeRefSchema).max(128).optional(),
   predictedSummaries: z.array(z.string().min(1).max(4000)).optional()
 });
 
@@ -3397,7 +3430,7 @@ export const DryRunResultSchema = strictObject({
   workbookSessionKey: z.string().min(1).max(256),
   simulated: z.boolean(),
   steps: z.array(DryRunStepSchema).optional(),
-  predictedAffectedRanges: z.array(z.string().min(1).max(128)).max(128),
+  predictedAffectedRanges: z.array(QualifiedSpreadsheetRangeRefSchema).max(128),
   predictedSummaries: z.array(z.string().min(1).max(4000)).max(128),
   overwriteRisk: OverwriteRiskSchema,
   reversible: z.boolean(),

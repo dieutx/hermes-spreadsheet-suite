@@ -800,6 +800,41 @@ describe("Hermes spreadsheet contracts", () => {
     ).toHaveLength(1);
   });
 
+  it("rejects dry-run predicted affected ranges that are not qualified spreadsheet range refs", () => {
+    const topLevel = DryRunResultSchema.safeParse({
+      planDigest: "digest_bad_range_001",
+      workbookSessionKey: "excel_windows::workbook-123",
+      simulated: true,
+      predictedAffectedRanges: ["not a range"],
+      predictedSummaries: ["Preview the planned operation."],
+      overwriteRisk: "low",
+      reversible: true,
+      expiresAt: "2026-04-20T10:00:00.000Z"
+    });
+
+    const stepLevel = DryRunResultSchema.safeParse({
+      planDigest: "digest_bad_step_range_001",
+      workbookSessionKey: "excel_windows::workbook-123",
+      simulated: true,
+      steps: [
+        {
+          stepId: "step_bad_range",
+          status: "simulated",
+          summary: "Will update a range.",
+          predictedAffectedRanges: ["A1:B2"]
+        }
+      ],
+      predictedAffectedRanges: ["Sales!A1:B2"],
+      predictedSummaries: ["Preview the planned operation."],
+      overwriteRisk: "low",
+      reversible: true,
+      expiresAt: "2026-04-20T10:00:00.000Z"
+    });
+
+    expect(topLevel.success).toBe(false);
+    expect(stepLevel.success).toBe(false);
+  });
+
   it("accepts composite Hermes response envelopes", () => {
     const parsed = HermesResponseSchema.parse({
       schemaVersion: "1.0.0",
