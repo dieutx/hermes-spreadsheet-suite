@@ -136,6 +136,46 @@ describe("TraceBus", () => {
     expect(JSON.stringify(event)).not.toContain("SERVICE_BASE_URL");
   });
 
+  it("sanitizes standalone secret markers in optional trace metadata", () => {
+    const bus = new TraceBus();
+
+    bus.append("run_standalone_secret_trace", {
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      label: "TOKEN",
+      skillName: "SelectionExplainerSkill",
+      toolName: "SECRET",
+      providerLabel: "PASSWORD",
+      details: {
+        range: "A1:B2",
+        sheet: "Budget",
+        attachmentId: "att_public_001",
+        mode: "PRIVATE"
+      }
+    });
+
+    const [event] = bus.list("run_standalone_secret_trace", 0);
+
+    expect(event).toMatchObject({
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      skillName: "SelectionExplainerSkill",
+      details: {
+        range: "A1:B2",
+        sheet: "Budget",
+        attachmentId: "att_public_001"
+      }
+    });
+    expect(event).not.toHaveProperty("label");
+    expect(event).not.toHaveProperty("toolName");
+    expect(event).not.toHaveProperty("providerLabel");
+    expect(event.details).not.toHaveProperty("mode");
+    expect(JSON.stringify(event)).not.toContain("TOKEN");
+    expect(JSON.stringify(event)).not.toContain("SECRET");
+    expect(JSON.stringify(event)).not.toContain("PASSWORD");
+    expect(JSON.stringify(event)).not.toContain("PRIVATE");
+  });
+
   it("sanitizes unsafe trace detail modes before storage", () => {
     const bus = new TraceBus();
 
