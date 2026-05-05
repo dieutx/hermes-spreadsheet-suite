@@ -198,6 +198,42 @@ describe("ExecutionLedger", () => {
     expect(JSON.stringify(entry)).not.toContain("secret_456");
   });
 
+  it("sanitizes standalone secret markers in execution history summaries", () => {
+    const ledger = new ExecutionLedger();
+
+    ledger.recordCompleted({
+      executionId: "exec_standalone_secret",
+      workbookSessionKey: "excel_windows::workbook-123",
+      requestId: "req_standalone_secret",
+      runId: "run_standalone_secret",
+      planType: "sheet_update",
+      planDigest: "digest_standalone_secret",
+      status: "completed",
+      timestamp: "2026-04-20T13:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "Updated after TOKEN",
+      stepEntries: [
+        {
+          stepId: "step_standalone_secret",
+          planType: "sheet_update",
+          status: "completed",
+          summary: "Validated SECRET"
+        }
+      ]
+    });
+
+    const entry = ledger.listHistory("excel_windows::workbook-123").entries[0];
+
+    expect(entry.summary).toBe("Execution summary hidden because it contained internal details.");
+    expect(entry.stepEntries?.[0]?.summary).toBe(
+      "Execution summary hidden because it contained internal details."
+    );
+    expect(JSON.stringify(entry)).not.toContain("TOKEN");
+    expect(JSON.stringify(entry)).not.toContain("SECRET");
+  });
+
   it("sanitizes Windows local paths in execution history summaries", () => {
     const ledger = new ExecutionLedger();
 

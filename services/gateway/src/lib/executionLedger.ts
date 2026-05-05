@@ -16,6 +16,7 @@ export class FreshDryRunRequiredError extends Error {}
 const SANITIZED_EXECUTION_SUMMARY =
   "Execution summary hidden because it contained internal details.";
 const UNSAFE_EXECUTION_SUMMARY_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+|[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|(?:^|[\s(["'=:])[A-Za-z]:\\[^\s]+|(?:^|[\s(["'=:])\\\\[^\s]+|https?:\/\/[^\s]+/i;
+const UNSAFE_STANDALONE_EXECUTION_SECRET_PATTERN = /\b(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)\b/;
 const DEFAULT_HISTORY_PAGE_SIZE = 100;
 
 type StoredDryRunResult = DryRunResult & { sessionId?: string };
@@ -38,7 +39,11 @@ export function sanitizeExecutionSummary(value: string): string {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!summary || UNSAFE_EXECUTION_SUMMARY_PATTERN.test(summary)) {
+  if (
+    !summary ||
+    UNSAFE_EXECUTION_SUMMARY_PATTERN.test(summary) ||
+    UNSAFE_STANDALONE_EXECUTION_SECRET_PATTERN.test(summary)
+  ) {
     return SANITIZED_EXECUTION_SUMMARY;
   }
 
