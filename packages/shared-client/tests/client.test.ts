@@ -500,6 +500,39 @@ describe("shared client render helpers", () => {
     );
   });
 
+  it("sanitizes generic gateway secret labels from shared-client transport errors", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      "Gateway failed while logging DATABASE_PASSWORD=secret_123",
+      {
+        status: 500,
+        headers: {
+          "content-type": "text/plain"
+        }
+      }
+    )));
+
+    const client = createGatewayClient("http://localhost:18787");
+
+    await expect(client.pollRun("run_generic_raw_secret")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: "Gateway failed while logging CACHE_TOKEN=secret_456"
+      }
+    }), {
+      status: 500,
+      headers: {
+        "content-type": "application/json"
+      }
+    })));
+
+    await expect(client.pollRun("run_generic_json_secret")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
+  });
+
   it("sanitizes sensitive JSON gateway errors from shared-client responses", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       error: {
