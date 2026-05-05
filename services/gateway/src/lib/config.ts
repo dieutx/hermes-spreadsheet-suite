@@ -36,7 +36,8 @@ const UNSAFE_PUBLIC_LABEL_PATTERN = /(?:client_secret|refresh_token|access_token
 function isLoopbackBaseUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1";
+    const hostname = url.hostname.replace(/^\[|\]$/g, "");
+    return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
   } catch {
     return false;
   }

@@ -116,6 +116,21 @@ describe("gateway config", () => {
     });
   });
 
+  it("treats bracketed IPv6 loopback gateway base urls as local", () => {
+    process.env.GATEWAY_PUBLIC_BASE_URL = "http://[::1]:8787";
+
+    expect(getConfig()).toMatchObject({
+      approvalSecret: "test-approval-secret",
+      gatewayPublicBaseUrl: "http://[::1]:8787",
+      allowedCorsOrigins: [
+        "https://docs.google.com",
+        "https://excel.officeapps.live.com",
+        "https://localhost:3000",
+        "https://127.0.0.1:3000"
+      ]
+    });
+  });
+
   it("fails closed when the approval secret is missing even on a loopback gateway base url", () => {
     delete process.env.APPROVAL_SECRET;
     process.env.GATEWAY_PUBLIC_BASE_URL = "http://127.0.0.1:8787";
@@ -216,5 +231,15 @@ describe("gateway config", () => {
     expect(() => getConfig()).toThrow(
       "GATEWAY_ALLOWED_ORIGINS must not contain * when the gateway public base URL is not local."
     );
+  });
+
+  it("allows wildcard CORS allowlists only when bracketed IPv6 gateway urls are loopback", () => {
+    process.env.GATEWAY_PUBLIC_BASE_URL = "http://[::1]:8787";
+    process.env.GATEWAY_ALLOWED_ORIGINS = "*";
+    process.env.APPROVAL_SECRET = "secret";
+
+    expect(getConfig()).toMatchObject({
+      allowedCorsOrigins: ["*"]
+    });
   });
 });
