@@ -7682,6 +7682,11 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
 
     expect(code.extractGatewayErrorMessage(
       500,
+      String.raw`Gateway failed at ("/srv/hermes/server.ts:42")`
+    )).toBe("Hermes gateway request failed with 500.");
+
+    expect(code.extractGatewayErrorMessage(
+      500,
       "Gateway failed while fetching http://169.254.169.254/latest/meta-data"
     )).toBe("Hermes gateway request failed with 500.");
 
@@ -7803,6 +7808,18 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
 
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return String.raw`Gateway failed at ("/srv/hermes/server.ts:42")`;
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
     let htmlError: Error | undefined;
     try {
       await hooks.parseGatewayJsonResponse({
@@ -7861,12 +7878,35 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       "Hermes gateway request failed with 500."
     );
 
+    const wrappedPosixBodyText = JSON.stringify({
+      error: {
+        message: "Gateway failed while formatting diagnostics.",
+        userAction: String.raw`Inspect ("/srv/hermes/debug.log") before retrying.`
+      }
+    });
+
+    expect(code.extractGatewayErrorMessage(500, wrappedPosixBodyText)).toBe(
+      "Hermes gateway request failed with 500."
+    );
+
     await expect(hooks.parseGatewayJsonResponse({
       ok: false,
       status: 500,
       url: "https://gateway.test/api/requests",
       async json() {
         return JSON.parse(bodyText);
+      },
+      async text() {
+        return "";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        return JSON.parse(wrappedPosixBodyText);
       },
       async text() {
         return "";
