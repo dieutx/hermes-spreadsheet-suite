@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import type {
   HermesRequest,
   HermesResponse,
@@ -103,6 +104,24 @@ function baseResponse(overrides: Partial<HermesResponse>): HermesResponse {
 }
 
 describe("shared client request helpers", () => {
+  it("does not embed server-only Hermes environment names in shared-client source", () => {
+    const sourceFiles = [
+      new URL("../src/render.ts", import.meta.url),
+      new URL("../src/trace.ts", import.meta.url)
+    ].map((url) => readFileSync(url, "utf8"));
+    const forbiddenNames = [
+      ["HERMES", "API", "SERVER", "KEY"].join("_"),
+      ["HERMES", "AGENT", "BASE", "URL"].join("_"),
+      ["HERMES", "AGENT", "API", "KEY"].join("_")
+    ];
+
+    for (const source of sourceFiles) {
+      for (const name of forbiddenNames) {
+        expect(source).not.toContain(name);
+      }
+    }
+  });
+
   it("truncates oversized request text so long chats do not break the Step 2 contract", () => {
     const oversizedMessage = "a".repeat(16_050);
     const request = buildHermesRequest({
