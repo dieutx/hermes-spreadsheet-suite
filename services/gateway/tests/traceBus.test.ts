@@ -96,6 +96,46 @@ describe("TraceBus", () => {
     expect(event.details).not.toHaveProperty("range");
   });
 
+  it("sanitizes generic secret assignments in optional trace metadata", () => {
+    const bus = new TraceBus();
+
+    bus.append("run_generic_secret_trace", {
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      label: "Result DATABASE_PASSWORD=secret_123",
+      skillName: "SelectionExplainerSkill",
+      toolName: "Tool CLIENT_TOKEN=secret_456",
+      providerLabel: "Provider PRIVATE_CREDENTIAL=secret_789",
+      details: {
+        range: "A1:B2",
+        sheet: "Budget",
+        attachmentId: "att_public_001",
+        mode: "mode SERVICE_BASE_URL=http://internal.example"
+      }
+    });
+
+    const [event] = bus.list("run_generic_secret_trace", 0);
+
+    expect(event).toMatchObject({
+      event: "skill_selected",
+      timestamp: "2026-04-19T09:00:00.000Z",
+      skillName: "SelectionExplainerSkill",
+      details: {
+        range: "A1:B2",
+        sheet: "Budget",
+        attachmentId: "att_public_001"
+      }
+    });
+    expect(event).not.toHaveProperty("label");
+    expect(event).not.toHaveProperty("toolName");
+    expect(event).not.toHaveProperty("providerLabel");
+    expect(event.details).not.toHaveProperty("mode");
+    expect(JSON.stringify(event)).not.toContain("DATABASE_PASSWORD");
+    expect(JSON.stringify(event)).not.toContain("CLIENT_TOKEN");
+    expect(JSON.stringify(event)).not.toContain("PRIVATE_CREDENTIAL");
+    expect(JSON.stringify(event)).not.toContain("SERVICE_BASE_URL");
+  });
+
   it("sanitizes unsafe trace detail modes before storage", () => {
     const bus = new TraceBus();
 
