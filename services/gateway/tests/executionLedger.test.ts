@@ -194,6 +194,40 @@ describe("ExecutionLedger", () => {
     );
   });
 
+  it("sanitizes wrapped Windows local paths in execution history summaries", () => {
+    const ledger = new ExecutionLedger();
+
+    ledger.recordCompleted({
+      executionId: "exec_wrapped_windows_unsafe",
+      workbookSessionKey: "excel_windows::workbook-123",
+      requestId: "req_wrapped_windows_unsafe",
+      runId: "run_wrapped_windows_unsafe",
+      planType: "sheet_update",
+      planDigest: "digest_wrapped_windows_unsafe",
+      status: "completed",
+      timestamp: "2026-04-20T13:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: String.raw`Updated by ("C:\Users\runner\work\internal.ts")`,
+      stepEntries: [
+        {
+          stepId: "step_wrapped_windows_unsafe",
+          planType: "sheet_update",
+          status: "completed",
+          summary: String.raw`Checked source ("\\server\share\step.ts")`
+        }
+      ]
+    });
+
+    const entry = ledger.listHistory("excel_windows::workbook-123").entries[0];
+
+    expect(entry.summary).toBe("Execution summary hidden because it contained internal details.");
+    expect(entry.stepEntries?.[0]?.summary).toBe(
+      "Execution summary hidden because it contained internal details."
+    );
+  });
+
   it("rejects invalid pagination cursors instead of silently paging from the wrong index", () => {
     const ledger = new ExecutionLedger();
 
