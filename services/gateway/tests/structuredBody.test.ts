@@ -2288,6 +2288,36 @@ describe("structured body normalization", () => {
     }
   });
 
+  it("rejects out-of-range color-scale percent values after normalization", () => {
+    const normalized = normalizeHermesStructuredBodyInput({
+      type: "conditional_format_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "B2:B20",
+        explanation: "Apply an invalid color scale.",
+        confidence: 0.94,
+        requiresConfirmation: true,
+        affectedRanges: ["Sheet1!B2:B20"],
+        confirmationLevel: "standard",
+        replacesExistingRules: false,
+        managementMode: "add",
+        ruleType: "color_scale",
+        points: [
+          { type: "min", color: "#f8696b" },
+          { type: "percentile", value: 101, color: "#ffeb84" },
+          { type: "max", color: "#63be7b" }
+        ]
+      }
+    });
+
+    const parsed = HermesStructuredBodySchema.safeParse(normalized);
+
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(JSON.stringify(parsed.error.issues)).toContain("must be between 0 and 100");
+    }
+  });
+
   it("rejects invalid conditional-format compare values after normalization", () => {
     const invalidNumberCompare = HermesStructuredBodySchema.safeParse(normalizeHermesStructuredBodyInput({
       type: "conditional_format_plan",
