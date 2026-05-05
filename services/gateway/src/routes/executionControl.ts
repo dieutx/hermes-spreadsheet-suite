@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   CompositePlanDataSchema,
   DryRunResultSchema,
+  PlanHistoryPageSchema,
   RedoRequestSchema,
   UndoRequestSchema
 } from "@hermes/contracts";
@@ -259,12 +260,17 @@ export function createExecutionControlRouter(input: {
   router.get("/history", (req, res) => {
     try {
       const parsed = HistoryQuerySchema.parse(req.query);
-      res.json(input.executionLedger.listHistory(
+      const historyPage = input.executionLedger.listHistory(
         parsed.workbookSessionKey,
         parsed.limit,
         parsed.cursor,
         parsed.sessionId
-      ));
+      );
+      const parsedHistoryPage = PlanHistoryPageSchema.safeParse(historyPage);
+      if (!parsedHistoryPage.success) {
+        throw new Error("Invalid history page.");
+      }
+      res.json(parsedHistoryPage.data);
     } catch (error) {
       const formatted = formatExecutionControlError(error);
       res.status(formatted.status).json(formatted.body);
