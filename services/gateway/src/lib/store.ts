@@ -18,7 +18,7 @@ type AttachmentStoreOptions = {
 
 const UPLOAD_TOKEN_BYTES = 32;
 const MAX_ATTACHMENT_FILE_NAME_LENGTH = 128;
-const UNSAFE_ATTACHMENT_FILE_NAME_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|[A-Za-z]:\\[^\s]+|(?:^|[\s=:])\\\\[^\s]+|https?:\/\/[^\s]+/i;
+const UNSAFE_ATTACHMENT_FILE_NAME_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|[A-Za-z]:\\[^\s]+|(?:^|[\s(["'=:])\\\\[^\s]+|https?:\/\/[^\s]+/i;
 const ATTACHMENT_FILE_EXTENSION_BY_MIME: Record<ImageAttachment["mimeType"], string> = {
   "image/png": ".png",
   "image/jpeg": ".jpg",

@@ -55,4 +55,21 @@ describe("AttachmentStore", () => {
     expect(uncPathAttachment.fileName).not.toContain("private-table");
     expect(macPathAttachment.fileName).not.toContain("private-table");
   });
+
+  it("falls back when uploaded file names contain wrapped UNC paths", () => {
+    const store = new AttachmentStore();
+
+    const attachment = store.save({
+      buffer: Buffer.from("png"),
+      mimeType: "image/png",
+      fileName: String.raw`Screenshot (\\runner\share\private-table.png)`,
+      size: 3,
+      source: "upload",
+      previewUrl: "/api/uploads/att_5/content"
+    });
+
+    expect(attachment.fileName).toBe("uploaded-image.png");
+    expect(attachment.fileName).not.toContain("private-table");
+    expect(store.get(attachment.id)?.metadata.fileName).toBe("uploaded-image.png");
+  });
 });
