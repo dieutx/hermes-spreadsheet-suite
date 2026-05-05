@@ -354,6 +354,27 @@ describe("execution control routes", () => {
     });
   });
 
+  it("rejects dry-run predicted affected ranges that are not qualified spreadsheet range refs", () => {
+    const dryRun = invokeExecutionRoute({
+      path: "/dry-run",
+      method: "post",
+      body: buildDryRunBody({
+        plan: {
+          ...buildDryRunBody().plan,
+          affectedRanges: ["not a range"]
+        }
+      })
+    });
+
+    expect(dryRun.status).toBe(400);
+    expect(dryRun.body).toMatchObject({
+      error: {
+        code: "INVALID_REQUEST"
+      }
+    });
+    expect(JSON.stringify(dryRun.body)).toContain("qualified spreadsheet range reference");
+  });
+
   it("returns INTERNAL_ERROR when post-parse dry-run or history handling fails", () => {
     const ledger = {
       isoTimestamp() {

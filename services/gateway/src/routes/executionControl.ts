@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   CompositePlanDataSchema,
+  DryRunResultSchema,
   RedoRequestSchema,
   UndoRequestSchema
 } from "@hermes/contracts";
@@ -242,11 +243,13 @@ export function createExecutionControlRouter(input: {
         expiresAt: input.executionLedger.isoTimestamp(5 * 60 * 1000)
       };
 
+      const parsedResult = DryRunResultSchema.parse(result);
+
       input.executionLedger.storeDryRun({
-        ...result,
+        ...parsedResult,
         sessionId: parsed.sessionId
       });
-      res.json(result);
+      res.json(parsedResult);
     } catch (error) {
       const formatted = formatExecutionControlError(error);
       res.status(formatted.status).json(formatted.body);
