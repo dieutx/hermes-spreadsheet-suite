@@ -21,6 +21,7 @@ describe("spreadsheet runtime rules", () => {
 
   it("spells out formula language and write-plan confirmation requirements", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain("formulaLanguage");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("formula response formula fields must start with =");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("requiresConfirmation");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("targetRange must match");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("do not use append_rows");

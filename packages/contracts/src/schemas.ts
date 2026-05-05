@@ -516,15 +516,20 @@ export const ChatDataSchema = strictObject({
   confidence: z.number().min(0).max(1).optional()
 });
 
+const FormulaResponseFormulaSchema = z.string().min(2).max(16000).refine(
+  (value) => value.trim().startsWith("="),
+  { message: "formula response formula fields must start with =." }
+);
+
 export const FormulaDataSchema = strictObject({
   intent: z.enum(["suggest", "fix", "explain", "translate"]),
   targetCell: StrictSingleCellA1StringSchema.optional(),
-  formula: z.string().min(1).max(16000),
+  formula: FormulaResponseFormulaSchema,
   formulaLanguage: z.enum(["excel", "google_sheets"]),
   explanation: z.string().min(1).max(12000),
   alternateFormulas: z.array(
     strictObject({
-      formula: z.string().min(1).max(16000),
+      formula: FormulaResponseFormulaSchema,
       explanation: z.string().min(1).max(4000)
     })
   ).max(5).optional(),

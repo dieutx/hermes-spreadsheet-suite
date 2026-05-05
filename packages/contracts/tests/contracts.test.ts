@@ -13,6 +13,7 @@ import {
   DataCleanupUpdateDataSchema,
   DataCleanupUpdateResponseSchema,
   ExternalDataPlanDataSchema,
+  FormulaDataSchema,
   HermesRequestSchema,
   HermesResponseSchema,
   HermesTraceEventSchema,
@@ -937,6 +938,33 @@ describe("Hermes spreadsheet contracts", () => {
     });
 
     expect(parsed.success).toBe(false);
+  });
+
+  it("rejects formula responses without formula syntax", () => {
+    const primary = FormulaDataSchema.safeParse({
+      intent: "suggest",
+      formula: "SUM(A1:A10)",
+      formulaLanguage: "excel",
+      explanation: "Suggest a total formula.",
+      confidence: 0.9
+    });
+
+    const alternate = FormulaDataSchema.safeParse({
+      intent: "suggest",
+      formula: "=SUM(A1:A10)",
+      formulaLanguage: "excel",
+      explanation: "Suggest a total formula.",
+      alternateFormulas: [
+        {
+          formula: "SUBTOTAL(9,A1:A10)",
+          explanation: "Alternative subtotal formula."
+        }
+      ],
+      confidence: 0.9
+    });
+
+    expect(primary.success).toBe(false);
+    expect(alternate.success).toBe(false);
   });
 
   it("accepts the Step 2 backend request envelope exactly", () => {

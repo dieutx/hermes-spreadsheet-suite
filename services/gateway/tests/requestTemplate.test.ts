@@ -51,6 +51,7 @@ describe("Hermes spreadsheet request prompt", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
 
     expect(prompt).toContain("formulaLanguage");
+    expect(prompt).toContain("formula response formula fields must start with =");
     expect(prompt).toContain("requiresConfirmation must be true");
     expect(prompt).toContain("targetRange must match");
     expect(prompt).toContain("Do not use append_rows");

@@ -67,6 +67,7 @@ For type="chat":
 For type="formula":
 - data.intent is required and must be one of: suggest, fix, explain, translate
 - data.formula is required
+- formula response formula fields must start with =
 - data.formulaLanguage is required and must be:
   - excel when host.platform is excel_windows or excel_macos
   - google_sheets when host.platform is google_sheets
