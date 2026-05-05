@@ -876,6 +876,45 @@ describe("Hermes spreadsheet contracts", () => {
     }).success).toBe(false);
   });
 
+  it("rejects oversized execution history pages and step lists", () => {
+    const entry = {
+      executionId: "exec_001",
+      requestId: "req_001",
+      runId: "run_001",
+      planType: "composite_plan",
+      planDigest: "digest_001",
+      status: "completed",
+      timestamp: "2026-04-20T09:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "Completed the plan."
+    };
+
+    const oversizedPage = PlanHistoryPageSchema.safeParse({
+      entries: Array.from({ length: 101 }, (_, index) => ({
+        ...entry,
+        executionId: `exec_${index}`,
+        requestId: `req_${index}`,
+        runId: `run_${index}`,
+        planDigest: `digest_${index}`
+      }))
+    });
+
+    const oversizedStepList = PlanHistoryEntrySchema.safeParse({
+      ...entry,
+      stepEntries: Array.from({ length: 33 }, (_, index) => ({
+        stepId: `step_${index}`,
+        planType: "sheet_update",
+        status: "completed",
+        summary: "Updated cells."
+      }))
+    });
+
+    expect(oversizedPage.success).toBe(false);
+    expect(oversizedStepList.success).toBe(false);
+  });
+
   it("accepts composite Hermes response envelopes", () => {
     const parsed = HermesResponseSchema.parse({
       schemaVersion: "1.0.0",

@@ -143,6 +143,32 @@ describe("ExecutionLedger", () => {
     );
   });
 
+  it("defaults history pages to the contract page size", () => {
+    const ledger = new ExecutionLedger();
+
+    for (let index = 0; index < 101; index += 1) {
+      ledger.recordCompleted({
+        executionId: `exec_${index}`,
+        workbookSessionKey: "excel_windows::workbook-123",
+        requestId: `req_${index}`,
+        runId: `run_${index}`,
+        planType: "sheet_update",
+        planDigest: `digest_${index}`,
+        status: "completed",
+        timestamp: new Date(Date.UTC(2026, 3, 20, 13, 0, index)).toISOString(),
+        reversible: true,
+        undoEligible: true,
+        redoEligible: false,
+        summary: "Updated cells."
+      });
+    }
+
+    const page = ledger.listHistory("excel_windows::workbook-123");
+
+    expect(page.entries).toHaveLength(100);
+    expect(page.nextCursor).toBe("100");
+  });
+
   it("sorts history chronologically across mixed timestamp offsets", () => {
     const ledger = new ExecutionLedger();
 
