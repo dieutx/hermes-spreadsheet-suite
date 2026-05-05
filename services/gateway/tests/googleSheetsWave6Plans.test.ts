@@ -1291,6 +1291,33 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(wrappedMetaLine).not.toContain("provider");
   });
 
+  it("redacts standalone proof metadata markers in Google Sheets meta lines", () => {
+    const sidebar = loadSidebarContext();
+    const hooks = (sidebar as any).__sidebarTestHooks;
+
+    const metaLine = hooks.getResponseMetaLine({
+      type: "chat",
+      skillsUsed: ["SelectionExplainerSkill", "TOKEN"],
+      downstreamProvider: {
+        label: "SECRET",
+        model: "PASSWORD"
+      },
+      ui: {
+        showConfidence: true,
+        showRequiresConfirmation: false
+      },
+      data: {
+        message: "Processed remotely.",
+        confidence: 0.9
+      }
+    });
+
+    expect(metaLine).toContain("skills SelectionExplainerSkill");
+    expect(metaLine).not.toContain("TOKEN");
+    expect(metaLine).not.toContain("SECRET");
+    expect(metaLine).not.toContain("PASSWORD");
+  });
+
   it("does not embed server-only Hermes environment names in Google Sheets host source", () => {
     const forbiddenNames = [
       ["HERMES", "API", "SERVER", "KEY"].join("_"),
