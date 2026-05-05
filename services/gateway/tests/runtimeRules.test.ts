@@ -138,6 +138,7 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('For type="chart_update"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('outputMode is required and must be chat_only or materialize_report');
     expect(SPREADSHEET_RUNTIME_RULES).toContain('chat_only requires data.requiresConfirmation=false');
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("section sourceRanges must be qualified A1 ranges");
     expect(SPREADSHEET_RUNTIME_RULES).toContain('materialize_report requires data.requiresConfirmation=true');
     expect(SPREADSHEET_RUNTIME_RULES).toContain("analysis_report_plan affectedRanges must include the qualified source range");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("the full materialized target range");
