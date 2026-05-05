@@ -1085,6 +1085,34 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(wrappedPosixMetaLine).not.toContain("provider");
   });
 
+  it("redacts standalone proof metadata markers in Excel meta lines", async () => {
+    const taskpane = await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    });
+
+    const metaLine = taskpane.getResponseMetaLine({
+      type: "chat",
+      skillsUsed: ["SelectionExplainerSkill", "TOKEN"],
+      downstreamProvider: {
+        label: "SECRET",
+        model: "PASSWORD"
+      },
+      ui: {
+        showConfidence: true,
+        showRequiresConfirmation: false
+      },
+      data: {
+        message: "Processed remotely.",
+        confidence: 0.9
+      }
+    });
+
+    expect(metaLine).toContain("skills SelectionExplainerSkill");
+    expect(metaLine).not.toContain("TOKEN");
+    expect(metaLine).not.toContain("SECRET");
+    expect(metaLine).not.toContain("PASSWORD");
+  });
+
   it("does not embed server-only Hermes environment names in the Excel host source", () => {
     const source = readFileSync(TASKPANE_MODULE_FILE, "utf8");
     const forbiddenNames = [
