@@ -82,12 +82,16 @@ function getRuntimeConfig() {
   const scriptProperties = PropertiesService.getScriptProperties();
   const forceExtractionMode = scriptProperties.getProperty('HERMES_FORCE_EXTRACTION_MODE');
   const deploymentOverrides = resolveHermesDeploymentOverrides_();
+  const configuredGatewayBaseUrl =
+    deploymentOverrides.gatewayBaseUrl ||
+    scriptProperties.getProperty('HERMES_GATEWAY_URL') ||
+    '';
+  const gatewayBaseUrl = isAppsScriptReachableGatewayBaseUrl_(configuredGatewayBaseUrl)
+    ? configuredGatewayBaseUrl
+    : '';
 
   return {
-    gatewayBaseUrl:
-      deploymentOverrides.gatewayBaseUrl ||
-      scriptProperties.getProperty('HERMES_GATEWAY_URL') ||
-      '',
+    gatewayBaseUrl,
     clientVersion:
       deploymentOverrides.clientVersion ||
       scriptProperties.getProperty('HERMES_CLIENT_VERSION') ||
@@ -153,8 +157,47 @@ function isAppsScriptReachableGatewayBaseUrl_(baseUrl) {
     return false;
   }
 
+  var parseIpv4Host = function(hostname) {
+    if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)) {
+      return null;
+    }
+
+    var parts = hostname.split('.');
+    var octets = [];
+    for (var index = 0; index < parts.length; index += 1) {
+      var octet = parseInt(parts[index], 10);
+      if (isNaN(octet) || octet < 0 || octet > 255) {
+        return null;
+      }
+      octets.push(octet);
+    }
+
+    return octets;
+  };
+  var isBlockedIpv4Host = function(hostname) {
+    var octets = parseIpv4Host(hostname);
+    if (!octets) {
+      return false;
+    }
+
+    var first = octets[0];
+    var second = octets[1];
+    return first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168);
+  };
+  var isLocalHostname = function(hostname) {
+    return hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal');
+  };
+
   var protocol = String(match[1] || '').toLowerCase();
-  var host = String(match[2] || '').toLowerCase();
+  var host = String(match[2] || '').replace(/\.$/, '').toLowerCase();
   if (protocol !== 'https') {
     return false;
   }
@@ -162,11 +205,7 @@ function isAppsScriptReachableGatewayBaseUrl_(baseUrl) {
     return false;
   }
 
-  if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') {
-    return false;
-  }
-
-  if (/^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) {
+  if (isLocalHostname(host) || isBlockedIpv4Host(host)) {
     return false;
   }
 
@@ -204,13 +243,7 @@ function isAppsScriptReachableGatewayBaseUrl_(baseUrl) {
       ? decodeMappedIpv4(normalizedIpv6Host.replace(/^::ffff:/i, ''))
       : null;
     if (mappedIpv4) {
-      if (
-        mappedIpv4 === '127.0.0.1' ||
-        mappedIpv4 === '0.0.0.0' ||
-        /^10\./.test(mappedIpv4) ||
-        /^192\.168\./.test(mappedIpv4) ||
-        /^172\.(1[6-9]|2\d|3[0-1])\./.test(mappedIpv4)
-      ) {
+      if (isBlockedIpv4Host(mappedIpv4)) {
         return false;
       }
     }
