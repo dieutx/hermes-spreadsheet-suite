@@ -1101,6 +1101,33 @@ describe("structured body normalization", () => {
     expect(missingFullTarget.success).toBe(false);
   });
 
+  it("rejects analysis reports with invalid section source ranges after normalization", () => {
+    const parsed = HermesStructuredBodySchema.safeParse(normalizeHermesStructuredBodyInput({
+      type: "analysis_report_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        outputMode: "chat_only",
+        sections: [
+          {
+            type: "summary_stats",
+            title: "Revenue summary",
+            summary: "Average revenue is 12,500.",
+            sourceRanges: ["A1:F50", "current table"]
+          }
+        ],
+        explanation: "Summarize sales.",
+        confidence: 0.9,
+        requiresConfirmation: false,
+        affectedRanges: ["Sales!A1:F50"],
+        overwriteRisk: "none",
+        confirmationLevel: "standard"
+      }
+    }));
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("normalizes conditional format aliases before validation", () => {
     const normalized = normalizeHermesStructuredBodyInput({
       type: "conditional_format_plan",
