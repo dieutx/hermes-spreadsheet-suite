@@ -1745,6 +1745,34 @@ describe("structured body normalization", () => {
     });
   });
 
+  it("rejects formula responses without formula syntax after normalization", () => {
+    const primary = normalizeHermesStructuredBodyInput({
+      type: "formula",
+      data: {
+        intent: "suggest",
+        formula: "SUM(A1:A10)",
+        formulaLanguage: "google_sheets",
+        explanation: "Suggest a total formula.",
+        confidence: 0.74
+      }
+    });
+
+    const alternate = normalizeHermesStructuredBodyInput({
+      type: "formula",
+      data: {
+        intent: "suggest",
+        formula: "=SUM(A1:A10)",
+        formulaLanguage: "google_sheets",
+        explanation: "Suggest a total formula.",
+        alternateFormulas: ["SUBTOTAL(9,A1:A10)"],
+        confidence: 0.74
+      }
+    });
+
+    expect(HermesStructuredBodySchema.safeParse(primary).success).toBe(false);
+    expect(HermesStructuredBodySchema.safeParse(alternate).success).toBe(false);
+  });
+
   it("maps model-specific missing-context errors into contract-safe spreadsheet context errors", () => {
     const rawBody = {
       type: "error",
