@@ -14,6 +14,15 @@ describe("public error formatting", () => {
     );
   });
 
+  it("sanitizes generic secret assignments in validation issue messages and paths", () => {
+    expect(sanitizeClientIssueMessage("Invalid value DATABASE_PASSWORD=secret_123")).toBe(
+      "Invalid request field."
+    );
+    expect(formatClientIssuePath(["context", "CLIENT_TOKEN=secret_456", "values"])).toBe(
+      "(redacted)"
+    );
+  });
+
   it("sanitizes UNC paths in validation issue messages and paths", () => {
     expect(sanitizeClientIssueMessage(
       String.raw`Invalid value produced near \\runner\share\schema.ts:42`
