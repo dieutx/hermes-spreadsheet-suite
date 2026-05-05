@@ -5401,8 +5401,8 @@
     let prefill = null;
     try {
       prefill = await callServer("consumePrefillPrompt");
-    } catch (error) {
-      console.warn("Hermes could not load the prefill prompt.", error);
+    } catch {
+      console.warn("Hermes could not load the prefill prompt.");
     }
     if (prefill) {
       elements.prompt.value = prefill;
