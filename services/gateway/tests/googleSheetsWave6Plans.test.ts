@@ -593,6 +593,37 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("fails fast when Google Sheets image upload is pointed at private gateway host aliases", () => {
+    for (const gatewayUrl of [
+      "https://localhost.:8787",
+      "https://app.localhost:8787",
+      "https://gateway.local:8787",
+      "https://gateway.internal:8787",
+      "https://127.0.0.2:8787",
+      "https://169.254.1.10:8787"
+    ]) {
+      const fetch = vi.fn();
+      const code = loadCodeModule({
+        scriptProperties: {
+          HERMES_GATEWAY_URL: gatewayUrl
+        },
+        urlFetchApp: { fetch }
+      });
+
+      expect(() => code.uploadGatewayImageAttachment({
+        fileName: "table.png",
+        mimeType: "image/png",
+        base64Data: "aGVsbG8=",
+        source: "upload",
+        sessionId: "sess_upload_private_alias_001"
+      })).toThrow(
+        "Google Sheets image upload requires a public Hermes gateway URL.\n\n" +
+        "Set HERMES_GATEWAY_URL to a reachable HTTPS or public address, then retry the upload."
+      );
+      expect(fetch).not.toHaveBeenCalled();
+    }
+  });
+
   it("fails fast when Google Sheets image upload is pointed at a private or loopback IPv6 gateway", () => {
     const fetch = vi.fn();
     const code = loadCodeModule({
@@ -648,6 +679,27 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       reviewerSafeMode: false,
       forceExtractionMode: null
     });
+  });
+
+  it("does not expose private gateway aliases through Google Sheets runtime config", () => {
+    for (const gatewayUrl of [
+      "https://localhost.:8787",
+      "https://app.localhost:8787",
+      "https://gateway.local:8787",
+      "https://gateway.internal:8787",
+      "https://127.0.0.2:8787",
+      "https://169.254.1.10:8787"
+    ]) {
+      const code = loadCodeModule({
+        scriptProperties: {
+          HERMES_GATEWAY_URL: gatewayUrl
+        }
+      });
+
+      expect(code.getRuntimeConfig()).toMatchObject({
+        gatewayBaseUrl: ""
+      });
+    }
   });
 
   it("loads the Google Sheets sidebar from the staged html/Sidebar template path", () => {
@@ -6978,6 +7030,26 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       path: "/api/requests",
       method: "delete"
     })).toThrow("Hermes gateway proxy only supports GET and POST.");
+
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before proxying when the Apps Script gateway URL is private", () => {
+    const fetch = vi.fn(() => {
+      throw new Error("Unexpected proxy fetch");
+    });
+    const code = loadCodeModule({
+      scriptProperties: {
+        HERMES_GATEWAY_URL: "https://gateway.local:8787"
+      },
+      urlFetchApp: { fetch }
+    });
+
+    expect(() => code.proxyGatewayJson({
+      path: "/api/requests",
+      method: "post",
+      body: { requestId: "req_private_proxy_001" }
+    })).toThrow("Hermes gateway URL is not configured.");
 
     expect(fetch).not.toHaveBeenCalled();
   });
