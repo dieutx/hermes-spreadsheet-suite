@@ -1156,6 +1156,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
         "C:\\Users\\runner\\work\\private-tool.ts",
         "\\\\server\\share\\private-tool.ts",
         "https://169.254.169.254/latest/meta-data",
+        "https://[fd00::1]/latest/meta-data",
         "HERMES_API_SERVER_KEY=secret"
       ],
       downstreamProvider: {
@@ -1178,6 +1179,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(metaLine).not.toContain("C:\\Users");
     expect(metaLine).not.toContain("\\\\server");
     expect(metaLine).not.toContain("169.254.169.254");
+    expect(metaLine).not.toContain("fd00");
     expect(metaLine).not.toContain("internal.example");
     expect(metaLine).not.toContain("provider https://internal");
 
@@ -7106,6 +7108,11 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       "Gateway failed while fetching http://169.254.169.254/latest/meta-data"
     )).toBe("Hermes gateway request failed with 500.");
 
+    expect(code.extractGatewayErrorMessage(
+      500,
+      "Gateway failed while fetching http://[::1]/debug"
+    )).toBe("Hermes gateway request failed with 500.");
+
     await expect(hooks.parseGatewayJsonResponse({
       ok: false,
       status: 500,
@@ -7115,6 +7122,18 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       },
       async text() {
         return "ReferenceError at /srv/hermes/services/gateway/src/app.ts:99 HERMES_API_SERVER_KEY=secret_123";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return "Gateway failed while fetching http://[::1]/debug";
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
 

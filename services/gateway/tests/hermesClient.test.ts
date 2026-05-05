@@ -2245,6 +2245,7 @@ describe("HermesAgentClient", () => {
           "SelectionExplainerSkill",
           "/srv/hermes/private_tool.ts",
           "https://169.254.169.254/latest/meta-data",
+          "https://[fe80::1]/latest/meta-data",
           "HERMES_API_SERVER_KEY=secret_123"
         ],
         downstreamProvider: {
@@ -2274,6 +2275,7 @@ describe("HermesAgentClient", () => {
     expect(JSON.stringify(response)).not.toContain("/srv/hermes");
     expect(JSON.stringify(response)).not.toContain("internal.example");
     expect(JSON.stringify(response)).not.toContain("169.254.169.254");
+    expect(JSON.stringify(response)).not.toContain("fe80");
   });
 
   it("maps descriptive overwriteRisk text into a contract-safe risk level for sheet_update responses", async () => {

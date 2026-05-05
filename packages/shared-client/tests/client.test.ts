@@ -423,6 +423,20 @@ describe("shared client render helpers", () => {
     await expect(client.pollRun("run_link_local")).rejects.toThrow(
       "Hermes gateway request failed with HTTP 500."
     );
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      "Gateway failed while fetching http://[::1]/debug",
+      {
+        status: 500,
+        headers: {
+          "content-type": "text/plain"
+        }
+      }
+    )));
+
+    await expect(client.pollRun("run_ipv6_loopback")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
   });
 
   it("sanitizes sensitive JSON gateway errors from shared-client responses", async () => {
@@ -1076,6 +1090,7 @@ describe("shared client render helpers", () => {
         "SelectionExplainerSkill",
         "/srv/hermes/private-tool.ts",
         "https://169.254.169.254/latest/meta-data",
+        "https://[fd00::1]/latest/meta-data",
         "HERMES_API_SERVER_KEY=secret"
       ],
       downstreamProvider: {
@@ -1090,6 +1105,7 @@ describe("shared client render helpers", () => {
     expect(metaLine).not.toContain("HERMES_API_SERVER_KEY");
     expect(metaLine).not.toContain("/srv/hermes");
     expect(metaLine).not.toContain("169.254.169.254");
+    expect(metaLine).not.toContain("fd00");
     expect(metaLine).not.toContain("internal.example");
     expect(metaLine).not.toContain("provider https://internal");
 
