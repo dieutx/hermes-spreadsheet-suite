@@ -2101,6 +2101,41 @@ describe("HermesAgentClient", () => {
     expect(JSON.stringify(response)).not.toContain("7f00");
   });
 
+  it("sanitizes numeric private IPv4 provider diagnostics before returning gateway error responses", async () => {
+    process.env.HERMES_AGENT_BASE_URL = "http://agent.test/v1";
+    const client = new HermesAgentClient(getConfig());
+    const traceBus = new TraceBus();
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: "Provider failed while fetching http://2130706433/latest/meta-data"
+      }
+    }), {
+      status: 503,
+      headers: { "content-type": "application/json" }
+    })));
+
+    await client.processRequest({
+      runId: "run_provider_numeric_ipv4_diagnostic_sanitized_001",
+      request: baseRequest({
+        requestId: "req_provider_numeric_ipv4_diagnostic_sanitized_001",
+        userMessage: "Explain this workbook."
+      }),
+      traceBus
+    });
+
+    const response = traceBus.getRun("run_provider_numeric_ipv4_diagnostic_sanitized_001")?.response;
+    expect(response?.type).toBe("error");
+    expect(response?.data).toMatchObject({
+      code: "PROVIDER_ERROR",
+      message: "The Hermes service couldn't complete that request right now.",
+      retryable: true,
+      userAction: "Retry the request after the remote Hermes Agent service recovers."
+    });
+    expect(JSON.stringify(response)).not.toContain("2130706433");
+    expect(JSON.stringify(response)).not.toContain("latest/meta-data");
+  });
+
   it("returns provider errors when non-2xx provider JSON is malformed", async () => {
     process.env.HERMES_AGENT_BASE_URL = "http://agent.test/v1";
     const client = new HermesAgentClient(getConfig());

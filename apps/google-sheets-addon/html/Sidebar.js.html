@@ -490,6 +490,10 @@
     return `${resolvedMessage}\n\n${resolvedUserAction}`;
   }
 
+  function containsNumericIpv4Url(value) {
+    return /https?:\/\/(?:0x[0-9a-f]+|0[0-7]+|\d+)(?:\.(?:0x[0-9a-f]+|0[0-7]+|\d+)){0,3}(?::\d+)?(?:[/?#]|\s|$)/i.test(String(value || ""));
+  }
+
   function containsSensitiveHostDiagnostics(message) {
     const text = String(message || "");
     return (
@@ -500,6 +504,7 @@
       /(?:^|[\s=:])[A-Za-z]:\\[^\s]+/.test(text) ||
       /(?:^|[\s=:])\\\\[^\s]+/.test(text) ||
       /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\]|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(text) ||
+      containsNumericIpv4Url(text) ||
       /\b(?:stack trace|traceback)\b/i.test(text)
     );
   }
@@ -1010,6 +1015,7 @@
       /(?:^|\s)[A-Za-z]:\\[^\s]+/.test(value) ||
       /(?:^|[\s=:])\\\\[^\s]+/.test(value) ||
       /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\]|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(value) ||
+      containsNumericIpv4Url(value) ||
       /\b(?:stack trace|traceback)\b/i.test(value)
     );
   }
@@ -1621,7 +1627,8 @@
   const UNSAFE_PROOF_METADATA_PATTERN = /(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|(?:^|\s)\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|(?:^|\s)[A-Za-z]:\\[^\s]+|(?:^|\s)\\\\[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\])[^\s]*/i;
 
   function hasUnsafeProofMetadata(value) {
-    return typeof value === "string" && UNSAFE_PROOF_METADATA_PATTERN.test(value);
+    return typeof value === "string" &&
+      (UNSAFE_PROOF_METADATA_PATTERN.test(value) || containsNumericIpv4Url(value));
   }
 
   function getSafeSkillsUsed(skillsUsed) {

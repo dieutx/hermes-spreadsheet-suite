@@ -350,6 +350,10 @@ function extractGatewayErrorMessage_(statusCode, bodyText) {
   return bodyText;
 }
 
+function containsNumericIpv4Url_(value) {
+  return /https?:\/\/(?:0x[0-9a-f]+|0[0-7]+|\d+)(?:\.(?:0x[0-9a-f]+|0[0-7]+|\d+)){0,3}(?::\d+)?(?:[/?#]|\s|$)/i.test(String(value || ''));
+}
+
 function containsSensitiveGatewayErrorText_(text) {
   var value = String(text || '');
   return (
@@ -360,6 +364,7 @@ function containsSensitiveGatewayErrorText_(text) {
     /(?:^|\s)[A-Za-z]:\\[^\s]+/.test(value) ||
     /(?:^|[\s=:])\\\\[^\s]+/.test(value) ||
     /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\]|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(value) ||
+    containsNumericIpv4Url_(value) ||
     /\b(?:stack trace|traceback)\b/i.test(value)
   );
 }
@@ -385,6 +390,7 @@ function containsSensitiveHostDiagnostics_(message) {
     /(?:^|[\s=:])[A-Za-z]:\\[^\s]+/.test(text) ||
     /(?:^|[\s=:])\\\\[^\s]+/.test(text) ||
     /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\]|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(text) ||
+    containsNumericIpv4Url_(text) ||
     /\b(?:stack trace|traceback)\b/i.test(text)
   );
 }
