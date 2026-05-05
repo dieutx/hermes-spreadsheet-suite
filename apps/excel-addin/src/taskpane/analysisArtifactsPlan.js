@@ -54,6 +54,34 @@ function parseA1Anchor(range) {
   };
 }
 
+function parseA1Range(range) {
+  const normalized = String(range || "").trim().toUpperCase().replaceAll("$", "");
+  const withoutSheet = normalized.includes("!") ? normalized.split("!").pop() : normalized;
+  const [startRef, endRef = startRef] = withoutSheet.split(":");
+  const start = parseA1Anchor(startRef);
+  const end = parseA1Anchor(endRef);
+
+  return {
+    startRow: Math.min(start.startRow, end.startRow),
+    endRow: Math.max(start.startRow, end.startRow),
+    startColumn: Math.min(start.startColumn, end.startColumn),
+    endColumn: Math.max(start.startColumn, end.startColumn)
+  };
+}
+
+function a1RangeReferencesMatch(left, right) {
+  try {
+    const leftBounds = parseA1Range(left);
+    const rightBounds = parseA1Range(right);
+    return leftBounds.startRow === rightBounds.startRow &&
+      leftBounds.endRow === rightBounds.endRow &&
+      leftBounds.startColumn === rightBounds.startColumn &&
+      leftBounds.endColumn === rightBounds.endColumn;
+  } catch {
+    return false;
+  }
+}
+
 function padMatrixRows(rows) {
   const width = Math.max(1, ...rows.map((row) => row.length));
   return rows.map((row) => Array.from({ length: width }, (_, index) => row[index] ?? ""));
@@ -146,8 +174,31 @@ function normalizeAnalysisReportAffectedRanges(plan, resolvedTargetRange) {
   return normalizedRanges;
 }
 
+export function getAnalysisReportTargetRangeSupportError(plan) {
+  if (!isMaterializedAnalysisReportPlan(plan)) {
+    return "";
+  }
+
+  let expectedTargetRange = "";
+  try {
+    expectedTargetRange = resolveAnalysisReportTargetRange(plan);
+  } catch {
+    return "Excel host requires analysis report targetRange to match the full destination rectangle.";
+  }
+
+  if (!a1RangeReferencesMatch(plan.targetRange, expectedTargetRange)) {
+    return "Excel host requires analysis report targetRange to match the full destination rectangle.";
+  }
+
+  return "";
+}
+
 export function resolveMaterializedAnalysisReportPlan(plan) {
   if (!isMaterializedAnalysisReportPlan(plan)) {
+    return plan;
+  }
+
+  if (getAnalysisReportTargetRangeSupportError(plan)) {
     return plan;
   }
 
