@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const TASKPANE_MODULE_URL = new URL(
+const TASKPANE_MODULE_FILE = new URL(
   "../../../apps/excel-addin/src/taskpane/taskpane.js",
   import.meta.url
-).href;
+);
+const TASKPANE_MODULE_URL = TASKPANE_MODULE_FILE.href;
 let taskpaneUuidCounter = 0;
 
 function createElementStub() {
@@ -1081,6 +1083,19 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(wrappedPosixMetaLine).not.toContain("\\\\server");
     expect(wrappedPosixMetaLine).not.toContain("private-tool");
     expect(wrappedPosixMetaLine).not.toContain("provider");
+  });
+
+  it("does not embed server-only Hermes environment names in the Excel host source", () => {
+    const source = readFileSync(TASKPANE_MODULE_FILE, "utf8");
+    const forbiddenNames = [
+      ["HERMES", "API", "SERVER", "KEY"].join("_"),
+      ["HERMES", "AGENT", "BASE", "URL"].join("_"),
+      ["HERMES", "AGENT", "API", "KEY"].join("_")
+    ];
+
+    for (const name of forbiddenNames) {
+      expect(source).not.toContain(name);
+    }
   });
 
   it("escapes quotes in Excel preview action attributes", async () => {
