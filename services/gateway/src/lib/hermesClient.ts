@@ -51,6 +51,7 @@ const INVALID_HERMES_DEBUG_PREFIX = path.join(tmpdir(), "hermes-spreadsheet-inva
 const INTERNAL_ERROR_LANGUAGE_PATTERN = /\b(contract|schema|structured body|validation|json|payload|parse|parser|normaliz(?:e|ation))\b/i;
 const CLIENT_UNSAFE_INTERNAL_WORDING_PATTERN = /\b(?:contract schema|structured body|validation issue|parser error|raw json|raw payload|zod)\b/i;
 const CLIENT_UNSAFE_DIAGNOSTIC_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|(?:^|[\s(["'=:])[A-Za-z]:\\[^\s]+|(?:^|[\s(["'=:])\\\\[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\])[^\s]*/i;
+const CLIENT_UNSAFE_ENV_NAME_PATTERN = /\b[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*\b/;
 const CLIENT_UNSAFE_NUMERIC_IPV4_URL_PATTERN = /https?:\/\/(?:0x[0-9a-f]+|0[0-7]+|\d+)(?:\.(?:0x[0-9a-f]+|0[0-7]+|\d+)){0,3}(?::\d+)?(?:[/?#]|\s|$)/i;
 const DEBUG_SECRET_ASSIGNMENT_PATTERN = /((?:[A-Za-z0-9_-]*?(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|GOOGLE_CLIENT_SECRET|GOOGLE_REFRESH_TOKEN|GOOGLE_ACCESS_TOKEN))\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}\]]+)/gi;
 const DEBUG_BEARER_TOKEN_PATTERN = /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}\b/gi;
@@ -86,6 +87,7 @@ function containsClientUnsafeDiagnostic(value: unknown): boolean {
 
   return CLIENT_UNSAFE_INTERNAL_WORDING_PATTERN.test(value) ||
     CLIENT_UNSAFE_DIAGNOSTIC_PATTERN.test(value) ||
+    CLIENT_UNSAFE_ENV_NAME_PATTERN.test(value) ||
     CLIENT_UNSAFE_NUMERIC_IPV4_URL_PATTERN.test(value);
 }
 
