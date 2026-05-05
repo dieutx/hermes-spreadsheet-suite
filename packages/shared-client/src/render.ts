@@ -569,6 +569,8 @@ const DRY_RUN_SENSITIVE_LANGUAGE_PATTERN =
   /(?:^|\n)\s*at\s+(?:file:\/\/\/|\S+)|(?:^|[\s(["'=:])\/(?:root|home|Users|var|tmp|workspace|app|srv|etc|opt|mnt)\/|[A-Za-z]:\\|(?:^|[\s(["'=:])\\\\[^\s]+|\b(?:stack trace|traceback|TypeError|ReferenceError|SyntaxError|RangeError):?|https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\]|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i;
 const DRY_RUN_SECRET_IDENTIFIER_PATTERN =
   /\b(?:HERMES_[A-Z0-9_]+|[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*|client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret)\b/i;
+const DRY_RUN_STANDALONE_SECRET_IDENTIFIER_PATTERN =
+  /\b(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)\b/;
 const NUMERIC_IPV4_URL_PATTERN =
   /https?:\/\/(?:0x[0-9a-f]+|0[0-7]+|\d+)(?:\.(?:0x[0-9a-f]+|0[0-7]+|\d+)){0,3}(?::\d+)?(?:[/?#]|\s|$)/i;
 const PLAN_HISTORY_UNAVAILABLE_SUMMARY = "Plan history details are unavailable for this entry.";
@@ -578,7 +580,8 @@ function containsUnsafeClientText(value: string): boolean {
     DRY_RUN_INTERNAL_LANGUAGE_PATTERN.test(value) ||
     DRY_RUN_SENSITIVE_LANGUAGE_PATTERN.test(value) ||
     NUMERIC_IPV4_URL_PATTERN.test(value) ||
-    DRY_RUN_SECRET_IDENTIFIER_PATTERN.test(value)
+    DRY_RUN_SECRET_IDENTIFIER_PATTERN.test(value) ||
+    DRY_RUN_STANDALONE_SECRET_IDENTIFIER_PATTERN.test(value)
   );
 }
 
