@@ -123,6 +123,10 @@ export function verifyApprovalToken(input: VerifyApprovalTokenInput): {
     }
 
     const nowMs = typeof input.nowMs === "number" ? input.nowMs : Date.now();
+    if (issuedAtMs > nowMs) {
+      return { valid: false, expired: false };
+    }
+
     if ((nowMs - issuedAtMs) > input.maxAgeMs) {
       return { valid: false, expired: true };
     }
