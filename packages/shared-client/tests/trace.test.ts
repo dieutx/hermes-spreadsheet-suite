@@ -90,6 +90,22 @@ describe("shared client trace helpers", () => {
     expect(proof).not.toContain("meta-data");
   });
 
+  it("sanitizes private IPv6 proof label values", () => {
+    const response = responseWithIds({
+      requestId: "req_safe_001",
+      hermesRunId: "run_safe_001"
+    });
+    response.serviceLabel = "http://[fe80::1]/latest/meta-data";
+    response.environmentLabel = "review";
+
+    const proof = formatProofLine(response);
+
+    expect(proof).toContain("service unavailable");
+    expect(proof).toContain("environment review");
+    expect(proof).not.toContain("fe80");
+    expect(proof).not.toContain("meta-data");
+  });
+
   it("keeps safe proof identifiers visible", () => {
     const proof = formatProofLine(responseWithIds({
       requestId: "req_safe_001",

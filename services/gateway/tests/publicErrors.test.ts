@@ -49,4 +49,15 @@ describe("public error formatting", () => {
       "values"
     ])).toBe("(redacted)");
   });
+
+  it("sanitizes private IPv6 metadata URLs in validation issue messages and paths", () => {
+    expect(sanitizeClientIssueMessage(
+      "Invalid value produced near http://[fd00::1]/latest/meta-data"
+    )).toBe("Invalid request field.");
+    expect(formatClientIssuePath([
+      "context",
+      "http://[fe80::1]/latest/meta-data",
+      "values"
+    ])).toBe("(redacted)");
+  });
 });
