@@ -1941,6 +1941,41 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     expect(html).toContain("symbol CURRENCY:BTCUSD");
   });
 
+  it("fails closed when a Google Sheets market data formula does not match the query", () => {
+    const sidebar = loadSidebarContext();
+
+    const response = {
+      type: "external_data_plan",
+      data: {
+        sourceType: "market_data",
+        provider: "googlefinance",
+        query: {
+          symbol: "CURRENCY:BTCUSD",
+          attribute: "price"
+        },
+        targetSheet: "Market Data",
+        targetRange: "B2",
+        formula: '=GOOGLEFINANCE("CURRENCY:ETHUSD","price")',
+        explanation: "Anchor the latest BTC price in B2.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Market Data!B2"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(sidebar.isWritePlanResponse(response)).toBe(false);
+
+    const html = sidebar.renderStructuredPreview(response, {
+      runId: "run_external_data_preview_market_query_mismatch",
+      requestId: "req_external_data_preview_market_query_mismatch"
+    });
+
+    expect(html).toContain("Google Sheets market data formula must match query.symbol.");
+    expect(html).not.toContain("Confirm External Data");
+  });
+
   it("fails closed when a Google Sheets external data formula references a different source URL", () => {
     const sidebar = loadSidebarContext();
 
@@ -6290,6 +6325,62 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     })).toThrow("Google Sheets host could not verify the applied external data formula.");
     expect(targetRange.setFormula).toHaveBeenCalledWith('=GOOGLEFINANCE("CURRENCY:BTCUSD","price")');
     expect(code.flush).toHaveBeenCalled();
+  });
+
+  it("fails closed before applying market data formulas that do not match the query", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "B2",
+      row: 2,
+      column: 2,
+      numRows: 1,
+      numColumns: 1,
+      values: [["previous price"]],
+      formulas: [[""]]
+    });
+    const sheet = {
+      getRange: vi.fn((rangeA1: string) => {
+        expect(rangeA1).toBe("B2");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getId() {
+        return "sheet-123";
+      },
+      getSheetByName(name: string) {
+        if (name === "Market Data") {
+          return sheet;
+        }
+        return null;
+      }
+    };
+
+    const code = loadCodeModule({ spreadsheet });
+
+    expect(() => code.applyWritePlan({
+      requestId: "req_external_data_apply_market_query_mismatch",
+      runId: "run_external_data_apply_market_query_mismatch",
+      approvalToken: "token",
+      plan: {
+        sourceType: "market_data",
+        provider: "googlefinance",
+        query: {
+          symbol: "CURRENCY:BTCUSD",
+          attribute: "price"
+        },
+        targetSheet: "Market Data",
+        targetRange: "B2",
+        formula: '=GOOGLEFINANCE("CURRENCY:ETHUSD","price")',
+        explanation: "Anchor the latest BTC price in B2.",
+        confidence: 0.92,
+        requiresConfirmation: true,
+        affectedRanges: ["Market Data!B2"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    })).toThrow("Google Sheets market data formula must match query.symbol.");
+
+    expect(targetRange.setFormula).not.toHaveBeenCalled();
   });
 
   it("fails closed before applying an external data formula with a mismatched source URL", () => {
