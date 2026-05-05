@@ -56,6 +56,18 @@ describe("shared client trace helpers", () => {
     expect(proof).not.toContain("unsafe");
   });
 
+  it("sanitizes standalone secret marker proof identifiers", () => {
+    const proof = formatProofLine(responseWithIds({
+      requestId: "TOKEN",
+      hermesRunId: "SECRET"
+    }));
+
+    expect(proof).toContain("requestId unavailable");
+    expect(proof).toContain("hermesRunId unavailable");
+    expect(proof).not.toContain("TOKEN");
+    expect(proof).not.toContain("SECRET");
+  });
+
   it("sanitizes Windows proof label values", () => {
     const response = responseWithIds({
       requestId: "req_safe_001",
