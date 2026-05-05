@@ -93,10 +93,6 @@ function formatUploadRouterError(error: unknown, maxUploadBytes: number): {
   };
 }
 
-function getQueryString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
-}
-
 function getBoundUploadContentString(value: unknown, maxLength: number): { ok: true; value?: string } | { ok: false } {
   if (value === undefined) {
     return { ok: true };
@@ -116,6 +112,19 @@ function getBoundUploadContentString(value: unknown, maxLength: number): { ok: t
   }
 
   return { ok: true, value: normalized };
+}
+
+function getBoundUploadOwnershipString(value: unknown, maxLength: number): { ok: true; value?: string } | { ok: false } {
+  const parsed = getBoundUploadContentString(value, maxLength);
+  if (!parsed.ok || !parsed.value) {
+    return parsed;
+  }
+
+  if (!PUBLIC_UPLOAD_OWNER_ID_PATTERN.test(parsed.value)) {
+    return { ok: false };
+  }
+
+  return parsed;
 }
 
 function invalidUploadContentCredentials() {
@@ -284,13 +293,24 @@ export function createUploadRouter(input: {
     }
 
     const attachment = input.attachmentStore.get(attachmentId.value);
-    const sessionId = getQueryString(req.query.sessionId);
-    const workbookId = getQueryString(req.query.workbookId);
+    const sessionId = getBoundUploadOwnershipString(
+      req.query.sessionId,
+      MAX_UPLOAD_SESSION_ID_LENGTH
+    );
+    const workbookId = getBoundUploadOwnershipString(
+      req.query.workbookId,
+      MAX_UPLOAD_WORKBOOK_ID_LENGTH
+    );
+    if (!sessionId.ok || !workbookId.ok) {
+      res.status(400).json(invalidUploadOwnershipIds());
+      return;
+    }
+
     if (
       !attachment ||
       uploadToken.value !== attachment.metadata.uploadToken ||
-      (attachment.sessionId && sessionId !== attachment.sessionId) ||
-      (attachment.workbookId && workbookId !== attachment.workbookId)
+      (attachment.sessionId && sessionId.value !== attachment.sessionId) ||
+      (attachment.workbookId && workbookId.value !== attachment.workbookId)
     ) {
       res.status(404).json({
         error: {
