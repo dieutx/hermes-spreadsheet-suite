@@ -27,4 +27,15 @@ describe("public error formatting", () => {
       "values"
     ])).toBe("(redacted)");
   });
+
+  it("sanitizes macOS user paths in validation issue messages and paths", () => {
+    expect(sanitizeClientIssueMessage(
+      "Invalid value produced near /Users/runner/work/schema.ts:42"
+    )).toBe("Invalid request field.");
+    expect(formatClientIssuePath([
+      "context",
+      "/Users/runner/work/debug",
+      "values"
+    ])).toBe("(redacted)");
+  });
 });
