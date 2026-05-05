@@ -1252,6 +1252,25 @@ describe("structured body normalization", () => {
     expect(() => HermesStructuredBodySchema.parse(normalized)).not.toThrow();
   });
 
+  it("rejects custom formula validation without formula syntax after normalization", () => {
+    const parsed = HermesStructuredBodySchema.safeParse(normalizeHermesStructuredBodyInput({
+      type: "data_validation_plan",
+      data: {
+        targetSheet: "Sheet1",
+        targetRange: "G2:G20",
+        ruleType: "formula",
+        formula: "COUNTIF($B$2:$B$20,G2)<=1",
+        allowBlank: false,
+        invalidDataBehavior: "reject",
+        explanation: "Reject duplicate values in the input range.",
+        confidence: 0.86,
+        requiresConfirmation: true
+      }
+    }));
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("normalizes comparison aliases for validation conditional formatting and pivot filters", () => {
     const validation = normalizeHermesStructuredBodyInput({
       type: "data_validation_plan",
