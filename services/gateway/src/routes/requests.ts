@@ -11,7 +11,7 @@ type JsonRecord = Record<string, unknown>;
 
 const PUBLIC_RUN_ERROR_FALLBACK =
   "The gateway hit an unexpected error while processing the request.";
-const UNSAFE_RUN_ERROR_PATTERN = /(?:APPROVAL_SECRET|HERMES_API_SERVER_KEY|HERMES_AGENT_API_KEY|HERMES_AGENT_BASE_URL|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|(?:^|[\s(["'=:])\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|(?:^|[\s(["'=:])[A-Za-z]:\\[^\s]+|(?:^|[\s(["'=:])\\\\[^\s]+|https?:\/\/[^\s]+/i;
+const UNSAFE_RUN_ERROR_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+|[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|(?:^|[\s(["'=:])\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|(?:^|[\s(["'=:])[A-Za-z]:\\[^\s]+|(?:^|[\s(["'=:])\\\\[^\s]+|https?:\/\/[^\s]+/i;
 const NULL_OPTIONAL_PATHS = new Set([
   "context.selection.headers",
   "context.activeCell.formula",

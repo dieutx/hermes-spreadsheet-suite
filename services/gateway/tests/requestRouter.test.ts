@@ -1091,4 +1091,29 @@ describe("request router", () => {
     expect((wrappedUncResponse.body as any).error).not.toContain("runner");
     expect((wrappedUncResponse.body as any).error).not.toContain("request-status");
   });
+
+  it("sanitizes generic secret assignments in stored run errors before status polling returns them", async () => {
+    const { router, traceBus } = createTestRouter();
+    traceBus.ensureRun(
+      "run_status_generic_secret_error_001",
+      "req_status_generic_secret_error_001",
+      "sess_status_error_001"
+    );
+    traceBus.setError(
+      "run_status_generic_secret_error_001",
+      "Provider failed with DATABASE_PASSWORD=secret_123"
+    );
+
+    const response = await invokeGet(router, "run_status_generic_secret_error_001", {
+      requestId: "req_status_generic_secret_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect((response.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((response.body as any).error).not.toContain("DATABASE_PASSWORD");
+    expect((response.body as any).error).not.toContain("secret_123");
+  });
 });
