@@ -33,11 +33,34 @@ const DEFAULT_HERMES_AGENT_TIMEOUT_MS = 45_000;
 const SAFE_PUBLIC_LABEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,79}$/;
 const UNSAFE_PUBLIC_LABEL_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt)\/[^\s]+|https?:\/\/[^\s]+/i;
 
+function decodeIpv4MappedHostname(hostname: string): string | undefined {
+  const match = hostname.match(/^(?:::ffff:|0:0:0:0:0:ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const high = Number.parseInt(match[1], 16);
+  const low = Number.parseInt(match[2], 16);
+  if (!Number.isInteger(high) || !Number.isInteger(low)) {
+    return undefined;
+  }
+
+  return [
+    (high >> 8) & 0xff,
+    high & 0xff,
+    (low >> 8) & 0xff,
+    low & 0xff
+  ].join(".");
+}
+
 function isLoopbackBaseUrl(value: string): boolean {
   try {
     const url = new URL(value);
     const hostname = url.hostname.replace(/^\[|\]$/g, "");
-    return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
+    const mappedIpv4 = decodeIpv4MappedHostname(hostname);
+    return (mappedIpv4 ?? hostname) === "127.0.0.1" ||
+      hostname === "localhost" ||
+      hostname === "::1";
   } catch {
     return false;
   }
