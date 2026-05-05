@@ -292,6 +292,11 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     )).toBe("Failed to contact Hermes.");
 
     expect(taskpane.sanitizeHostExecutionError(
+      new Error("Request failed at http://2130706433/latest/meta-data"),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
+    expect(taskpane.sanitizeHostExecutionError(
       new Error("Writeback failed for qa_HERMES_API_SERVER_KEY")
     )).toBe("Write-back failed.");
   });

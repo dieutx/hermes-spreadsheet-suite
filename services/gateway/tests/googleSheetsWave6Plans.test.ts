@@ -563,6 +563,15 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       new Error("Request failed at http://[::ffff:7f00:1]/latest/meta-data")
     )).toBe("Write-back failed.");
 
+    expect(sidebar.sanitizeHostExecutionError(
+      new Error("Request failed at http://2130706433/latest/meta-data"),
+      "Failed to contact Hermes."
+    )).toBe("Failed to contact Hermes.");
+
+    expect(code.sanitizeHostExecutionError(
+      new Error("Request failed at http://2130706433/latest/meta-data")
+    )).toBe("Write-back failed.");
+
     expect(code.sanitizeHostExecutionError(
       new Error(String.raw`Unhandled writeback failure at path=C:\Users\runner\work\Code.gs:42`)
     )).toBe("Write-back failed.");

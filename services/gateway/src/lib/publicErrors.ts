@@ -1,5 +1,7 @@
 const CLIENT_UNSAFE_VALIDATION_PATTERN =
   /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|[A-Za-z]:\\[^\s]+|(?:^|[\s.=:])\\\\[^\s]+|https?:\/\/(?:internal(?:[.\w-]*)?|localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\]|[^/\s]*\.local)[^\s]*/i;
+const CLIENT_UNSAFE_NUMERIC_IPV4_URL_PATTERN =
+  /https?:\/\/(?:0x[0-9a-f]+|0[0-7]+|\d+)(?:\.(?:0x[0-9a-f]+|0[0-7]+|\d+)){0,3}(?::\d+)?(?:[/?#]|\s|$)/i;
 
 function normalizePublicErrorText(value: unknown): string {
   return String(value ?? "")
@@ -17,7 +19,11 @@ export function sanitizeClientIssueMessage(
   fallback = "Invalid request field."
 ): string {
   const normalized = normalizePublicErrorText(message);
-  if (!normalized || CLIENT_UNSAFE_VALIDATION_PATTERN.test(normalized)) {
+  if (
+    !normalized ||
+    CLIENT_UNSAFE_VALIDATION_PATTERN.test(normalized) ||
+    CLIENT_UNSAFE_NUMERIC_IPV4_URL_PATTERN.test(normalized)
+  ) {
     return fallback;
   }
 
@@ -30,7 +36,10 @@ export function formatClientIssuePath(path: ReadonlyArray<string | number>): str
     return "";
   }
 
-  if (CLIENT_UNSAFE_VALIDATION_PATTERN.test(normalized)) {
+  if (
+    CLIENT_UNSAFE_VALIDATION_PATTERN.test(normalized) ||
+    CLIENT_UNSAFE_NUMERIC_IPV4_URL_PATTERN.test(normalized)
+  ) {
     return "(redacted)";
   }
 
