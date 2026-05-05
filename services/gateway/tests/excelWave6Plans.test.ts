@@ -290,6 +290,10 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     )).toBe("Write-back failed.");
 
     expect(taskpane.sanitizeHostExecutionError(
+      new Error(String.raw`Unhandled writeback failure at ("/srv/hermes/services/gateway/src/routes/writeback.ts:42")`)
+    )).toBe("Write-back failed.");
+
+    expect(taskpane.sanitizeHostExecutionError(
       new Error("Request failed at https://internal.example/api with HERMES_API_SERVER_KEY=secret_123"),
       "Failed to contact Hermes."
     )).toBe("Failed to contact Hermes.");
