@@ -337,6 +337,37 @@ describe("execution control routes", () => {
     });
   });
 
+  it("fails closed when the ledger returns an invalid history page", () => {
+    const ledger = {
+      listHistory() {
+        return {
+          entries: [
+            {
+              executionId: "exec_bad"
+            }
+          ]
+        };
+      }
+    } as unknown as ExecutionLedger;
+
+    const history = invokeExecutionRouteWithLedger({
+      path: "/history",
+      method: "get",
+      ledger,
+      query: {
+        workbookSessionKey: "excel_windows::workbook-123"
+      }
+    });
+
+    expect(history.status).toBe(500);
+    expect(history.body).toMatchObject({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "The gateway couldn't complete that execution-control request."
+      }
+    });
+  });
+
   it("rejects dry-run requests that would overflow the DryRunResult contract", () => {
     const dryRun = invokeExecutionRoute({
       path: "/dry-run",
