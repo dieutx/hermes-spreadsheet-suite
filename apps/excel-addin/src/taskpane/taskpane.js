@@ -11853,8 +11853,8 @@ function hydratePrefill() {
   if (prefill) {
     elements.prompt.value = prefill;
     Office.context.document.settings.remove("hermesPrefillPrompt");
-    void saveDocumentSettingsAsync().catch((error) => {
-      console.warn("Hermes could not clear the prefill prompt.", error);
+    void saveDocumentSettingsAsync().catch(() => {
+      console.warn("Hermes could not clear the prefill prompt.");
     });
   }
 }
