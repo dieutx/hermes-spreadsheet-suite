@@ -894,6 +894,50 @@ describe("request router", () => {
     expect((labeledPosixResponse.body as any).error).not.toContain("/srv/hermes");
 
     traceBus.ensureRun(
+      "run_status_macos_error_001",
+      "req_status_macos_error_001",
+      "sess_status_error_001"
+    );
+    traceBus.setError(
+      "run_status_macos_error_001",
+      "Provider failed at /Users/runner/work/request-status.ts:42"
+    );
+
+    const macosResponse = await invokeGet(router, "run_status_macos_error_001", {
+      requestId: "req_status_macos_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(macosResponse.statusCode).toBe(200);
+    expect((macosResponse.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((macosResponse.body as any).error).not.toContain("runner");
+    expect((macosResponse.body as any).error).not.toContain("request-status");
+
+    traceBus.ensureRun(
+      "run_status_labeled_macos_error_001",
+      "req_status_labeled_macos_error_001",
+      "sess_status_error_001"
+    );
+    traceBus.setError(
+      "run_status_labeled_macos_error_001",
+      "Provider failed at path=/Users/runner/work/request-status.ts:42"
+    );
+
+    const labeledMacosResponse = await invokeGet(router, "run_status_labeled_macos_error_001", {
+      requestId: "req_status_labeled_macos_error_001",
+      sessionId: "sess_status_error_001"
+    });
+
+    expect(labeledMacosResponse.statusCode).toBe(200);
+    expect((labeledMacosResponse.body as any).error).toBe(
+      "The gateway hit an unexpected error while processing the request."
+    );
+    expect((labeledMacosResponse.body as any).error).not.toContain("runner");
+    expect((labeledMacosResponse.body as any).error).not.toContain("request-status");
+
+    traceBus.ensureRun(
       "run_status_windows_error_001",
       "req_status_windows_error_001",
       "sess_status_error_001"
