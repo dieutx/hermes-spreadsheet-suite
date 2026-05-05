@@ -517,6 +517,20 @@ describe("shared client render helpers", () => {
       "Hermes gateway request failed with HTTP 500."
     );
 
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      "Gateway failed while logging TOKEN=secret_456",
+      {
+        status: 500,
+        headers: {
+          "content-type": "text/plain"
+        }
+      }
+    )));
+
+    await expect(client.pollRun("run_standalone_raw_secret")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
+
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       error: {
         message: "Gateway failed while logging CACHE_TOKEN=secret_456"
