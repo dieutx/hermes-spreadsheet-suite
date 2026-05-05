@@ -512,6 +512,45 @@ describe("upload router", () => {
     expect(validOwnership.headers.get("content-type")).toBe("image/png");
   });
 
+  it("rejects unsafe upload content ownership query values before attachment lookup", async () => {
+    const { uploadRouter } = createTestApp();
+
+    const uploadResponse = await invokeUploadImage(uploadRouter, {
+      body: { source: "upload", sessionId: "sess_img_real_001", workbookId: "sheet_import_demo" },
+      file: {
+        buffer: PNG_SIGNATURE_BYTES,
+        mimetype: "image/png",
+        originalname: "table.png",
+        size: PNG_SIGNATURE_BYTES.length
+      }
+    });
+    const attachment = (uploadResponse.body as any).attachment;
+
+    const unsafeSession = await invokeUploadContent(uploadRouter, attachment.id, {
+      uploadToken: attachment.uploadToken,
+      sessionId: "sess_HERMES_API_SERVER_KEY=secret",
+      workbookId: "sheet_import_demo"
+    });
+    expect(unsafeSession.statusCode).toBe(400);
+    expect(unsafeSession.body).toEqual({
+      error: {
+        code: "INVALID_REQUEST",
+        message: "Image upload ownership identifiers are invalid.",
+        userAction: "Reload the spreadsheet sidebar or add-in, then try the upload again."
+      }
+    });
+    expect(JSON.stringify(unsafeSession.body)).not.toContain("HERMES_API_SERVER_KEY");
+    expect(JSON.stringify(unsafeSession.body)).not.toContain("secret");
+
+    const oversizedWorkbook = await invokeUploadContent(uploadRouter, attachment.id, {
+      uploadToken: attachment.uploadToken,
+      sessionId: "sess_img_real_001",
+      workbookId: "w".repeat(257)
+    });
+    expect(oversizedWorkbook.statusCode).toBe(400);
+    expect(oversizedWorkbook.body).toEqual(unsafeSession.body);
+  });
+
   it("sanitizes unsafe uploaded file names before returning attachment metadata", async () => {
     const { uploadRouter, attachmentStore } = createTestApp();
 
