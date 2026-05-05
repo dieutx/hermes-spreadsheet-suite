@@ -1007,6 +1007,35 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(embeddedMetaLine).toContain("skills SelectionExplainerSkill");
     expect(embeddedMetaLine).toContain("provider Hermes Gateway");
     expect(embeddedMetaLine).not.toContain("qa_HERMES");
+
+    const wrappedPosixMetaLine = taskpane.getResponseMetaLine({
+      type: "chat",
+      skillsUsed: [
+        "SelectionExplainerSkill",
+        String.raw`("/srv/hermes/private-tool.ts")`,
+        String.raw`("C:\Users\runner\work\private-tool.ts")`,
+        String.raw`("\\server\share\private-tool.ts")`
+      ],
+      downstreamProvider: {
+        label: String.raw`("\\server\share\provider")`,
+        model: "gpt-5"
+      },
+      ui: {
+        showConfidence: true,
+        showRequiresConfirmation: false
+      },
+      data: {
+        message: "Processed remotely.",
+        confidence: 0.9
+      }
+    });
+
+    expect(wrappedPosixMetaLine).toContain("skills SelectionExplainerSkill");
+    expect(wrappedPosixMetaLine).not.toContain("/srv/hermes");
+    expect(wrappedPosixMetaLine).not.toContain("C:\\Users");
+    expect(wrappedPosixMetaLine).not.toContain("\\\\server");
+    expect(wrappedPosixMetaLine).not.toContain("private-tool");
+    expect(wrappedPosixMetaLine).not.toContain("provider");
   });
 
   it("escapes quotes in Excel preview action attributes", async () => {
