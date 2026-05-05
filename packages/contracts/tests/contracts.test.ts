@@ -835,6 +835,47 @@ describe("Hermes spreadsheet contracts", () => {
     expect(stepLevel.success).toBe(false);
   });
 
+  it("rejects unknown execution history plan types", () => {
+    const entry = {
+      executionId: "exec_001",
+      requestId: "req_001",
+      runId: "run_001",
+      planType: "sheet_update",
+      planDigest: "digest_001",
+      status: "completed",
+      timestamp: "2026-04-20T09:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "Completed the plan.",
+      stepEntries: [
+        {
+          stepId: "step_update",
+          planType: "sheet_update",
+          status: "completed",
+          summary: "Updated cells."
+        }
+      ]
+    };
+
+    expect(PlanHistoryEntrySchema.safeParse({
+      ...entry,
+      planType: "internal_debug_plan"
+    }).success).toBe(false);
+
+    expect(PlanHistoryEntrySchema.safeParse({
+      ...entry,
+      stepEntries: [
+        {
+          stepId: "step_update",
+          planType: "internal_debug_step",
+          status: "completed",
+          summary: "Updated cells."
+        }
+      ]
+    }).success).toBe(false);
+  });
+
   it("accepts composite Hermes response envelopes", () => {
     const parsed = HermesResponseSchema.parse({
       schemaVersion: "1.0.0",
