@@ -173,7 +173,7 @@ function eventKey(event: HermesTraceEvent): string {
   return JSON.stringify(event);
 }
 
-const UNSAFE_TRACE_METADATA_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|(?:^|\s)[A-Za-z]:\\[^\s]+|(?:^|\s)\\\\[^\s]+|https?:\/\/[^\s]+/i;
+const UNSAFE_TRACE_METADATA_PATTERN = /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|APPROVAL_SECRET|HERMES_[A-Z0-9_]+|OPENAI_API_KEY|ANTHROPIC_API_KEY|stack trace|traceback|ReferenceError|TypeError|SyntaxError|RangeError)|\/(?:root|srv|home|tmp|var|opt|workspace|app|mnt|Users)\/[^\s]+|(?:^|[\s(["'=:])[A-Za-z]:\\[^\s]+|(?:^|[\s(["'=:])\\\\[^\s]+|https?:\/\/[^\s]+/i;
 
 function isUnsafeTraceText(value: unknown): boolean {
   return typeof value === "string" && UNSAFE_TRACE_METADATA_PATTERN.test(value);
