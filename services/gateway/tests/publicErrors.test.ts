@@ -28,6 +28,17 @@ describe("public error formatting", () => {
     ])).toBe("(redacted)");
   });
 
+  it("sanitizes wrapped UNC paths in validation issue messages and paths", () => {
+    expect(sanitizeClientIssueMessage(
+      String.raw`Invalid value produced near ("\\runner\share\schema.ts:42")`
+    )).toBe("Invalid request field.");
+    expect(formatClientIssuePath([
+      "context",
+      String.raw`("\\runner\share\debug")`,
+      "values"
+    ])).toBe("(redacted)");
+  });
+
   it("sanitizes macOS user paths in validation issue messages and paths", () => {
     expect(sanitizeClientIssueMessage(
       "Invalid value produced near /Users/runner/work/schema.ts:42"
