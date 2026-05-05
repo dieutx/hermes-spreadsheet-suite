@@ -2522,13 +2522,19 @@ function applyExcelRangeFormatBorderSnapshot(target, borders) {
     return;
   }
 
-  for (const [side, snapshot] of Object.entries(borders)) {
+  const borderEntries = Object.entries(borders);
+  if (borderEntries.length === 0) {
+    return;
+  }
+
+  const borderCollection = getExcelRangeBorderCollection(target);
+  for (const [side, snapshot] of borderEntries) {
     const excelSide = mapRangeBorderSideToExcel(side);
     if (!excelSide) {
       continue;
     }
 
-    const border = target.format.borders.getItem(excelSide);
+    const border = borderCollection.getItem(excelSide);
     if (hasSnapshotField(snapshot, "lineStyle")) {
       border.lineStyle = snapshot.lineStyle;
     }

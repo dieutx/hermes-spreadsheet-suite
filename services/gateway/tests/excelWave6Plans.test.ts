@@ -2590,6 +2590,94 @@ describe("Excel wave 6 composite plans and execution controls", () => {
     expect(targetRange.numberFormat).toEqual([["General"]]);
   });
 
+  it("fails closed before undo commit when Excel border snapshot restore is unsupported", async () => {
+    const workbookSessionId = "workbook-123";
+    const workbookSessionKey = `excel_windows::${workbookSessionId}`;
+    const snapshotStoreKey = `Hermes.ReversibleExecutions.v1::${workbookSessionKey}`;
+    const localSnapshotStore = JSON.stringify({
+      version: 1,
+      order: ["exec_range_format_border_001"],
+      executions: {
+        exec_range_format_border_001: {
+          baseExecutionId: "exec_range_format_border_001"
+        }
+      },
+      bases: {
+        exec_range_format_border_001: {
+          baseExecutionId: "exec_range_format_border_001",
+          kind: "range_format",
+          targetSheet: "Sales",
+          targetRange: "B2",
+          shape: {
+            rows: 1,
+            columns: 1
+          },
+          beforeFormatCells: [[{}]],
+          afterFormatCells: [[{}]],
+          beforeBorders: {
+            top: {
+              lineStyle: "Continuous",
+              color: "#1f2937",
+              weight: "Thin"
+            }
+          }
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (url: string) => ({
+      ok: true,
+      async json() {
+        return {
+          kind: "range_format_update",
+          operation: "range_format_update",
+          hostPlatform: "excel_windows",
+          executionId: String(url).endsWith("/api/execution/undo") ? "exec_undo_001" : "exec_undo_preview_001",
+          summary: ""
+        };
+      }
+    }));
+    let targetRange: any;
+    targetRange = {
+      rowCount: 1,
+      columnCount: 1,
+      load: vi.fn(),
+      getCell: vi.fn(() => targetRange),
+      format: {
+        fill: {},
+        font: {}
+      }
+    };
+    const taskpane = await loadTaskpaneModule(
+      {
+        sync: vi.fn(async () => {}),
+        workbook: {
+          worksheets: {
+            getItem() {
+              return {
+                getRange() {
+                  return targetRange;
+                }
+              };
+            }
+          }
+        }
+      },
+      {
+        fetchImpl: fetchMock,
+        documentSettings: new Map([["Hermes.WorkbookSessionId", workbookSessionId]]),
+        localStorageSeed: {
+          [snapshotStoreKey]: localSnapshotStore
+        }
+      }
+    );
+
+    await expect(taskpane.undoExecution("exec_range_format_border_001"))
+      .rejects.toThrow("Excel host does not support exact range borders on this range.");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8787/api/execution/undo/prepare");
+  });
+
   it("restores Excel conditional-format snapshots before committing undo", async () => {
     const workbookSessionId = "workbook-123";
     const workbookSessionKey = `excel_windows::${workbookSessionId}`;
