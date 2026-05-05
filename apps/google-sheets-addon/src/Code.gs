@@ -1627,7 +1627,7 @@ function buildPivotFilterCriteria_(filter) {
     ? coercePivotFilterNumber_(filter && filter.value2, filter && filter.operator)
     : null;
 
-  if (!builder || typeof builder[methods.primary] !== 'function') {
+  if (!builder || typeof builder[methods.primary] !== 'function' || typeof builder.build !== 'function') {
     throw new Error('Google Sheets host does not support pivot filter criteria builders.');
   }
 

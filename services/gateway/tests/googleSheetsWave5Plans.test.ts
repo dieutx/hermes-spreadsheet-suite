@@ -18,6 +18,7 @@ const sidebarScript = sidebarHtml.match(/<script>([\s\S]*)<\/script>/)?.[1] || "
 function loadCodeModule(options: {
   spreadsheet?: Record<string, unknown>;
   flush?: ReturnType<typeof vi.fn>;
+  newFilterCriteria?: () => Record<string, unknown>;
 } = {}) {
   const flush = options.flush || vi.fn();
   const context = {
@@ -29,7 +30,7 @@ function loadCodeModule(options: {
         return options.spreadsheet;
       },
       flush,
-      newFilterCriteria() {
+      newFilterCriteria: options.newFilterCriteria || function() {
         let matchedValue: unknown = null;
         let matchedType: string | null = null;
         const bindBuilderMethod = (type: string) => vi.fn(function() {
@@ -1502,6 +1503,73 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
       ],
       summary: "Created pivot table on Sales Pivot!A1."
     });
+  });
+
+  it("fails closed when Google Sheets pivot filter builders cannot build criteria", () => {
+    const anchorRange = createRangeStub({
+      a1Notation: "A1",
+      row: 1,
+      column: 1,
+      numRows: 1,
+      numColumns: 1,
+      values: [[""]]
+    });
+    const sourceRange = createRangeStub({
+      a1Notation: "A1:F50",
+      row: 1,
+      column: 1,
+      numRows: 50,
+      numColumns: 6,
+      displayValues: [
+        ["Region", "Rep", "Quarter", "Revenue", "Status", "Deals"]
+      ]
+    });
+    anchorRange.createPivotTable = vi.fn(() => ({
+      addRowGroup: vi.fn(),
+      addColumnGroup: vi.fn(),
+      addPivotValue: vi.fn(),
+      addFilter: vi.fn()
+    }));
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        if (sheetName === "Sales") {
+          return { getRange: vi.fn(() => sourceRange) };
+        }
+        if (sheetName === "Sales Pivot") {
+          return { getRange: vi.fn(() => anchorRange) };
+        }
+        return null;
+      })
+    };
+
+    const { applyWritePlan } = loadCodeModule({
+      spreadsheet,
+      newFilterCriteria: () => ({
+        whenTextEqualTo: vi.fn(function() {
+          return this;
+        })
+      })
+    });
+
+    expect(() => applyWritePlan({
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        targetSheet: "Sales Pivot",
+        targetRange: "A1",
+        rowGroups: ["Region"],
+        columnGroups: [],
+        valueAggregations: [{ field: "Revenue", aggregation: "sum" }],
+        filters: [{ field: "Status", operator: "equal_to", value: "Closed" }],
+        explanation: "Build a pivot table with a status filter.",
+        confidence: 0.9,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Sales Pivot!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    })).toThrow("Google Sheets host does not support pivot filter criteria builders.");
+    expect(anchorRange.createPivotTable).not.toHaveBeenCalled();
   });
 
   it("applies Google Sheets pivot table snapshots on the server", () => {
