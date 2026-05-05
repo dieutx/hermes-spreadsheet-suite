@@ -74,6 +74,22 @@ describe("shared client trace helpers", () => {
     expect(proof).not.toContain("env=");
   });
 
+  it("sanitizes link-local proof label values", () => {
+    const response = responseWithIds({
+      requestId: "req_safe_001",
+      hermesRunId: "run_safe_001"
+    });
+    response.serviceLabel = "http://169.254.169.254/latest/meta-data";
+    response.environmentLabel = "review";
+
+    const proof = formatProofLine(response);
+
+    expect(proof).toContain("service unavailable");
+    expect(proof).toContain("environment review");
+    expect(proof).not.toContain("169.254.169.254");
+    expect(proof).not.toContain("meta-data");
+  });
+
   it("keeps safe proof identifiers visible", () => {
     const proof = formatProofLine(responseWithIds({
       requestId: "req_safe_001",
