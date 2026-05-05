@@ -138,7 +138,7 @@ function containsSensitiveGatewayErrorText(text: string): boolean {
     /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)/i.test(text) ||
     /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(text) ||
     /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(text) ||
-    /(?:^|\s)\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(text) ||
+    /(?:^|[\s(["'=:])\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(text) ||
     /(?:^|[\s(["'=:])[A-Za-z]:\\[^\s]+/.test(text) ||
     /(?:^|[\s(["'=:])\\\\[^\s]+/.test(text) ||
     /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10\.|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|\[(?:::ffff:|(?:0:){5}ffff:)(?:(?:127|10)(?:\.\d{1,3}){3}|169\.254\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|(?:0{1,4}|7f[0-9a-f]{2}|0?a[0-9a-f]{2}|a9fe|c0a8|ac1[0-9a-f]):[0-9a-f]{1,4})\]|\[(?:::|::1|f[cd][0-9a-f:]*|fe[89ab][0-9a-f:]*)\]|[^/\s]*internal|[^/\s]*\.local)(?:[/:]|\s|$)/i.test(text) ||

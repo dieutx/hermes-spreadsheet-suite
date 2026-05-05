@@ -439,6 +439,20 @@ describe("shared client render helpers", () => {
     );
 
     vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      String.raw`Gateway failed at ("/srv/hermes/server.ts:42")`,
+      {
+        status: 500,
+        headers: {
+          "content-type": "text/plain"
+        }
+      }
+    )));
+
+    await expect(client.pollRun("run_wrapped_posix")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
       "Gateway failed while fetching http://169.254.169.254/latest/meta-data",
       {
         status: 500,
@@ -546,6 +560,22 @@ describe("shared client render helpers", () => {
     })));
 
     await expect(client.pollRun("run_wrapped_windows_json")).rejects.toThrow(
+      "Hermes gateway request failed with HTTP 500."
+    );
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: "Gateway failed while formatting diagnostics.",
+        userAction: String.raw`Inspect ("/srv/hermes/debug.log") before retrying.`
+      }
+    }), {
+      status: 500,
+      headers: {
+        "content-type": "application/json"
+      }
+    })));
+
+    await expect(client.pollRun("run_wrapped_posix_json")).rejects.toThrow(
       "Hermes gateway request failed with HTTP 500."
     );
   });
