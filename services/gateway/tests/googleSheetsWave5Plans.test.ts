@@ -250,7 +250,7 @@ afterEach(() => {
 });
 
 describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
-  it("treats chat-only analysis reports as non-write previews and resolves materialized report approvals to the real range", () => {
+  it("treats chat-only analysis reports as non-write previews and keeps materialized report approvals on the full range", () => {
     const sidebar = loadSidebarContext();
 
     const chatOnlyResponse = {
@@ -282,7 +282,7 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
         sourceRange: "A1:F50",
         outputMode: "materialize_report",
         targetSheet: "Sales Report",
-        targetRange: "A1",
+        targetRange: "A1:D6",
         sections: [
           {
             type: "summary_stats",
@@ -300,7 +300,7 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
         explanation: "Materialize the analysis report onto a report sheet.",
         confidence: 0.91,
         requiresConfirmation: true,
-        affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+        affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D6"],
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
@@ -350,6 +350,50 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
         affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D6"]
       }
     });
+  });
+
+  it("does not treat materialized analysis report anchors as confirmable Google Sheets writes", () => {
+    const sidebar = loadSidebarContext();
+    const anchorResponse = {
+      type: "analysis_report_plan",
+      data: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        outputMode: "materialize_report",
+        targetSheet: "Sales Report",
+        targetRange: "A1",
+        sections: [
+          {
+            type: "summary_stats",
+            title: "Revenue summary",
+            summary: "Average revenue is 12,500.",
+            sourceRanges: ["Sales!A1:F50"]
+          },
+          {
+            type: "group_breakdown",
+            title: "By region",
+            summary: "West leads closed-won revenue.",
+            sourceRanges: ["Sales!A1:F50", "Sales!H1:J20"]
+          }
+        ],
+        explanation: "Materialize the analysis report onto a report sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    };
+
+    expect(sidebar.isWritePlanResponse(anchorResponse)).toBe(false);
+    expect(sidebar.getRequiresConfirmation(anchorResponse)).toBe(false);
+
+    const html = sidebar.renderStructuredPreview(anchorResponse, {
+      runId: "run_analysis_report_anchor_preview",
+      requestId: "req_analysis_report_anchor_preview"
+    });
+    expect(html).toContain("Google Sheets host requires analysis report targetRange to match the full destination rectangle.");
+    expect(html).not.toContain("Confirm Analysis Report");
   });
 
   it("treats a demo-safe chart plan as a confirmable Google Sheets write preview", () => {
@@ -480,7 +524,83 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     expect(sortHtml).not.toContain("Confirm Pivot Table");
   });
 
-  it("applies a materialized analysis report in Google Sheets using the resolved range", () => {
+  it("applies a materialized analysis report in Google Sheets using the approved full range", () => {
+    const targetRange = createRangeStub({
+      a1Notation: "A1:D6",
+      row: 1,
+      column: 1,
+      numRows: 6,
+      numColumns: 4,
+      values: Array.from({ length: 6 }, () => Array.from({ length: 4 }, () => ""))
+    });
+
+    const sheet = {
+      getRange: vi.fn((rangeName: string) => {
+        expect(rangeName).toBe("A1:D6");
+        return targetRange;
+      })
+    };
+    const spreadsheet = {
+      getSheetByName: vi.fn((sheetName: string) => {
+        expect(sheetName).toBe("Sales Report");
+        return sheet;
+      })
+    };
+    const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
+
+    const result = applyWritePlan({
+      plan: {
+        sourceSheet: "Sales",
+        sourceRange: "A1:F50",
+        outputMode: "materialize_report",
+        targetSheet: "Sales Report",
+        targetRange: "A1:D6",
+        sections: [
+          {
+            type: "summary_stats",
+            title: "Revenue summary",
+            summary: "Average revenue is 12,500.",
+            sourceRanges: ["Sales!A1:F50"]
+          },
+          {
+            type: "group_breakdown",
+            title: "By region",
+            summary: "West leads closed-won revenue.",
+            sourceRanges: ["Sales!A1:F50", "Sales!H1:J20"]
+          }
+        ],
+        explanation: "Materialize the analysis report onto a report sheet.",
+        confidence: 0.91,
+        requiresConfirmation: true,
+        affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D6"],
+        overwriteRisk: "low",
+        confirmationLevel: "standard"
+      }
+    });
+
+    expect(result).toMatchObject({
+      kind: "analysis_report_update",
+      hostPlatform: "google_sheets",
+      sourceSheet: "Sales",
+      sourceRange: "A1:F50",
+      outputMode: "materialize_report",
+      targetSheet: "Sales Report",
+      targetRange: "A1:D6",
+      affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D6"],
+      summary: "Created analysis report on Sales Report!A1:D6."
+    });
+    expect(targetRange.setValues).toHaveBeenCalledWith([
+      ["Analysis report", "", "", ""],
+      ["Source sheet", "Sales", "", ""],
+      ["Source range", "A1:F50", "", ""],
+      ["Section", "Title", "Summary", "Source ranges"],
+      ["summary_stats", "Revenue summary", "Average revenue is 12,500.", "Sales!A1:F50"],
+      ["group_breakdown", "By region", "West leads closed-won revenue.", "Sales!A1:F50, Sales!H1:J20"]
+    ]);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed when a Google Sheets analysis report targetRange is only an anchor", () => {
     const targetAnchorRange = createRangeStub({
       a1Notation: "A1",
       row: 1,
@@ -513,7 +633,7 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     };
     const { applyWritePlan, flush } = loadCodeModule({ spreadsheet });
 
-    const result = applyWritePlan({
+    expect(() => applyWritePlan({
       plan: {
         sourceSheet: "Sales",
         sourceRange: "A1:F50",
@@ -541,28 +661,10 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
         overwriteRisk: "low",
         confirmationLevel: "standard"
       }
-    });
+    })).toThrow("Google Sheets host requires analysis report targetRange to match the full destination rectangle.");
 
-    expect(result).toMatchObject({
-      kind: "analysis_report_update",
-      hostPlatform: "google_sheets",
-      sourceSheet: "Sales",
-      sourceRange: "A1:F50",
-      outputMode: "materialize_report",
-      targetSheet: "Sales Report",
-      targetRange: "A1:D6",
-      affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D6"],
-      summary: "Created analysis report on Sales Report!A1:D6."
-    });
-    expect(resolvedTargetRange.setValues).toHaveBeenCalledWith([
-      ["Analysis report", "", "", ""],
-      ["Source sheet", "Sales", "", ""],
-      ["Source range", "A1:F50", "", ""],
-      ["Section", "Title", "Summary", "Source ranges"],
-      ["summary_stats", "Revenue summary", "Average revenue is 12,500.", "Sales!A1:F50"],
-      ["group_breakdown", "By region", "West leads closed-won revenue.", "Sales!A1:F50, Sales!H1:J20"]
-    ]);
-    expect(flush).toHaveBeenCalledTimes(1);
+    expect(resolvedTargetRange.setValues).not.toHaveBeenCalled();
+    expect(flush).not.toHaveBeenCalled();
   });
 
   it("fails closed for unsupported Google Sheets apply branches", () => {
@@ -1650,7 +1752,7 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
           sourceRange: "A1:F50",
           outputMode: "materialize_report",
           targetSheet: "Sales Report",
-          targetRange: "A1",
+          targetRange: "A1:D5",
           sections: [
             {
               type: "summary_stats",
@@ -1662,7 +1764,7 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
           explanation: "Materialize the analysis report onto a report sheet.",
           confidence: 0.91,
           requiresConfirmation: true,
-          affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+          affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D5"],
           overwriteRisk: "low",
           confirmationLevel: "standard"
         }
@@ -1739,7 +1841,7 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
     expect(message.statusLine).toBe("");
   });
 
-  it("sends the normalized resolved plan through the live confirm wiring to applyWritePlan", async () => {
+  it("sends the approved full analysis report range through the live confirm wiring to applyWritePlan", async () => {
     const sidebar = loadSidebarContext();
     const hooks = (sidebar as any).__sidebarTestHooks;
     const confirmButton = {
@@ -1771,7 +1873,7 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
             sourceRange: "A1:F50",
             outputMode: "materialize_report",
             targetSheet: "Sales Report",
-            targetRange: "A1",
+            targetRange: "A1:D6",
             sections: [
               {
                 type: "summary_stats",
@@ -1789,7 +1891,7 @@ describe("Google Sheets wave 5 analysis, pivot, and chart plans", () => {
             explanation: "Materialize the analysis report onto a report sheet.",
             confidence: 0.91,
             requiresConfirmation: true,
-            affectedRanges: ["Sales!A1:F50", "Sales Report!A1"],
+            affectedRanges: ["Sales!A1:F50", "Sales Report!A1:D6"],
             overwriteRisk: "low",
             confirmationLevel: "standard"
           }

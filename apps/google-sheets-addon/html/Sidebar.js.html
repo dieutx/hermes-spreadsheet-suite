@@ -1595,7 +1595,7 @@
     }
 
     if (response.type === "analysis_report_plan") {
-      return response.data.outputMode === "materialize_report";
+      return isWritePlanResponse(response) && response.data.outputMode === "materialize_report";
     }
 
     if (response.type === "pivot_table_plan" || response.type === "chart_plan" || response.type === "table_plan") {
@@ -2144,6 +2144,10 @@
   function resolveAnalysisReportTargetRange(plan) {
     const matrix = buildAnalysisReportMatrix(plan);
     const anchor = parseA1CellReference(String(plan.targetRange || "").replaceAll("$", "").split(":")[0]);
+    if (!anchor) {
+      return "";
+    }
+
     const endRow = anchor.row + matrix.length - 1;
     const endColumn = anchor.column + (matrix[0]?.length || 1) - 1;
     const startCell = `${columnNumberToLetters(anchor.column)}${anchor.row}`;
@@ -2166,12 +2170,41 @@
     return normalizedRanges;
   }
 
+  function a1RangeReferencesMatch(left, right) {
+    const leftBounds = parseA1RangeReference(left);
+    const rightBounds = parseA1RangeReference(right);
+    return Boolean(
+      leftBounds &&
+      rightBounds &&
+      leftBounds.startRow === rightBounds.startRow &&
+      leftBounds.endRow === rightBounds.endRow &&
+      leftBounds.startColumn === rightBounds.startColumn &&
+      leftBounds.endColumn === rightBounds.endColumn
+    );
+  }
+
+  function getAnalysisReportTargetRangeSupportError(plan) {
+    if (!isMaterializedAnalysisReportPlan(plan)) {
+      return "";
+    }
+
+    const expectedTargetRange = resolveAnalysisReportTargetRange(plan);
+    if (!expectedTargetRange || !a1RangeReferencesMatch(plan.targetRange, expectedTargetRange)) {
+      return "Google Sheets host requires analysis report targetRange to match the full destination rectangle.";
+    }
+
+    return "";
+  }
+
   function resolveMaterializedAnalysisReportPlan(plan) {
     if (!isMaterializedAnalysisReportPlan(plan)) {
       return plan;
     }
 
     const resolvedTargetRange = resolveAnalysisReportTargetRange(plan);
+    if (!resolvedTargetRange || !a1RangeReferencesMatch(plan.targetRange, resolvedTargetRange)) {
+      return plan;
+    }
 
     return {
       ...plan,
@@ -2390,7 +2423,11 @@
     }
 
     if (response.type === "analysis_report_plan") {
-      return response.data.outputMode === "materialize_report";
+      if (response.data.outputMode !== "materialize_report") {
+        return false;
+      }
+
+      return !getGoogleSheetsPlanSupportError(getStructuredPreview(response));
     }
 
     if (isPreviewSupportCheckedWritePlanType(response.type)) {
@@ -3429,6 +3466,10 @@
     }
 
     const kind = inferGoogleSheetsPreviewSupportKind(preview);
+
+    if (kind === "analysis_report_plan") {
+      return getAnalysisReportTargetRangeSupportError(preview);
+    }
 
     if (kind === "pivot_table_plan") {
       if (!isSingleCellA1Anchor(preview.targetRange)) {
@@ -4490,6 +4531,7 @@
     }
 
     if (preview.kind === "analysis_report_plan") {
+      const supportError = getGoogleSheetsPlanSupportError(preview);
       return `
         <div class="preview">
           <div class="preview-meta">
@@ -4506,8 +4548,9 @@
           ${Array.isArray(preview.affectedRanges) && preview.affectedRanges.length > 0
             ? `<div class="preview-meta">${escapeHtml(preview.affectedRanges.join(", "))}</div>`
             : ""}
+          ${supportError ? `<div class="warning-line">${escapeHtml(supportError)}</div>` : ""}
           ${renderTable([], preview.rows)}
-          ${getRequiresConfirmation(response) ? `
+          ${getRequiresConfirmation(response) && !supportError ? `
             <div class="preview-actions">
               <button type="button" data-confirm-run="${escapeHtmlAttribute(message.runId || "")}" data-request="${escapeHtmlAttribute(message.requestId || "")}">
                 Confirm Analysis Report
