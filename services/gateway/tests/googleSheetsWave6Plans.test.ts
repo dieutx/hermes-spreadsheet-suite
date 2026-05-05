@@ -609,7 +609,11 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       "https://gateway.local:8787",
       "https://gateway.internal:8787",
       "https://127.0.0.2:8787",
-      "https://169.254.1.10:8787"
+      "https://169.254.1.10:8787",
+      "https://2130706433:8787",
+      "https://0177.0.0.1:8787",
+      "https://0x7f.0.0.1:8787",
+      "https://2852039166:8787"
     ]) {
       const fetch = vi.fn();
       const code = loadCodeModule({

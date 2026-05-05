@@ -157,22 +157,62 @@ function isAppsScriptReachableGatewayBaseUrl_(baseUrl) {
     return false;
   }
 
+  var parseIpv4NumberPart = function(part) {
+    if (/^0x[0-9a-f]+$/i.test(part)) {
+      return parseInt(part.slice(2), 16);
+    }
+    if (part.length > 1 && /^0[0-7]+$/.test(part)) {
+      return parseInt(part.slice(1), 8);
+    }
+    if (/^\d+$/.test(part)) {
+      return Number(part);
+    }
+    return NaN;
+  };
   var parseIpv4Host = function(hostname) {
-    if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)) {
+    var parts = String(hostname || '').split('.');
+    if (parts.length < 1 || parts.length > 4) {
       return null;
     }
 
-    var parts = hostname.split('.');
     var octets = [];
     for (var index = 0; index < parts.length; index += 1) {
-      var octet = parseInt(parts[index], 10);
-      if (isNaN(octet) || octet < 0 || octet > 255) {
+      if (!parts[index]) {
+        return null;
+      }
+      var octet = parseIpv4NumberPart(parts[index]);
+      if (!Number.isSafeInteger(octet) || octet < 0) {
         return null;
       }
       octets.push(octet);
     }
 
-    return octets;
+    var lastIndex = octets.length - 1;
+    var lastMaxByLength = [0xffffffff, 0xffffff, 0xffff, 0xff][lastIndex];
+    for (var partIndex = 0; partIndex < lastIndex; partIndex += 1) {
+      if (octets[partIndex] > 255) {
+        return null;
+      }
+    }
+    if (octets[lastIndex] > lastMaxByLength) {
+      return null;
+    }
+
+    var address = octets[lastIndex];
+    if (octets.length === 2) {
+      address += octets[0] * 0x1000000;
+    } else if (octets.length === 3) {
+      address += octets[0] * 0x1000000 + octets[1] * 0x10000;
+    } else if (octets.length === 4) {
+      address += octets[0] * 0x1000000 + octets[1] * 0x10000 + octets[2] * 0x100;
+    }
+
+    return [
+      Math.floor(address / 0x1000000) % 256,
+      Math.floor(address / 0x10000) % 256,
+      Math.floor(address / 0x100) % 256,
+      address % 256
+    ];
   };
   var isBlockedIpv4Host = function(hostname) {
     var octets = parseIpv4Host(hostname);
