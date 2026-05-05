@@ -160,6 +160,44 @@ describe("ExecutionLedger", () => {
     );
   });
 
+  it("sanitizes generic secret assignments in execution history summaries", () => {
+    const ledger = new ExecutionLedger();
+
+    ledger.recordCompleted({
+      executionId: "exec_generic_secret",
+      workbookSessionKey: "excel_windows::workbook-123",
+      requestId: "req_generic_secret",
+      runId: "run_generic_secret",
+      planType: "sheet_update",
+      planDigest: "digest_generic_secret",
+      status: "completed",
+      timestamp: "2026-04-20T13:00:00.000Z",
+      reversible: true,
+      undoEligible: true,
+      redoEligible: false,
+      summary: "Updated after DATABASE_PASSWORD=secret_123",
+      stepEntries: [
+        {
+          stepId: "step_generic_secret",
+          planType: "sheet_update",
+          status: "completed",
+          summary: "Validated CLIENT_TOKEN=secret_456"
+        }
+      ]
+    });
+
+    const entry = ledger.listHistory("excel_windows::workbook-123").entries[0];
+
+    expect(entry.summary).toBe("Execution summary hidden because it contained internal details.");
+    expect(entry.stepEntries?.[0]?.summary).toBe(
+      "Execution summary hidden because it contained internal details."
+    );
+    expect(JSON.stringify(entry)).not.toContain("DATABASE_PASSWORD");
+    expect(JSON.stringify(entry)).not.toContain("CLIENT_TOKEN");
+    expect(JSON.stringify(entry)).not.toContain("secret_123");
+    expect(JSON.stringify(entry)).not.toContain("secret_456");
+  });
+
   it("sanitizes Windows local paths in execution history summaries", () => {
     const ledger = new ExecutionLedger();
 
