@@ -20,7 +20,7 @@ describe("AttachmentStore", () => {
     expect(store.get(attachment.id)?.metadata.fileName).toBe("uploaded-image.png");
   });
 
-  it("falls back when uploaded file names contain Windows paths", () => {
+  it("falls back when uploaded file names contain local filesystem paths", () => {
     const store = new AttachmentStore();
 
     const drivePathAttachment = store.save({
@@ -39,10 +39,20 @@ describe("AttachmentStore", () => {
       source: "upload",
       previewUrl: "/api/uploads/att_3/content"
     });
+    const macPathAttachment = store.save({
+      buffer: Buffer.from("png"),
+      mimeType: "image/png",
+      fileName: "/Users/runner/work/private-table.png",
+      size: 3,
+      source: "upload",
+      previewUrl: "/api/uploads/att_4/content"
+    });
 
     expect(drivePathAttachment.fileName).toBe("uploaded-image.png");
     expect(uncPathAttachment.fileName).toBe("uploaded-image.png");
+    expect(macPathAttachment.fileName).toBe("uploaded-image.png");
     expect(drivePathAttachment.fileName).not.toContain("private-table");
     expect(uncPathAttachment.fileName).not.toContain("private-table");
+    expect(macPathAttachment.fileName).not.toContain("private-table");
   });
 });
