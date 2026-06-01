@@ -338,6 +338,8 @@ For type="data_cleanup_plan":
 - data.affectedRanges is required
 - data.overwriteRisk is required
 - data.confirmationLevel is required and must be standard or destructive
+- Supported cleanup operations: trim_whitespace, normalize_case, remove_blank_rows, remove_duplicate_rows, split_column, join_columns, fill_down, and standardize_format
+- Formula-aware cleanup is exact-safe for formula-containing ranges when host cell-level formula copy and snapshot access is available
 - do not compress multiple cleanup transforms into one broad cleanup step
 - if the request mixes trim, casing, duplicate removal, fill-down, split/join, or standardize-format work, prefer composite_plan with one exact cleanup step per transform
 - for operation="standardize_format", target the specific column or range being normalized and include exactly one formatType and one exact-safe formatPattern per step; date_text supports YYYY-MM-DD, YYYY/MM/DD, or YYYY.MM.DD, and number_text supports fixed-decimal patterns like #,##0.00 or 0.00

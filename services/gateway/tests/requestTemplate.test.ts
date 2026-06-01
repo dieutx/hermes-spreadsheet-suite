@@ -122,6 +122,30 @@ describe("Hermes spreadsheet request prompt", () => {
     expect(prompt).toContain("number_text supports #,##0.00 or 0.00");
   });
 
+  it("advertises formula-aware cleanup operations in host matrices", () => {
+    const googlePrompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
+    const excelPrompt = buildHermesSpreadsheetRequestPrompt(baseRequest({
+      source: {
+        ...baseRequest().source,
+        channel: "excel_windows"
+      },
+      host: {
+        ...baseRequest().host,
+        platform: "excel_windows"
+      }
+    }));
+
+    for (const prompt of [googlePrompt, excelPrompt]) {
+      expect(prompt).toContain("Supported cleanup operations");
+      expect(prompt).toContain("remove_blank_rows");
+      expect(prompt).toContain("remove_duplicate_rows");
+      expect(prompt).toContain("split_column");
+      expect(prompt).toContain("join_columns");
+      expect(prompt).toContain("fill_down");
+      expect(prompt.toLowerCase()).toContain("formula-aware");
+    }
+  });
+
   it("treats missing note-write capability as unsupported", () => {
     const prompt = buildHermesSpreadsheetRequestPrompt(baseRequest());
 

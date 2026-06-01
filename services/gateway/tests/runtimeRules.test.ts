@@ -116,6 +116,13 @@ describe("spreadsheet runtime rules", () => {
     expect(SPREADSHEET_RUNTIME_RULES).toContain('data.clearExistingFilters=true requires data.confirmationLevel="destructive"');
     expect(SPREADSHEET_RUNTIME_RULES).toContain("date_text supports YYYY-MM-DD, YYYY/MM/DD, or YYYY.MM.DD");
     expect(SPREADSHEET_RUNTIME_RULES).toContain("number_text supports fixed-decimal patterns like #,##0.00 or 0.00");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("Supported cleanup operations");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("remove_blank_rows");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("remove_duplicate_rows");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("split_column");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("join_columns");
+    expect(SPREADSHEET_RUNTIME_RULES).toContain("fill_down");
+    expect(SPREADSHEET_RUNTIME_RULES.toLowerCase()).toContain("formula-aware");
     expect(SPREADSHEET_RUNTIME_RULES).not.toContain('target-sheet-only transfer defaults to data.targetRange="A1"');
   });
 
