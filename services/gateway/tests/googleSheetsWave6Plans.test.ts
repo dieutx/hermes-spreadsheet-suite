@@ -1494,6 +1494,7 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     sidebar.fetch = vi.fn(async () => {
       throw new Error("Unexpected fetch");
     });
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     let successHandler: ((value: unknown) => unknown) | null = null;
     let failureHandler: ((error: unknown) => unknown) | null = null;
@@ -1531,6 +1532,9 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       gatewayBaseUrl: "",
       clientVersion: "google-sheets-addon-dev"
     });
+    expect(consoleWarn).toHaveBeenCalledWith(
+      "Hermes could not load Google Sheets runtime config; using defaults."
+    );
   });
 
   it("keeps Google Sheets snapshot session identity aligned with the sidebar session id", () => {

@@ -90,8 +90,8 @@
           };
           return state.runtimeConfig;
         })
-        .catch((error) => {
-          console.warn("Hermes could not load Google Sheets runtime config; using defaults.", error);
+        .catch(() => {
+          console.warn("Hermes could not load Google Sheets runtime config; using defaults.");
           state.runtimeConfig = createDefaultRuntimeConfig();
           return state.runtimeConfig;
         })
