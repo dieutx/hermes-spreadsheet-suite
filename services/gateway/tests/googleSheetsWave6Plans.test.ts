@@ -7729,6 +7729,16 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
 
     expect(code.extractGatewayErrorMessage(
       500,
+      "Gateway failed while logging DATABASE_PASSWORD=secret_123"
+    )).toBe("Hermes gateway request failed with 500.");
+
+    expect(code.extractGatewayErrorMessage(
+      500,
+      "Gateway failed while logging TOKEN"
+    )).toBe("Hermes gateway request failed with 500.");
+
+    expect(code.extractGatewayErrorMessage(
+      500,
       String.raw`Gateway failed at \\runner\share\server.ts:42`
     )).toBe("Hermes gateway request failed with 500.");
 
@@ -7776,6 +7786,30 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       },
       async text() {
         return "ReferenceError at /srv/hermes/services/gateway/src/app.ts:99 HERMES_API_SERVER_KEY=secret_123";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return "Gateway failed while logging DATABASE_PASSWORD=secret_123";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        throw new Error("not json");
+      },
+      async text() {
+        return "Gateway failed while logging TOKEN";
       }
     })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
 
@@ -7956,12 +7990,35 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
       "Hermes gateway request failed with 500."
     );
 
+    const genericSecretBodyText = JSON.stringify({
+      error: {
+        message: "Gateway failed while logging DATABASE_PASSWORD=secret_123",
+        userAction: "Retry after rotating TOKEN."
+      }
+    });
+
+    expect(code.extractGatewayErrorMessage(500, genericSecretBodyText)).toBe(
+      "Hermes gateway request failed with 500."
+    );
+
     await expect(hooks.parseGatewayJsonResponse({
       ok: false,
       status: 500,
       url: "https://gateway.test/api/requests",
       async json() {
         return JSON.parse(bodyText);
+      },
+      async text() {
+        return "";
+      }
+    })).rejects.toThrow("Hermes gateway request failed with HTTP 500.");
+
+    await expect(hooks.parseGatewayJsonResponse({
+      ok: false,
+      status: 500,
+      url: "https://gateway.test/api/requests",
+      async json() {
+        return JSON.parse(genericSecretBodyText);
       },
       async text() {
         return "";

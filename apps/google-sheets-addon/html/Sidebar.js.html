@@ -1010,6 +1010,7 @@
     const value = String(text || "");
     return (
       /(?:client_secret|refresh_token|access_token|authorization|api[_-]?key|approval_secret|HERMES_[A-Z0-9_]+)/i.test(value) ||
+      /\b(?:[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)[A-Z0-9_]*|SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|SERVER_KEY|BASE_URL)\b/.test(value) ||
       /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i.test(value) ||
       /\bat\s+(?:file:\/\/\/|\/|[A-Za-z]:\\)/i.test(value) ||
       /(?:^|[\s(["'=:])\/(?:srv|var|tmp|root|home|Users|opt|workspace|app|mnt)\/[^\s]+(?::\d+)?/i.test(value) ||
