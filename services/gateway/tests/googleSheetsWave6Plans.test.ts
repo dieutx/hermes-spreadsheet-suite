@@ -1489,6 +1489,40 @@ describe("Google Sheets wave 6 composite plans and execution controls", () => {
     });
   });
 
+  it("does not log raw prefill prompt failures in Google Sheets", async () => {
+    const sidebar = loadSidebarContext();
+    const hooks = (sidebar as any).__sidebarTestHooks;
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    let successHandler: ((value: unknown) => unknown) | null = null;
+    let failureHandler: ((error: unknown) => unknown) | null = null;
+    sidebar.google.script.run = {
+      withSuccessHandler(handler: (value: unknown) => unknown) {
+        successHandler = handler;
+        return this;
+      },
+      withFailureHandler(handler: (error: unknown) => unknown) {
+        failureHandler = handler;
+        return this;
+      },
+      getRuntimeConfig() {
+        successHandler?.({
+          gatewayBaseUrl: "https://gateway.example.com",
+          clientVersion: "google-sheets-addon-dev",
+          reviewerSafeMode: false,
+          forceExtractionMode: null
+        });
+      },
+      consumePrefillPrompt() {
+        failureHandler?.(new Error("prefill failed with DATABASE_PASSWORD=secret_123"));
+      }
+    };
+
+    await hooks.initialize();
+
+    expect(consoleWarn).toHaveBeenCalledWith("Hermes could not load the prefill prompt.");
+  });
+
   it("does not fail open to localhost when Google Sheets runtime config loading fails", async () => {
     const sidebar = loadSidebarContext();
     sidebar.fetch = vi.fn(async () => {
