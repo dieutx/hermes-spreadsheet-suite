@@ -53,6 +53,8 @@ async function loadTaskpaneModule(
     throwOnLocalStorageAccess?: boolean;
     sessionStorageSeed?: Record<string, string>;
     addinSetStartupBehavior?: ReturnType<typeof vi.fn>;
+    documentSettingsSaveResult?: { status: string; error?: unknown };
+    runOfficeOnReady?: boolean;
   }
 ) {
   vi.resetModules();
@@ -152,7 +154,7 @@ async function loadTaskpaneModule(
                 documentSettings.delete(key);
               },
               saveAsync(callback?: (result: { status: string; error?: unknown }) => void) {
-                callback?.({ status: "succeeded" });
+                callback?.(options?.documentSettingsSaveResult ?? { status: "succeeded" });
               }
             }
       },
@@ -166,7 +168,14 @@ async function loadTaskpaneModule(
     StartupBehavior: {
       load: "load"
     },
-    onReady() {}
+    actions: {
+      associate: vi.fn()
+    },
+    onReady(callback?: () => unknown) {
+      if (options?.runOfficeOnReady) {
+        callback?.();
+      }
+    }
   });
   vi.stubGlobal("Excel", {
     run: async (callback: (context: Record<string, unknown>) => unknown) => callback(excelContext),
@@ -196,6 +205,26 @@ afterEach(() => {
 });
 
 describe("Excel wave 6 composite plans and execution controls", () => {
+  it("does not log raw prefill prompt save failures in Excel", async () => {
+    const documentSettings = new Map<string, unknown>([
+      ["hermesPrefillPrompt", "Review this workbook"]
+    ]);
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await loadTaskpaneModule({
+      sync: vi.fn(async () => {})
+    }, {
+      documentSettings,
+      documentSettingsSaveResult: {
+        status: "failed",
+        error: new Error("save failed with DATABASE_PASSWORD=secret_123")
+      },
+      runOfficeOnReady: true
+    });
+
+    expect(consoleWarn).toHaveBeenCalledWith("Hermes could not clear the prefill prompt.");
+  });
+
   it("sanitizes host execution failures into user-facing guidance", async () => {
     const taskpane = await loadTaskpaneModule({
       sync: vi.fn(async () => {})
